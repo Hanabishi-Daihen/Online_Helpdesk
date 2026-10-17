@@ -242,7 +242,7 @@ function getOrderBoot(token) {
   var admin = isAdmin_(token), tpl = null;
   if (admin) { try { tpl = ordTplInfo_(); } catch (e) { tpl = { ok: false, msg: e.message }; } }
   return { db: getOrderDb(), orders: ordPubAll_(), next: null, today: ordToday_(), admin: admin, tpl: tpl,
-    approvers: oaNames_(), approverCfg: admin ? oaCfg_() : null };
+    approvers: oaNames_(), approverCfg: admin ? oaCfg_() : null, apVer: oaVer_() };
 }
 function getOrders() { return ordPubAll_(); }
 function getOrderNext(yy) { return ordNext_(ordStr_(yy, 2)); }
@@ -297,6 +297,7 @@ function saveOrder(o) {
         if (ap.chk) ap.chk.at = ''; if (ap.app) ap.app.at = '';
       }
       x.approval = ap || null;
+      if (ap) oaBump_();
     }
     else {
       var yy = ordYY_(x.issueDate), mx = 0;
@@ -316,6 +317,7 @@ function deleteOrder(token, id) {
   return withLock_(function () {
     var o = ordFind_(id); if (!o) throw new Error('ไม่พบใบสั่ง ' + id);
     ordSheet_().deleteRow(o.row);
+    if (o.approval) oaBump_();
     audit_([['Admin', 'ลบใบสั่ง (Order Item)', id, o.spec + ' · ' + o.rqn]]);
     return ordPubAll_();
   });

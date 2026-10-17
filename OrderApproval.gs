@@ -61,7 +61,23 @@ function oaPublic_(a) {
 }
 function oaUrl_(id, k) { return baseUrl_() + '?ordapprove=' + encodeURIComponent(id) + '&k=' + encodeURIComponent(k); }
 function oaKeyOk_(a, k) { return !!a.k && typeof k === 'string' && k.length === a.k.length && k === a.k; }
-function oaSave_(o) { writeText_(ordSheet_(), o.row, 1, ordObjToRow_(o)); }
+function oaSave_(o) { writeText_(ordSheet_(), o.row, 1, ordObjToRow_(o)); oaBump_(); }
+
+// ── live status: a version stamp that changes only when an approval changes ──
+// Browsers poll getOrderApprovalPulse(ver); an unchanged stamp costs one cache read (no sheet access).
+function oaVer_() {
+  var c = CacheService.getScriptCache(), v = c.get('oa_ver');
+  if (!v) { v = schedProp_('ORD_AP_VER') || '0'; c.put('oa_ver', v, 21600); }
+  return v;
+}
+function oaBump_() {
+  var v = String(Date.now());
+  schedProp_('ORD_AP_VER', v); CacheService.getScriptCache().put('oa_ver', v, 21600);
+}
+function getOrderApprovalPulse(ver) {
+  var v = oaVer_();
+  return String(ver || '') === v ? { ver: v } : { ver: v, orders: ordPubAll_() };
+}
 
 // ── e-mail ──────────────────────────────────────────────────────────
 function oaCard_(o, a) {
