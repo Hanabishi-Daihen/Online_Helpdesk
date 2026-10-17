@@ -183,6 +183,64 @@ function orderItemInfo(codes) {
   return out;
 }
 
+// ── Duplicate-order check (Stock Alert → สั่ง / บันทึกใบสั่งใหม่) ─────────────
+// For each CODE, look for an order that may already be on its way:
+//   pending   : open PR / PO in Pending Order (official system — PH)
+//   approving : Order Item waiting for CHK / APP
+//   approved  : Order Item approved (or saved / exported without the approval step) but its RQN / Spec
+//               is not found in Pending Order yet → not recorded in the official system → check with the requester
+// excludeId = the order being edited. Returns only the codes that have a hit.
+var ORD_DUP_DAYS = 120;                                   // Order Item older than this is not considered
+function ordRefKey_(v) { return String(v || '').toUpperCase().replace(/\s+/g, ''); }
+function ordPoRefs_() {                                   // every RQN / Spec already in Pending Order (any status)
+  var refs = {};
+  try {
+    var b = pendingBundle_(false), txt = b && b.b64 ? Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(b.b64), 'application/x-gzip')).getDataAsString() : '';
+    txt.split('\n').forEach(function (l) { var f = l.split('\t'); if (f[1]) refs[ordRefKey_(f[1])] = 1; if (f[3]) refs[ordRefKey_(f[3])] = 1; });
+  } catch (e) {}
+  return refs;
+}
+function ordAgeDays_(dmy) {
+  var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String(dmy || ''));
+  return m ? (Date.now() - new Date(+m[3], +m[2] - 1, +m[1]).getTime()) / 864e5 : 0;
+}
+function checkOrderDup(codes, excludeId) {
+  var want = {}, out = {};
+  (codes || []).slice(0, 30).forEach(function (c) { var k = ordCodeKey_(c); if (k) want[k] = String(c); });
+  var keys = Object.keys(want); if (!keys.length) return out;
+  var hit = function (k) { return out[k] || (out[k] = { code: want[k], pending: [], orders: [] }); };
+  var info = orderItemInfo(keys);
+  keys.forEach(function (k) {
+    var p = info[k] && info[k].pending || [];
+    if (p.length) hit(k).pending = p.slice(0, 5).map(function (x) {
+      return { pr: x.pr, po: x.po, spec: x.spec, status: x.status, due: x.due, by: x.by, qty: x.qty, unit: x.unit };
+    });
+  });
+  var refs = null;
+  ordAll_().forEach(function (o) {
+    if (o.id === excludeId) return;
+    var a = o.approval || {}, st = a.state || '';
+    if (st === 'rejected') return;
+    var mine = (o.items || []).filter(function (i) { return want[ordCodeKey_(i.code)]; });
+    if (!mine.length) return;
+    var kind = '';
+    if (st === 'chk' || st === 'app') kind = 'approving';
+    else {
+      if (ordAgeDays_(o.issueDate) > ORD_DUP_DAYS) return;
+      if (refs === null) refs = ordPoRefs_();
+      var rq = /\d$/.test(o.rqn) ? ordRefKey_(o.rqn) : '', sp = /\d$/.test(o.spec) ? ordRefKey_(o.spec) : '';
+      if ((rq && refs[rq]) || (sp && refs[sp])) return;        // already recorded officially → covered by "pending"
+      kind = st === 'approved' ? 'approved' : 'saved';
+    }
+    mine.forEach(function (i) {
+      hit(ordCodeKey_(i.code)).orders.push({ id: o.id, spec: o.spec, rqn: o.rqn, des: o.des, issueDate: o.issueDate, qty: i.qty, unit: i.unit,
+        kind: kind, state: OA_STATE_TH[st] || (o.status === 'Exported' ? 'ส่งออกแล้ว' : 'บันทึกแล้ว'),
+        at: st === 'approved' && a.app ? a.app.at : st ? a.sent : o.updated });
+    });
+  });
+  return out;
+}
+
 // ── Orders (sheet OrderItem) ────────────────────────────────────────
 function ordSheet_() {
   var s = ss_().getSheetByName(ORD_SHEET);
