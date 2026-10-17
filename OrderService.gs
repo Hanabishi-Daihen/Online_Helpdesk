@@ -13,8 +13,8 @@ var ORD_DB_DEFAULT_HEADER = ['CODE', 'MATERIAL', 'TYPE', 'SPEC', 'UNIT', 'MANUFA
 var ORD_SHEET = 'OrderItem';
 var ORD_HEADER = ['Order ID', 'RQN No', 'Spec No', 'Issue Date', "DES'D", "CHK'D", "APP'D", 'Revisions',
   'Manufacturer', 'Supplier', 'Delivery Date', 'Place', 'Remark', 'Items', 'Note', 'Images',
-  'Status', 'Created', 'Updated', 'PDF', 'XLSX', 'Item Codes'];
-var ORD_NCOL = ORD_HEADER.length;   // 22
+  'Status', 'Created', 'Updated', 'PDF', 'XLSX', 'Item Codes', 'Approval'];
+var ORD_NCOL = ORD_HEADER.length;   // 23 (Approval = JSON, see OrderApproval.gs)
 var ORD_MAX_ITEMS = 8, ORD_MAX_REVS = 3, ORD_MAX_IMAGES = 6;
 var ORD_PLACE_DEFAULT = "DELCO'S FACTORY";
 // cell map of the template (sheet "Order")
@@ -188,6 +188,7 @@ function ordSheet_() {
   var s = ss_().getSheetByName(ORD_SHEET);
   if (!s) { s = ss_().insertSheet(ORD_SHEET); s.getRange(1, 1, 1, ORD_NCOL).setValues([ORD_HEADER]).setFontWeight('bold'); s.setFrozenRows(1); }
   if (s.getMaxColumns() < ORD_NCOL) s.insertColumnsAfter(s.getMaxColumns(), ORD_NCOL - s.getMaxColumns());
+  if (!s.getRange(1, ORD_NCOL).getValue()) s.getRange(1, ORD_NCOL).setValue(ORD_HEADER[ORD_NCOL - 1]).setFontWeight('bold');
   return s;
 }
 function ordRowToObj_(r, row) {
@@ -195,14 +196,24 @@ function ordRowToObj_(r, row) {
   return {
     row: row, id: r[0], rqn: r[1], spec: r[2], issueDate: r[3], des: r[4], chk: r[5], app: r[6], revs: arr(r[7], []),
     manufacturer: r[8], supplier: r[9], delivery: r[10], place: r[11], remark: r[12], items: arr(r[13], []), note: r[14],
-    images: arr(r[15], []), status: r[16] || 'Saved', created: r[17], updated: r[18], pdf: r[19], xlsx: r[20]
+    images: arr(r[15], []), status: r[16] || 'Saved', created: r[17], updated: r[18], pdf: r[19], xlsx: r[20],
+    approval: (function () { try { var a = JSON.parse(r[22] || 'null'); return a && typeof a === 'object' ? a : null; } catch (e) { return null; } })()
   };
 }
 function ordObjToRow_(o) {
   return [o.id, o.rqn, o.spec, o.issueDate, o.des, o.chk, o.app, JSON.stringify(o.revs || []), o.manufacturer, o.supplier,
     o.delivery, o.place, o.remark, JSON.stringify(o.items || []), o.note, JSON.stringify(o.images || []), o.status || 'Saved',
-    o.created || '', o.updated || '', o.pdf || '', o.xlsx || '', (o.items || []).map(function (i) { return i.code; }).join(', ')];
+    o.created || '', o.updated || '', o.pdf || '', o.xlsx || '', (o.items || []).map(function (i) { return i.code; }).join(', '),
+    o.approval ? JSON.stringify(o.approval) : ''];
 }
+// browser-safe copy: the approval step key and approvers' e-mails never leave the server
+function ordPub_(o) {
+  if (!o) return o;
+  var x = {}; Object.keys(o).forEach(function (k) { x[k] = o[k]; });
+  x.approval = oaPublic_(o.approval);
+  return x;
+}
+function ordPubAll_() { return ordAll_().reverse().map(ordPub_); }
 function ordAll_() {
   var s = ordSheet_(), lr = s.getLastRow();
   if (lr < 2) return [];
@@ -230,9 +241,10 @@ function ordNext_(yy) {
 function getOrderBoot(token) {
   var admin = isAdmin_(token), tpl = null;
   if (admin) { try { tpl = ordTplInfo_(); } catch (e) { tpl = { ok: false, msg: e.message }; } }
-  return { db: getOrderDb(), orders: ordAll_().reverse(), next: null, today: ordToday_(), admin: admin, tpl: tpl };
+  return { db: getOrderDb(), orders: ordPubAll_(), next: null, today: ordToday_(), admin: admin, tpl: tpl,
+    approvers: oaNames_(), approverCfg: admin ? oaCfg_() : null };
 }
-function getOrders() { return ordAll_().reverse(); }
+function getOrders() { return ordPubAll_(); }
 function getOrderNext(yy) { return ordNext_(ordStr_(yy, 2)); }
 
 function ordClean_(o) {
@@ -275,7 +287,17 @@ function saveOrder(o) {
     if (dup) throw new Error('เลข Spec ' + x.spec + ' ถูกใช้แล้วในใบสั่ง ' + dup.id + ' — กรุณาเปลี่ยนเลข');
     var cur = x.id ? all.filter(function (y) { return y.id === x.id; })[0] : null;
     if (x.id && !cur) throw new Error('ไม่พบใบสั่ง ' + x.id + ' (อาจถูกลบไปแล้ว)');
-    if (cur) { x.created = cur.created; x.status = 'Saved'; x.pdf = ''; x.xlsx = ''; }
+    if (cur) {
+      x.created = cur.created; x.status = 'Saved'; x.pdf = ''; x.xlsx = '';
+      var ap = cur.approval;                        // any edit voids a pending / given approval → must be re-submitted
+      if (ap && (ap.state === 'chk' || ap.state === 'app' || ap.state === 'approved')) {
+        ap = JSON.parse(JSON.stringify(ap));
+        oaHist_(ap, 'DES', x.des, 'แก้ไขใบสั่ง — ยกเลิกสถานะอนุมัติเดิม ต้องส่งขออนุมัติใหม่', '');
+        ap.state = ''; ap.k = '';
+        if (ap.chk) ap.chk.at = ''; if (ap.app) ap.app.at = '';
+      }
+      x.approval = ap || null;
+    }
     else {
       var yy = ordYY_(x.issueDate), mx = 0;
       all.forEach(function (y) { var m = /^ORD(\d{2})-(\d+)$/.exec(y.id); if (m && m[1] === yy) mx = Math.max(mx, +m[2]); });
@@ -286,7 +308,7 @@ function saveOrder(o) {
     writeText_(s, row, 1, ordObjToRow_(x));
     audit_([['User', cur ? 'แก้ไขใบสั่ง (Order Item)' : 'สร้างใบสั่ง (Order Item)', x.id, x.spec + ' · ' + x.rqn + ' · ' + x.items.length + ' รายการ · ' + x.des]]);
     x.row = row;
-    return { order: x, orders: ordAll_().reverse() };
+    return { order: ordPub_(x), orders: ordPubAll_() };
   });
 }
 function deleteOrder(token, id) {
@@ -295,7 +317,7 @@ function deleteOrder(token, id) {
     var o = ordFind_(id); if (!o) throw new Error('ไม่พบใบสั่ง ' + id);
     ordSheet_().deleteRow(o.row);
     audit_([['Admin', 'ลบใบสั่ง (Order Item)', id, o.spec + ' · ' + o.rqn]]);
-    return ordAll_().reverse();
+    return ordPubAll_();
   });
 }
 
@@ -470,7 +492,7 @@ function exportOrder(id, fmt) {
     writeText_(ordSheet_(), cur.row, 1, ordObjToRow_(cur));
   });
   audit_([['User', 'ส่งออกใบสั่ง (' + fmt.toUpperCase() + ')', id, o.spec]]);
-  return { files: files, orders: ordAll_().reverse() };
+  return { files: files, orders: ordPubAll_() };
 }
 
 // Run ONCE from the editor (▶ Run) to authorize Drive/export and create the template sheet.
@@ -480,4 +502,4 @@ function testOrderSetup() {
   var d = getOrderDb();
   Logger.log('✓ ' + d.sheetName + ' (' + d.book + '): ' + d.rows.length + ' แถว · คอลัมน์ ' + d.header.join(', ') + ' · map ' + JSON.stringify(d.map));
   Logger.log('✓ เลขถัดไป: ' + JSON.stringify(ordNext_()));
-}
+}

@@ -14,11 +14,18 @@ var ISSUE_HEADER = ['Issue ID', 'Project', 'Description', 'Reporter', 'Section',
   'Files', 'Reported Date', 'Status', 'ChatLog', 'Priority', 'Timestamp', 'Reporter Email', 'Archived', 'Assignee', 'Closed Date', 'Related'];
 var NCOLS = ISSUE_HEADER.length;   // 17
 
+// Clickjacking guard: the page may only be framed when Script property ALLOW_EMBED = 1 (e.g. embedded in Google Sites).
+function frameMode_() {
+  return PropertiesService.getScriptProperties().getProperty('ALLOW_EMBED') === '1'
+    ? HtmlService.XFrameOptionsMode.ALLOWALL : HtmlService.XFrameOptionsMode.DEFAULT;
+}
 function doGet(e) {
+  var ap = (e && e.parameter && e.parameter.ordapprove) || '';
+  if (ap) return orderApprovalPage_(ap, (e.parameter.k || ''));     // OrderApproval.gs
   var out = HtmlService.createHtmlOutputFromFile('index')
     .setTitle('Online Helpdesk & Schedule Portal')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    .setXFrameOptionsMode(frameMode_());
   var id = (e && e.parameter && e.parameter.issue) || '';
   var tr = (e && e.parameter && e.parameter.track) || '';
   out.append('<script>window.__INIT_ISSUE__=' + JSON.stringify(id).replace(/</g, '\\u003c') +
@@ -84,23 +91,49 @@ function issueToRow_(i) {
 }
 
 // Move base64 data-URL attachments into the Drive folder; return Drive links.
-var FILE_BLOCK_EXT = /\.(exe|bat|cmd|com|scr|msi|msp|ps1|vbs|vbe|js|jse|wsf|wsh|hta|cpl|jar|lnk|reg|dll|sys|apk|sh|html?|svg)$/i;
+// Allowlist: only these extensions are accepted, and the MIME type is taken from the extension (never from the client).
+var FILE_ALLOW = {
+  pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp',
+  bmp: 'image/bmp', heic: 'image/heic', heif: 'image/heif', tif: 'image/tiff', tiff: 'image/tiff',
+  txt: 'text/plain', csv: 'text/csv', log: 'text/plain',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', xls: 'application/vnd.ms-excel',
+  xlsm: 'application/vnd.ms-excel.sheet.macroEnabled.12',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', doc: 'application/msword',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', ppt: 'application/vnd.ms-powerpoint',
+  zip: 'application/zip', '7z': 'application/x-7z-compressed', rar: 'application/vnd.rar',
+  dwg: 'application/acad', dxf: 'application/dxf', step: 'application/step', stp: 'application/step',
+  igs: 'model/iges', iges: 'model/iges', mp4: 'video/mp4', mov: 'video/quicktime'
+};
 var FILE_MAX_BYTES = 20 * 1024 * 1024;
+function fileExt_(nm) { var m = /\.([A-Za-z0-9]{1,5})$/.exec(nm || ''); return m ? m[1].toLowerCase() : ''; }
+function extForMime_(mime) {                          // pasted images often arrive without a usable file name
+  for (var k in FILE_ALLOW) if (FILE_ALLOW[k] === mime && k !== 'jpeg' && k !== 'tif') return k;
+  return '';
+}
+function safeFileUrl_(u) { return /^https?:\/\/[^\s"'<>]+$/i.test(String(u || '')); }   // blocks javascript:/data: links
 function persistFiles_(files) {
   return (files || []).map(function (f) {
-    if (!f || !f.url || f.url.indexOf('data:') !== 0) return f;
+    if (!f || !f.url) return f;
+    if (f.url.indexOf('data:') !== 0) {               // already stored: keep only plain http(s) links
+      if (!safeFileUrl_(f.url)) throw new Error('ลิงก์ไฟล์แนบไม่ถูกต้อง: ' + String(f.name || '').substring(0, 60));
+      return { name: String(f.name || 'file').substring(0, 120), type: String(f.type || '').substring(0, 120), size: f.size,
+        url: f.url, thumbnail: safeFileUrl_(f.thumbnail) ? f.thumbnail : null };
+    }
     var nm = String(f.name || 'file').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '_').substring(0, 120) || 'file';
-    if (FILE_BLOCK_EXT.test(nm)) throw new Error('ไม่อนุญาตให้แนบไฟล์ชนิดนี้: ' + nm);
-    if ((f.url.length - f.url.indexOf(',')) * 0.75 > FILE_MAX_BYTES) throw new Error('ไฟล์ "' + nm + '" ใหญ่เกิน 20MB');
-    f.name = nm;
     var comma = f.url.indexOf(',');
-    var mime = f.url.substring(5, comma).split(';')[0] || f.type || 'application/octet-stream';
-    var blob = Utilities.newBlob(Utilities.base64Decode(f.url.substring(comma + 1)), mime, f.name || 'file');
+    if (comma < 0) throw new Error('ไฟล์ "' + nm + '" ไม่ถูกต้อง');
+    var ext = fileExt_(nm);
+    if (!ext) { ext = extForMime_(f.url.substring(5, comma).split(';')[0].toLowerCase()); if (ext) nm = nm.substring(0, 110) + '.' + ext; }
+    if (!FILE_ALLOW[ext]) throw new Error('ไม่อนุญาตให้แนบไฟล์ชนิดนี้: ' + nm + ' (อนุญาต: ' + Object.keys(FILE_ALLOW).join(', ') + ')');
+    if ((f.url.length - comma) * 0.75 > FILE_MAX_BYTES) throw new Error('ไฟล์ "' + nm + '" ใหญ่เกิน 20MB');
+    f.name = nm;
+    var mime = FILE_ALLOW[ext];
+    var blob = Utilities.newBlob(Utilities.base64Decode(f.url.substring(comma + 1)), mime, f.name);
     var file = DriveApp.getFolderById(CONFIG.DRIVE_FOLDER_ID).createFile(blob);
     try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
     var id = file.getId();
     return {
-      name: f.name, type: f.type || mime, size: f.size,
+      name: f.name, type: mime, size: f.size,
       url: 'https://drive.google.com/file/d/' + id + '/view',
       thumbnail: f.thumbnail ? 'https://drive.google.com/thumbnail?id=' + id + '&sz=w1000' : null
     };
@@ -142,6 +175,9 @@ function createIssue(issue) {
   return withLock_(function () {
     clean_(issue); rateLimit_(issue);
     issue.archived = false; issue.assignee = ''; issue.closedDate = ''; issue.related = [];   // admin-only fields
+    issue.status = 'New';                                       // a new case always starts as New
+    if (!isAdmin_(issue._token)) (issue.chat || []).forEach(function (m) { if (m && String(m.sender || '').trim().toLowerCase() === 'admin') m.sender = 'User'; });
+    delete issue._token;
     var sh = sheet_(CONFIG.ISSUES, ISSUE_HEADER), oldId = issue.id;
     ensureIssueCols_(sh);
     var last = sh.getLastRow();
@@ -167,9 +203,25 @@ function mergeChat_(oldChat, newChat) {
   return out;
 }
 
+// Non-admin callers may not post messages as the team (that would also trigger "reply" e-mails),
+// and may not add System / status-change entries (the status itself is admin-only).
+// Messages already stored (same key as in mergeChat_) pass through untouched so "read" flags still work.
+function userChat_(list, oldChat) {
+  var key = function (m) { return [m.sender, m.time, m.message, m.type || '', m.newStatus || ''].join('|'); }, have = {};
+  (oldChat || []).forEach(function (m) { have[key(m)] = 1; });
+  return (Array.isArray(list) ? list : []).filter(function (m) {
+    if (!m || typeof m !== 'object') return false;
+    if (have[key(m)]) return true;
+    return m.sender !== 'System' && m.type !== 'status' && !m.newStatus;
+  }).map(function (m) {
+    if (!have[key(m)] && String(m.sender || '').trim().toLowerCase() === 'admin') m.sender = 'User';
+    return m;
+  });
+}
 function nz_(v) { return v == null ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v)); }
 // Merge one incoming issue into the stored one (pure function — no sheet access).
 function mergeOne_(cur, inc, admin) {
+  if (!admin) return mergeUser_(cur, inc);
   var m = {
     id: cur.id, project: inc.project, description: inc.description, reporter: inc.reporter,
     section: inc.section, category: inc.category,
@@ -200,6 +252,18 @@ function mergeOne_(cur, inc, admin) {
   return m;
 }
 
+// Non-admin update: the case itself is read-only — only new chat messages (and "read" flags) are accepted.
+// Status, description, priority, reporter, reporter e-mail, files, etc. always keep the stored values,
+// so nobody can take over another person's case (or redirect its notification e-mails).
+function mergeUser_(cur, inc) {
+  var m = JSON.parse(JSON.stringify(cur));
+  m.chat = mergeChat_(cur.chat, userChat_(inc.chat || [], cur.chat));
+  var F = ['project', 'description', 'reporter', 'section', 'category', 'status', 'priority', 'reporterEmail'], tried = [];
+  F.forEach(function (f) { if (inc[f] !== undefined && nz_(inc[f]) !== nz_(cur[f]) && !(f === 'reporterEmail' && !inc[f])) tried.push(f); });
+  if (tried.length) m._denied = tried;
+  return m;
+}
+
 // One read + one write per call (fast even for bulk Archive / bulk status change).
 function upsertIssues(list, token) {
   return withLock_(function () {
@@ -214,8 +278,8 @@ function upsertIssues(list, token) {
       clean_(inc);
       if (!admin) { inc.archived = false; }           // only admin can archive / restore / assign / link
       var key = String(inc.id).trim();
-      if (!(key in idx)) {                             // row removed manually → recreate
-        if (!admin) { inc.assignee = ''; inc.related = []; inc.closedDate = ''; }
+      if (!(key in idx)) {                             // row removed manually → recreate (admin only)
+        if (!admin) throw new Error('ไม่พบเคส ' + key + ' — กรุณารีเฟรชหน้า (ผู้ใช้ทั่วไปสร้างเคสได้จากแบบฟอร์มแจ้งปัญหาเท่านั้น)');
         inc.files = persistFiles_(inc.files);
         idx[key] = all.length; all.push(issueToRow_(inc)); appendRows.push(idx[key]);
         result.push(inc); return;
@@ -224,6 +288,7 @@ function upsertIssues(list, token) {
       var m = mergeOne_(cur, inc, admin);
       all[i] = issueToRow_(m);
       if (appendRows.indexOf(i) < 0) dirty[i] = true;
+      if (m._denied) { audits.push(['User', 'พยายามแก้ไขเคส (ถูกปฏิเสธ)', m.id, m._denied.join(', ')]); delete m._denied; }
       notify.push([cur, m]); auditDiff_(cur, m, admin, audits); if (m._conflicts) audits.push([admin ? 'Admin' : 'User', 'ชนกันกับผู้อื่น (ใช้ค่าเดิม)', m.id, m._conflicts.join(', ')]);
       result.push(admin ? m : JSON.parse(JSON.stringify(m, function (k, v) { return k === 'reporterEmail' ? undefined : v; })));
     });

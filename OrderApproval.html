@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>อนุมัติใบสั่ง</title>
+<style>
+  :root { --brand:#cc785c; --ink:#141413; --muted:#6c6a64; --line:#e6dfd8; --bg:#f5f0e8; --ok:#059669; --bad:#be123c; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:'Segoe UI','Sarabun',Tahoma,Arial,sans-serif; }
+  .wrap { max-width:760px; margin:0 auto; padding:24px 16px 48px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:18px; overflow:hidden; }
+  .hd { background:var(--brand); color:#fff; padding:16px 22px; font-weight:800; font-size:18px; }
+  .bd { padding:20px 22px; }
+  h1 { font-size:20px; margin:0 0 6px; }
+  .muted { color:var(--muted); font-size:14px; }
+  table { width:100%; border-collapse:collapse; margin-top:14px; font-size:14px; }
+  td, th { padding:7px 8px; border-top:1px solid var(--line); text-align:left; vertical-align:top; }
+  th { color:var(--muted); font-weight:600; font-size:12px; }
+  .kv td:first-child { color:var(--muted); width:150px; white-space:nowrap; }
+  .steps { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:16px; }
+  .step { border:1px solid var(--line); border-radius:12px; padding:10px; text-align:center; font-size:13px; }
+  .step b { display:block; font-size:14px; }
+  .step.done { border-color:#a7f3d0; background:#ecfdf5; } .step.on { border-color:#fcd34d; background:#fffbeb; } .step.bad { border-color:#fecdd3; background:#fff1f2; }
+  .pill { display:inline-block; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:700; background:#eee; }
+  textarea { width:100%; min-height:80px; border:1px solid var(--line); border-radius:10px; padding:10px; font:inherit; margin-top:8px; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+  button { border:0; border-radius:10px; padding:12px 22px; font:inherit; font-weight:700; cursor:pointer; }
+  .ok { background:var(--ok); color:#fff; } .no { background:#fff; color:var(--bad); border:1px solid #fecdd3; }
+  button:disabled { opacity:.5; cursor:default; }
+  .msg { margin-top:14px; padding:12px 14px; border-radius:12px; font-size:14px; }
+  .msg.e { background:#fff1f2; color:var(--bad); border:1px solid #fecdd3; } .msg.s { background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0; }
+  .hist { margin-top:16px; font-size:13px; } .hist div { padding:5px 0; border-top:1px dashed var(--line); }
+  @media (max-width:560px) { .steps { grid-template-columns:1fr; } .kv td:first-child { width:110px; } }
+</style>
+</head>
+<body>
+<div class="wrap"><div class="card"><div class="hd">✽ Order Approval · DES → CHK → APP</div><div class="bd" id="app"><p class="muted">กำลังโหลด...</p></div></div></div>
+<script>
+(function () {
+  var P = window.__OA__ || {}, root = document.getElementById('app');
+  function el(tag, attrs, kids) {
+    var e = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) { if (k === 'text') e.textContent = attrs[k]; else e.setAttribute(k, attrs[k]); });
+    (kids || []).forEach(function (c) { if (c) e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+    return e;
+  }
+  function call(fn) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (res, rej) { google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn].apply(null, args); });
+  }
+  function msg(kind, t) { return el('div', { 'class': 'msg ' + kind, text: t }); }
+  function render(v, note) {
+    var o = v.order, a = o.approval || {}, st = v.state;
+    root.innerHTML = '';
+    root.appendChild(el('h1', { text: 'ใบสั่ง ' + o.id + (o.spec ? ' · ' + o.spec : '') }));
+    root.appendChild(el('div', { 'class': 'muted' }, ['สถานะ: ', el('span', { 'class': 'pill', text: v.stateLabel || '-' })]));
+    var kv = el('table', { 'class': 'kv' });
+    [['RQN', o.rqn], ["DES'D (ผู้ออก)", o.des], ['วันที่ออก', o.issueDate], ['Delivery Date', o.delivery], ['Place', o.place],
+      ['Manufacturer / Supplier', (o.manufacturer || '-') + ' / ' + (o.supplier || '-')], ['Remark', o.remark], ['Note', o.note]]
+      .forEach(function (r) { kv.appendChild(el('tr', {}, [el('td', { text: r[0] }), el('td', { text: r[1] || '-' })])); });
+    root.appendChild(kv);
+    var it = el('table', {}, [el('tr', {}, ['#', 'CODE', 'MATERIAL / TYPE / SPEC', "Q'TY", "MANUFAC'"].map(function (h) { return el('th', { text: h }); }))]);
+    (o.items || []).forEach(function (i, n) {
+      it.appendChild(el('tr', {}, [el('td', { text: String(n + 1) }), el('td', { text: i.code }),
+        el('td', { text: [i.material, i.type, i.spec].filter(Boolean).join(' · ') }), el('td', { text: (i.qty || '') + ' ' + (i.unit || '') }),
+        el('td', { text: i.manufac || '' })]));
+    });
+    root.appendChild(it);
+    if ((o.images || []).length) {
+      var im = el('div', { 'class': 'row' });
+      o.images.forEach(function (f) { if (/^https:\/\//.test(f.url)) im.appendChild(el('a', { href: f.url, target: '_blank', rel: 'noopener', text: '🖼 ' + (f.name || 'รูป') })); });
+      root.appendChild(im);
+    }
+    var cls = function (role) {
+      var x = a[role] || {};
+      if (st === 'rejected' && x.at) return 'step bad';
+      return x.at ? 'step done' : st === role ? 'step on' : 'step';
+    };
+    var stepBox = function (label, role, x) {
+      x = x || {};
+      return el('div', { 'class': role ? cls(role) : 'step done' }, [el('b', { text: label }), el('span', { text: x.name || '-' }), el('br'),
+        el('span', { 'class': 'muted', text: x.at ? '✓ ' + x.at : (st === role ? 'รอดำเนินการ' : '') })]);
+    };
+    root.appendChild(el('div', { 'class': 'steps' }, [stepBox('DES', '', { name: o.des, at: a.sent }), stepBox('CHK', 'chk', a.chk), stepBox('APP', 'app', a.app)]));
+    if (note) root.appendChild(note);
+    if (v.role) {
+      var ta = el('textarea', { placeholder: 'ความคิดเห็น (ไม่บังคับเมื่ออนุมัติ · จำเป็นเมื่อไม่อนุมัติ)', maxlength: '500' });
+      var ok = el('button', { 'class': 'ok', type: 'button', text: v.role === 'chk' ? '✓ ตรวจสอบผ่าน' : '✓ อนุมัติ' });
+      var no = el('button', { 'class': 'no', type: 'button', text: '✕ ไม่อนุมัติ' });
+      var act = function (action) {
+        if (action === 'reject' && !ta.value.trim()) { ta.focus(); render(v, msg('e', 'กรุณาระบุเหตุผลที่ไม่อนุมัติ')); return; }
+        if (!window.confirm(action === 'approve' ? 'ยืนยัน ' + ok.textContent + ' ใบสั่ง ' + o.id + ' ?' : 'ยืนยันไม่อนุมัติใบสั่ง ' + o.id + ' ?')) return;
+        ok.disabled = no.disabled = true;
+        call('actOrderApproval', P.id, P.k, action, ta.value).then(function (nv) {
+          render(nv, msg('s', action === 'approve' ? '✓ บันทึกเรียบร้อย — ระบบส่งอีเมลแจ้งผู้เกี่ยวข้องแล้ว' : 'บันทึกการไม่อนุมัติแล้ว — ระบบแจ้งผู้เกี่ยวข้องแล้ว'));
+        }).catch(function (e) { ok.disabled = no.disabled = false; root.appendChild(msg('e', (e && e.message) || String(e))); });
+      };
+      ok.onclick = function () { act('approve'); }; no.onclick = function () { act('reject'); };
+      root.appendChild(el('div', { 'class': 'msg', style: 'background:#fffbeb;border:1px solid #fcd34d;' },
+        ['คุณ ', el('b', { text: v.you }), ' — ' + v.roleLabel + ' : กรุณาตรวจสอบรายละเอียดแล้วเลือก']));
+      root.appendChild(ta);
+      root.appendChild(el('div', { 'class': 'row' }, [ok, no]));
+    } else if (!note) {
+      root.appendChild(msg(st === 'approved' ? 's' : 'e', st === 'approved' ? 'ใบสั่งนี้อนุมัติครบแล้ว' :
+        'ลิงก์นี้ใช้ดำเนินการไม่ได้แล้ว (ดำเนินการไปแล้ว ใบสั่งถูกแก้ไข หรือถูกส่งขออนุมัติใหม่)'));
+    }
+    if ((a.history || []).length) {
+      var h = el('div', { 'class': 'hist' }, [el('b', { text: 'ประวัติ' })]);
+      a.history.slice().reverse().forEach(function (x) {
+        h.appendChild(el('div', { text: x.at + ' · ' + x.role + ' ' + (x.name || '') + ' — ' + x.action + (x.comment ? ' : “' + x.comment + '”' : '') }));
+      });
+      root.appendChild(h);
+    }
+  }
+  if (!P.id) { root.innerHTML = ''; root.appendChild(msg('e', 'ลิงก์ไม่ถูกต้อง')); return; }
+  call('getOrderApprovalView', P.id, P.k).then(function (v) { render(v); })
+    .catch(function (e) { root.innerHTML = ''; root.appendChild(msg('e', (e && e.message) || String(e))); });
+})();
+</script>
+</body>
+</html>
