@@ -190,7 +190,25 @@ function orderItemInfo(codes) {
 //   approved  : Order Item approved (or saved / exported without the approval step) but its RQN / Spec
 //               is not found in Pending Order yet → not recorded in the official system → check with the requester
 // excludeId = the order being edited. Returns only the codes that have a hit.
-var ORD_DUP_DAYS = 120;                                   // Order Item older than this is not considered
+// Admin-adjustable (Script property ORD_DUP_CFG): days = Order Item older than this is ignored (0 = no limit),
+// rejected = also warn about orders that were rejected.
+var ORD_DUP_DEF = { days: 120, rejected: false };
+function ordDupCfg_() {
+  var c = {}; try { c = JSON.parse(schedProp_('ORD_DUP_CFG') || '{}') || {}; } catch (e) {}
+  var d = c.days == null || c.days === '' ? NaN : Number(c.days);
+  return { days: isFinite(d) && d >= 0 ? Math.min(Math.round(d), 3650) : ORD_DUP_DEF.days, rejected: c.rejected === true };
+}
+function getOrderDupCfg(token) { requireAdmin_(token); return ordDupCfg_(); }
+function saveOrderDupCfg(token, cfg) {
+  requireAdmin_(token);
+  cfg = cfg || {};
+  var d = Number(cfg.days);
+  if (!isFinite(d) || d < 0 || d > 3650) throw new Error('จำนวนวันต้องอยู่ระหว่าง 0–3650 (0 = ไม่จำกัด)');
+  var c = { days: Math.round(d), rejected: cfg.rejected === true };
+  schedProp_('ORD_DUP_CFG', JSON.stringify(c));
+  audit_([['Admin', 'ตั้งค่าการเช็คสั่งซ้ำ', '', 'ย้อนหลัง ' + (c.days || 'ไม่จำกัด') + ' วัน · รวมใบที่ไม่อนุมัติ: ' + (c.rejected ? 'ใช่' : 'ไม่')]]);
+  return c;
+}
 function ordRefKey_(v) { return String(v || '').toUpperCase().replace(/\s+/g, ''); }
 function ordPoRefs_() {                                   // every RQN / Spec already in Pending Order (any status)
   var refs = {};
@@ -216,21 +234,21 @@ function checkOrderDup(codes, excludeId) {
       return { pr: x.pr, po: x.po, spec: x.spec, status: x.status, due: x.due, by: x.by, qty: x.qty, unit: x.unit };
     });
   });
-  var refs = null;
+  var refs = null, cfg = ordDupCfg_();
   ordAll_().forEach(function (o) {
     if (o.id === excludeId) return;
     var a = o.approval || {}, st = a.state || '';
-    if (st === 'rejected') return;
+    if (st === 'rejected' && !cfg.rejected) return;
     var mine = (o.items || []).filter(function (i) { return want[ordCodeKey_(i.code)]; });
     if (!mine.length) return;
     var kind = '';
     if (st === 'chk' || st === 'app') kind = 'approving';
     else {
-      if (ordAgeDays_(o.issueDate) > ORD_DUP_DAYS) return;
+      if (cfg.days && ordAgeDays_(o.issueDate) > cfg.days) return;
       if (refs === null) refs = ordPoRefs_();
       var rq = /\d$/.test(o.rqn) ? ordRefKey_(o.rqn) : '', sp = /\d$/.test(o.spec) ? ordRefKey_(o.spec) : '';
       if ((rq && refs[rq]) || (sp && refs[sp])) return;        // already recorded officially → covered by "pending"
-      kind = st === 'approved' ? 'approved' : 'saved';
+      kind = st === 'approved' ? 'approved' : st === 'rejected' ? 'rejected' : 'saved';
     }
     mine.forEach(function (i) {
       hit(ordCodeKey_(i.code)).orders.push({ id: o.id, spec: o.spec, rqn: o.rqn, des: o.des, issueDate: o.issueDate, qty: i.qty, unit: i.unit,
@@ -300,7 +318,7 @@ function getOrderBoot(token) {
   var admin = isAdmin_(token), tpl = null;
   if (admin) { try { tpl = ordTplInfo_(); } catch (e) { tpl = { ok: false, msg: e.message }; } }
   return { db: getOrderDb(), orders: ordPubAll_(), next: null, today: ordToday_(), admin: admin, tpl: tpl,
-    approvers: oaNames_(), approverCfg: admin ? oaCfg_() : null, apVer: oaVer_() };
+    approvers: oaNames_(), approverCfg: admin ? oaCfg_() : null, dupCfg: admin ? ordDupCfg_() : null, apVer: oaVer_() };
 }
 function getOrders() { return ordPubAll_(); }
 function getOrderNext(yy) { return ordNext_(ordStr_(yy, 2)); }
