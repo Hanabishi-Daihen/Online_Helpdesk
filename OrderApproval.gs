@@ -61,7 +61,7 @@ function oaPublic_(a) {
 }
 function oaUrl_(id, k) { return baseUrl_() + '?ordapprove=' + encodeURIComponent(id) + '&k=' + encodeURIComponent(k); }
 function oaKeyOk_(a, k) { return !!a.k && typeof k === 'string' && k.length === a.k.length && k === a.k; }
-function oaSave_(o) { writeText_(ordSheet_(), o.row, 1, ordObjToRow_(o)); oaBump_(); }
+function oaSave_(o) { writeText_(ordSheet_(), o.row, 1, ordObjToRow_(o)); ordMemoPut_(o); oaBump_(); }
 
 // ── live status: a version stamp that changes only when an approval changes ──
 // Browsers poll getOrderApprovalPulse(ver); an unchanged stamp costs one cache read (no sheet access).

@@ -290,11 +290,23 @@ function ordPub_(o) {
   return x;
 }
 function ordPubAll_() { return ordAll_().reverse().map(ordPub_); }
+// The OrderItem sheet is read at most once per server call: the rows are kept in __ordMemo,
+// writes update the memo in place (ordMemoPut_), deleteRow resets it, and withLock_ resets it so
+// everything inside a lock works on a fresh read.
+var __ordMemo = null;
+function ordMemoReset_() { __ordMemo = null; }
+function ordMemoPut_(o) {
+  if (!__ordMemo) return;
+  for (var i = 0; i < __ordMemo.length; i++) if (__ordMemo[i].id === o.id) { __ordMemo[i] = o; return; }
+  __ordMemo.push(o);
+}
 function ordAll_() {
+  if (__ordMemo) return __ordMemo.slice();
   var s = ordSheet_(), lr = s.getLastRow();
-  if (lr < 2) return [];
-  return s.getRange(2, 1, lr - 1, ORD_NCOL).getDisplayValues().map(function (r, i) { return ordRowToObj_(r, i + 2); })
+  if (lr < 2) return (__ordMemo = []).slice();
+  __ordMemo = s.getRange(2, 1, lr - 1, ORD_NCOL).getDisplayValues().map(function (r, i) { return ordRowToObj_(r, i + 2); })
     .filter(function (o) { return o.id; });
+  return __ordMemo.slice();
 }
 function ordFind_(id) { return ordAll_().filter(function (o) { return o.id === id; })[0] || null; }
 
@@ -315,10 +327,12 @@ function ordNext_(yy) {
 
 // public: everything the page needs in one call
 function getOrderBoot(token) {
-  var admin = isAdmin_(token), tpl = null;
+  var t0 = Date.now(), admin = isAdmin_(token), tpl = null;
   if (admin) { try { tpl = ordTplInfo_(); } catch (e) { tpl = { ok: false, msg: e.message }; } }
-  return { db: getOrderDb(), orders: ordPubAll_(), next: null, today: ordToday_(), admin: admin, tpl: tpl,
+  var out = { db: getOrderDb(), orders: ordPubAll_(), next: null, today: ordToday_(), admin: admin, tpl: tpl,
     approvers: oaNames_(), approverCfg: admin ? oaCfg_() : null, dupCfg: admin ? ordDupCfg_() : null, apVer: oaVer_() };
+  perf_('getOrderBoot', t0);
+  return out;
 }
 function getOrders() { return ordPubAll_(); }
 function getOrderNext(yy) { return ordNext_(ordStr_(yy, 2)); }
@@ -383,6 +397,7 @@ function saveOrder(o) {
     x.updated = now;
     var row = cur ? cur.row : s.getLastRow() + 1;
     writeText_(s, row, 1, ordObjToRow_(x));
+    x.row = row; ordMemoPut_(x);
     audit_([['User', cur ? 'แก้ไขใบสั่ง (Order Item)' : 'สร้างใบสั่ง (Order Item)', x.id, x.spec + ' · ' + x.rqn + ' · ' + x.items.length + ' รายการ · ' + x.des]]);
     x.row = row;
     return { order: ordPub_(x), orders: ordPubAll_() };
@@ -392,7 +407,7 @@ function deleteOrder(token, id) {
   requireAdmin_(token);
   return withLock_(function () {
     var o = ordFind_(id); if (!o) throw new Error('ไม่พบใบสั่ง ' + id);
-    ordSheet_().deleteRow(o.row);
+    ordSheet_().deleteRow(o.row); ordMemoReset_();
     if (o.approval) oaBump_();
     audit_([['Admin', 'ลบใบสั่ง (Order Item)', id, o.spec + ' · ' + o.rqn]]);
     return ordPubAll_();
@@ -567,7 +582,7 @@ function exportOrder(id, fmt) {
     var cur = ordFind_(id); if (!cur) return;
     files.forEach(function (f) { cur[f.fmt] = f.url; });
     cur.status = 'Exported'; cur.updated = nowStr_();
-    writeText_(ordSheet_(), cur.row, 1, ordObjToRow_(cur));
+    writeText_(ordSheet_(), cur.row, 1, ordObjToRow_(cur)); ordMemoPut_(cur);
   });
   audit_([['User', 'ส่งออกใบสั่ง (' + fmt.toUpperCase() + ')', id, o.spec]]);
   return { files: files, orders: ordPubAll_() };

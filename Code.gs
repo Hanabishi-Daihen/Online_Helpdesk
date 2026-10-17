@@ -34,7 +34,10 @@ function doGet(e) {
 }
 
 // ── helpers ─────────────────────────────────────────────────────────
-function ss_() { return SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID); }
+var __ss = null;                                   // one openById per server call (each call is a fresh execution)
+function ss_() { return __ss || (__ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID)); }
+// timing → Executions log (Apps Script editor → Executions); compare before / after
+function perf_(name, t0) { try { console.log('[perf] ' + name + ' ' + (Date.now() - t0) + ' ms'); } catch (e) {} }
 function sheet_(name, header) {
   var s = ss_().getSheetByName(name);
   if (!s) { s = ss_().insertSheet(name); if (header) s.appendRow(header); }
@@ -55,6 +58,7 @@ function parse_(v) { try { var a = JSON.parse(v); return Array.isArray(a) ? a : 
 function withLock_(fn) {
   var lock = LockService.getScriptLock();
   try { lock.waitLock(30000); } catch (e) { throw new Error('ระบบกำลังบันทึกข้อมูลของผู้ใช้อื่นอยู่ กรุณาลองอีกครั้งในไม่กี่วินาที'); }
+  if (typeof ordMemoReset_ === 'function') ordMemoReset_();
   try { return fn(); } finally { lock.releaseLock(); }
 }
 function isAdmin_(token) { return !!token && !!CacheService.getScriptCache().get('adm_' + token); }
@@ -141,12 +145,27 @@ function persistFiles_(files) {
 }
 
 // ── reads (public) ──────────────────────────────────────────────────
+// ── issues version: bumped on every write; the 60 s poll asks for it first (one cache read)
+// and only re-reads the sheet when it changed. The 5-minute bucket still picks up edits made
+// directly in the sheet within 5 minutes.
+function issVer_() {
+  var c = CacheService.getScriptCache(), v = c.get('iss_ver');
+  if (!v) { v = PropertiesService.getScriptProperties().getProperty('ISS_VER') || '0'; c.put('iss_ver', v, 21600); }
+  return v + ':' + Math.floor(Date.now() / 3e5);
+}
+function issBump_() {
+  var v = String(Date.now());
+  PropertiesService.getScriptProperties().setProperty('ISS_VER', v); CacheService.getScriptCache().put('iss_ver', v, 21600);
+}
+function getIssuesVer() { return issVer_(); }
 function getIssues(token) {
+  var t0 = Date.now();
   var s = ss_().getSheetByName(CONFIG.ISSUES);
   if (!s || s.getLastRow() < 2) return [];
   ensureIssueCols_(s);
   var rows = s.getRange(2, 1, s.getLastRow() - 1, NCOLS).getDisplayValues();
   if (!isAdmin_(token)) rows.forEach(function (r) { r[12] = ''; });   // reporter email: admin only
+  perf_('getIssues', t0);
   return rows;
 }
 function getSchedules() {
@@ -172,8 +191,11 @@ function nextId_(sh) {
 }
 
 function createIssue(issue) {
-  return withLock_(function () {
-    clean_(issue); rateLimit_(issue);
+  var t0 = Date.now();
+  clean_(issue); rateLimit_(issue);
+  issue.files = persistFiles_(issue.files);                     // Drive uploads happen outside the lock
+  (issue.chat || []).forEach(function (m) { if (m && m.files) m.files = persistFiles_(m.files); });
+  var res = withLock_(function () {
     issue.archived = false; issue.assignee = ''; issue.closedDate = ''; issue.related = [];   // admin-only fields
     issue.status = 'New';                                       // a new case always starts as New
     if (!isAdmin_(issue._token)) (issue.chat || []).forEach(function (m) { if (m && String(m.sender || '').trim().toLowerCase() === 'admin') m.sender = 'User'; });
@@ -183,12 +205,13 @@ function createIssue(issue) {
     var last = sh.getLastRow();
     var ids = last > 1 ? sh.getRange(2, 1, last - 1, 1).getValues().map(function (r) { return String(r[0]).trim(); }) : [];
     if (!oldId || ids.indexOf(oldId) >= 0) issue.id = nextId_(sh);
-    issue.files = persistFiles_(issue.files);
-    (issue.chat || []).forEach(function (m) { if (m.files) m.files = persistFiles_(m.files); });
     writeText_(sh, Math.max(last, 1) + 1, 1, issueToRow_(issue));
-    notifyNew_(issue);
+    issBump_();
     return { oldId: oldId, issue: issue };
   });
+  try { notifyNew_(issue); } catch (e) { console.warn(e); }      // mail after the lock — never blocks other users
+  perf_('createIssue', t0);
+  return res;
 }
 
 function mergeChat_(oldChat, newChat) {
@@ -266,9 +289,10 @@ function mergeUser_(cur, inc) {
 
 // One read + one write per call (fast even for bulk Archive / bulk status change).
 function upsertIssues(list, token) {
-  return withLock_(function () {
+  var t0 = Date.now(), notify = [];
+  var out = withLock_(function () {
     var admin = isAdmin_(token);
-    var sh = sheet_(CONFIG.ISSUES, ISSUE_HEADER), result = [], notify = [], appendRows = [], dirty = {}, audits = [];
+    var sh = sheet_(CONFIG.ISSUES, ISSUE_HEADER), result = [], appendRows = [], dirty = {}, audits = [];
     ensureIssueCols_(sh);
     var last = sh.getLastRow();
     var all = last > 1 ? sh.getRange(2, 1, last - 1, NCOLS).getDisplayValues() : [];
@@ -311,11 +335,14 @@ function upsertIssues(list, token) {
       fmtText_(rg2); rg2.setValues(blk2);
     }
     audit_(audits);
-    notify.forEach(function (p) {                        // mails last — a mail problem never blocks saving
-      try { notifyChange_(p[0], p[1]); } catch (e) { console.warn(e); }
-    });
+    if (rows.length || appendRows.length) issBump_();
     return result;
   });
+  notify.forEach(function (p) {                          // mails after the lock — a mail problem never blocks saving
+    try { notifyChange_(p[0], p[1]); } catch (e) { console.warn(e); }
+  });
+  perf_('upsertIssues', t0);
+  return out;
 }
 
 // Admin: connection / permission self-test (run from Settings → ตรวจสอบการเชื่อมต่อ, or from the editor)
@@ -371,6 +398,7 @@ function saveAllIssues(token, issues) {
     var all = [ISSUE_HEADER].concat(rows);
     var r = sh.getRange(1, 1, all.length, NCOLS);
     fmtText_(r); r.setValues(all);
+    issBump_();
     return true;
   });
 }
