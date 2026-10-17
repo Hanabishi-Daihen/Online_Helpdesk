@@ -37,7 +37,8 @@
 <body>
 <div class="wrap"><div class="card"><div class="hd">✽ Order Approval · DES → CHK → APP</div><div class="bd" id="app"><p class="muted">กำลังโหลด...</p></div></div></div>
 <script>
-(function () {
+// window.__OA__ is appended by the server AFTER this script, so start on load
+window.addEventListener('load', function () {
   var P = window.__OA__ || {}, root = document.getElementById('app');
   function el(tag, attrs, kids) {
     var e = document.createElement(tag);
@@ -116,7 +117,7 @@
   if (!P.id) { root.innerHTML = ''; root.appendChild(msg('e', 'ลิงก์ไม่ถูกต้อง')); return; }
   call('getOrderApprovalView', P.id, P.k).then(function (v) { render(v); })
     .catch(function (e) { root.innerHTML = ''; root.appendChild(msg('e', (e && e.message) || String(e))); });
-})();
+});
 </script>
 </body>
 </html>

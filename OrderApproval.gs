@@ -8,7 +8,7 @@
  *  • ไม่อนุมัติ (ขั้นใดก็ได้) → แจ้งผลกลับทุกคนพร้อมเหตุผล — DES แก้ไขแล้วส่งใหม่ได้
  *  • แก้ไขใบสั่งหลังส่งขออนุมัติ / อนุมัติแล้ว → สถานะอนุมัติถูกล้าง ต้องส่งใหม่ (ลิงก์เดิมใช้ไม่ได้)
  *  ลิงก์ในอีเมลมีรหัสสุ่มเฉพาะขั้นนั้น (ใช้ได้ครั้งเดียว) — ห้ามส่งต่ออีเมลให้ผู้อื่น
- *  ต้องมี Code.gs และ OrderService.gs (ใช้ helper ร่วมกัน) + ไฟล์ HTML "OrderApproval"
+ *  ต้องมี Code.gs และ OrderService.gs (ใช้ helper ร่วมกัน) + ไฟล์ HTML "OrderApprovalPage"
  * ═════════════════════════════════════════════════════════════════════
  */
 var OA_ROLES = { chk: 'CHK (ผู้ตรวจสอบ)', app: 'APP (ผู้อนุมัติ)' };
@@ -139,7 +139,7 @@ function submitOrderApproval(id, req) {
 
 // ── approval page (opened from the e-mail link) ─────────────────────
 function orderApprovalPage_(id, k) {
-  var t = HtmlService.createHtmlOutputFromFile('OrderApproval')
+  var t = HtmlService.createHtmlOutputFromFile('OrderApprovalPage')   // HTML file name must differ from this .gs file
     .setTitle('อนุมัติใบสั่ง ' + String(id).substring(0, 20))
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
