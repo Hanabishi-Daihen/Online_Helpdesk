@@ -30,6 +30,13 @@ function doGet(e) {
   var tr = (e && e.parameter && e.parameter.track) || '';
   out.append('<script>window.__INIT_ISSUE__=' + JSON.stringify(id).replace(/</g, '\\u003c') +
     ';window.__INIT_TRACK__=' + JSON.stringify(tr).replace(/</g, '\\u003c') + ';</script>');
+  // Start-up data rendered into the page: each google.script.run round trip costs ~1 s,
+  // so the page answers these first calls locally instead (see bootCall in index.html).
+  var t0 = Date.now(), boot = {};
+  [['getAppUrl', getAppUrl], ['getSettings', getSettings], ['getSchedules', getSchedules], ['getPublicTemplates', getPublicTemplates]]
+    .forEach(function (f) { try { boot[f[0]] = f[1](); } catch (e) { console.warn(f[0], e); } });
+  out.append('<script>window.__ZQ_BOOT__=' + JSON.stringify({ t: Date.now(), r: boot }).replace(/</g, '\\u003c') + ';</script>');
+  perf_('doGet boot', t0);
   return out;
 }
 
