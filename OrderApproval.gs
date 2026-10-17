@@ -121,8 +121,10 @@ function oaEveryone_(a) {
 
 // ── public: DES submits (or re-submits) an order for approval ───────
 // req = { chk: name, app: name, email: requester e-mail, message }
-function submitOrderApproval(id, req) {
+// token (optional): an Admin may tick "ไม่ส่งอีเมลให้ CHK" (req.silent) and approve from the "รอการอนุมัติ" tab instead
+function submitOrderApproval(id, req, token) {
   req = req || {};
+  var silent = !!req.silent && isAdmin_(token);
   var email = ordStr_(req.email, 120).trim(), msg = ordStr_(req.message, 500);
   if (!OA_EMAIL_RE.test(email)) throw new Error('กรุณากรอกอีเมลของผู้ออกใบสั่ง (DES) ให้ถูกต้อง เพื่อรับผลการอนุมัติ');
   var chk = oaPerson_('chk', req.chk), app = oaPerson_('app', req.app);
@@ -146,11 +148,52 @@ function submitOrderApproval(id, req) {
   });
   rc.put(rk, String(n + 1), 3600);
   var a = res.approval;
-  audit_([['User', 'ส่งขออนุมัติใบสั่ง', res.id, 'CHK ' + a.chk.name + ' · APP ' + a.app.name]]);
-  oaMail_('order_chk_request', res, a, [a.chk.email], [a.req.email], 'ขอให้ตรวจสอบใบสั่ง (CHK)',
+  audit_([[silent ? 'Admin' : 'User', 'ส่งขออนุมัติใบสั่ง' + (silent ? ' (ไม่ส่งอีเมล)' : ''), res.id, 'CHK ' + a.chk.name + ' · APP ' + a.app.name]]);
+  if (!silent) oaMail_('order_chk_request', res, a, [a.chk.email], [a.req.email], 'ขอให้ตรวจสอบใบสั่ง (CHK)',
     'เรียน คุณ' + a.chk.name + ' — คุณ' + res.des + ' ส่งใบสั่ง ' + res.id + ' ให้ตรวจสอบ กรุณากดปุ่มด้านล่างเพื่อดูรายละเอียดและ ผ่าน / ไม่ผ่าน',
     msg, { label: 'ตรวจสอบใบสั่ง', url: oaUrl_(res.id, a.k) });
   return { order: ordPub_(res), orders: ordPubAll_() };
+}
+
+// ── Admin shortcut (tab "รอการอนุมัติ") ────────────────────────────
+// mode: 'step'   = sign off the current step only (CHK → APP), no e-mail
+//       'final'  = sign off every remaining step up to APP; one e-mail to the requester only
+//       'reject' = reject (reason required); one e-mail to the requester only
+// The e-mail links already sent stop working because the step key is replaced / cleared.
+function adminActOrderApproval(token, id, mode, comment) {
+  requireAdmin_(token);
+  comment = ordStr_(comment, 500).trim();
+  if (mode !== 'step' && mode !== 'final' && mode !== 'reject') throw new Error('คำสั่งไม่ถูกต้อง');
+  if (mode === 'reject' && !comment) throw new Error('กรุณาระบุเหตุผลที่ไม่อนุมัติ');
+  var r = withLock_(function () {
+    var o = ordFind_(String(id || ''));
+    if (!o) throw new Error('ไม่พบใบสั่ง ' + id);
+    var a = oaOf_(o);
+    if (a.state !== 'chk' && a.state !== 'app') throw new Error('ใบสั่ง ' + o.id + ' ไม่ได้อยู่ระหว่างรออนุมัติ (สถานะ: ' + (OA_STATE_TH[a.state || ''] || '-') + ')');
+    var sign = function (role, action) {
+      var who = a[role]; who.at = nowStr_(); who.comment = comment; who.byAdmin = true;
+      oaHist_(a, role.toUpperCase(), who.name + ' · โดย Admin', action, comment);
+    };
+    if (mode === 'reject') { sign(a.state, 'ไม่อนุมัติ'); a.state = 'rejected'; a.k = ''; }
+    else {
+      if (a.state === 'chk') { sign('chk', 'ตรวจสอบผ่าน'); o.chk = a.chk.name; a.state = 'app'; a.k = Utilities.getUuid(); }
+      if (mode === 'final' && a.state === 'app') { sign('app', 'อนุมัติ'); o.app = a.app.name; a.state = 'approved'; a.k = ''; }
+    }
+    o.approval = a; o.updated = nowStr_();
+    oaSave_(o);
+    return o;
+  });
+  var a = r.approval;
+  audit_([['Admin', mode === 'reject' ? 'ไม่อนุมัติใบสั่ง (ทางลัด)' : a.state === 'approved' ? 'อนุมัติใบสั่งจนจบ (ทางลัด)' : 'CHK ผ่าน (ทางลัด)', r.id, comment]]);
+  var to = a.req && a.req.email ? [a.req.email] : [];
+  if (a.state === 'approved') {
+    oaMail_('order_approved', r, a, to, [], 'ใบสั่ง ' + r.id + ' อนุมัติแล้ว ✓',
+      'ใบสั่งนี้ผ่านครบทุกขั้นตอน: DES ' + r.des + ' → CHK ' + a.chk.name + ' → APP ' + a.app.name + ' — ส่งออก PDF / Excel ได้จากหน้า Order Item', comment);
+  } else if (a.state === 'rejected') {
+    oaMail_('order_rejected', r, a, to, [], 'ใบสั่ง ' + r.id + ' ไม่อนุมัติ',
+      'ใบสั่งนี้ไม่ได้รับการอนุมัติ — แก้ไขแล้วส่งขออนุมัติใหม่ได้', comment);
+  }
+  return { order: ordPub_(r), orders: ordPubAll_() };
 }
 
 // ── approval page (opened from the e-mail link) ─────────────────────
