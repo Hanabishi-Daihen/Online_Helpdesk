@@ -234,6 +234,10 @@ function checkOrderDup(codes, excludeId) {
       return { pr: x.pr, po: x.po, spec: x.spec, status: x.status, due: x.due, by: x.by, qty: x.qty, unit: x.unit };
     });
   });
+  try {                                                   // Stock ช่วยใช้: old / substitutable stock for these CODEs
+    var rs = rsForOrder_(keys);
+    Object.keys(rs).forEach(function (k) { hit(k).remain = rs[k]; });
+  } catch (e) { console.warn(e); }
   var refs = null, cfg = ordDupCfg_();
   ordAll_().forEach(function (o) {
     if (o.id === excludeId) return;

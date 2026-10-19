@@ -89,6 +89,110 @@ function rsTrack_(rows) {
   var rg = sh.getRange(1, 1, all.length, 4); rg.setNumberFormat('@'); rg.setValues(all);
   sh.setFrozenRows(1);
   if (!schedProp_('RS_HIST_START')) schedProp_('RS_HIST_START', today);
+  try { rsMeasure_(ss, tot, rows); } catch (e) { console.warn('rsMeasure_', e); }
+}
+// Compare the flagged list remembered at the previous sync with today's totals:
+// every decrease of a flagged CODE = stock put to use instead of scrap → RemainStockSaved.
+// Then remember today's flagged list (sheet RemainStockPrev in Helpdesk_ItemStock).
+var RS_PREV_SHEET = 'RemainStockPrev', RS_SAVED_SHEET = 'RemainStockSaved';
+var RS_SAVED_HEADER = ['DATE', 'CODE', 'DESC', 'QTY_USED', 'UNIT', 'VALUE', 'WHY'];
+function rsMeasure_(ss, tot, rows) {
+  var prevSh = ss.getSheetByName(RS_PREV_SHEET) || ss.insertSheet(RS_PREV_SHEET), today = ordToday_(), used = [];
+  if (prevSh.getLastRow() > 1) prevSh.getRange(2, 1, prevSh.getLastRow() - 1, 6).getDisplayValues().forEach(function (r) {
+    var k = r[0], q0 = Number(r[1]), q1 = tot[k] || 0, c = Number(r[2]) || 0;
+    if (k && q1 < q0) used.push([today, k, r[3], String(Math.round((q0 - q1) * 1000) / 1000), r[4], String(Math.round((q0 - q1) * c * 100) / 100), r[5]]);
+  });
+  if (used.length) {
+    var sv = rsSheet_(RS_SAVED_SHEET, RS_SAVED_HEADER);
+    var rg = sv.getRange(sv.getLastRow() + 1, 1, used.length, RS_SAVED_HEADER.length); rg.setNumberFormat('@'); rg.setValues(used);
+    rsCloseClaims_(used.map(function (u) { return u[1]; }));
+  }
+  var cur = rsCompute_(rows.map(function (r) { return r[STOCK_NCOL]; }), true).items.filter(function (x) { return !x.skip; })
+    .map(function (x) { return [x.key, String(x.qty), String(x.cost || 0), x.desc || '', x.unit || '', (x.why || []).join(',')]; });
+  var all = [['CODE', 'QTY', 'COST', 'DESC', 'UNIT', 'WHY']].concat(cur);
+  prevSh.clearContents();
+  var rg2 = prevSh.getRange(1, 1, all.length, 6); rg2.setNumberFormat('@'); rg2.setValues(all);
+}
+function rsSheet_(name, header) {
+  var s = ss_().getSheetByName(name);
+  if (!s) { s = ss_().insertSheet(name); s.getRange(1, 1, 1, header.length).setValues([header]).setFontWeight('bold'); s.setFrozenRows(1); }
+  return s;
+}
+function rsSavedSummary_(admin) {
+  var s = ss_().getSheetByName(RS_SAVED_SHEET), now = new Date(), mm = ('0' + (now.getMonth() + 1)).slice(-2) + '/' + now.getFullYear();
+  var o = { month: { items: 0, value: 0 }, all: { items: 0, value: 0 }, recent: [] };
+  if (s && s.getLastRow() > 1) {
+    var rows = s.getRange(2, 1, s.getLastRow() - 1, RS_SAVED_HEADER.length).getDisplayValues();
+    rows.forEach(function (r) {
+      var v = Number(r[5]) || 0; o.all.items++; o.all.value += v;
+      if (String(r[0]).slice(3) === mm) { o.month.items++; o.month.value += v; }
+    });
+    o.recent = rows.slice(-10).reverse().map(function (r) { return { date: r[0], code: r[1], desc: r[2], qty: r[3], unit: r[4], value: admin ? Number(r[5]) || 0 : null }; });
+  }
+  o.month.value = admin ? Math.round(o.month.value) : null; o.all.value = admin ? Math.round(o.all.value) : null;
+  return o;
+}
+
+// ── "ฉันจะนำไปใช้" claims ────────────────────────────────────────────
+var RS_CLAIM_SHEET = 'RemainStockClaims';
+var RS_CLAIM_HEADER = ['ID', 'CODE', 'QTY', 'NAME', 'PURPOSE', 'CREATED', 'STATUS', 'CLOSED'];
+function rsClaims_(openOnly) {
+  var s = ss_().getSheetByName(RS_CLAIM_SHEET), out = {};
+  if (!s || s.getLastRow() < 2) return out;
+  s.getRange(2, 1, s.getLastRow() - 1, RS_CLAIM_HEADER.length).getDisplayValues().forEach(function (r, i) {
+    if (!r[0] || (openOnly && r[6] !== 'open')) return;
+    (out[r[1]] = out[r[1]] || []).push({ id: r[0], row: i + 2, qty: r[2], name: r[3], purpose: r[4], created: r[5], status: r[6] });
+  });
+  return out;
+}
+function claimRemain(code, c) {
+  c = c || {};
+  var k = ordCodeKey_(code), name = ordStr_(c.name, 60).trim(), purpose = ordStr_(c.purpose, 200).trim(), qty = ordStr_(c.qty, 12).replace(/[^0-9.]/g, '');
+  if (!k) throw new Error('CODE ไม่ถูกต้อง');
+  if (!name) throw new Error('กรุณากรอกชื่อผู้จะนำไปใช้');
+  if (!purpose) throw new Error('กรุณาระบุงาน / โปรเจกต์ที่จะนำไปใช้');
+  var rc = CacheService.getScriptCache(), rk = 'rs_cl_' + name.toLowerCase(), n = Number(rc.get(rk) || 0);
+  if (n >= 20) throw new Error('จองถี่เกินไป กรุณารอสักครู่');
+  return withLock_(function () {
+    var s = rsSheet_(RS_CLAIM_SHEET, RS_CLAIM_HEADER), id = 'RS' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyMMddHHmmss') + Math.floor(Math.random() * 90 + 10);
+    writeText_(s, s.getLastRow() + 1, 1, [id, k, qty, name, purpose, nowStr_(), 'open', '']);
+    rc.put(rk, String(n + 1), 3600);
+    audit_([['User: ' + name, 'จองใช้ Stock ช่วยใช้', k, (qty ? qty + ' · ' : '') + purpose]]);
+    return rsClaims_(true);
+  });
+}
+// status: 'done' | 'cancel'  (Admin)
+function closeRemainClaim(token, id, status) {
+  requireAdmin_(token);
+  if (status !== 'done' && status !== 'cancel') throw new Error('สถานะไม่ถูกต้อง');
+  return withLock_(function () {
+    var all = rsClaims_(true), hit = null;
+    Object.keys(all).forEach(function (k) { all[k].forEach(function (x) { if (x.id === id) hit = x; }); });
+    if (!hit) throw new Error('ไม่พบรายการจอง ' + id);
+    ss_().getSheetByName(RS_CLAIM_SHEET).getRange(hit.row, 7, 1, 2).setValues([[status, nowStr_()]]);
+    audit_([['Admin', status === 'done' ? 'ปิดรายการจอง (นำไปใช้แล้ว)' : 'ยกเลิกรายการจอง', id, '']]);
+    return rsClaims_(true);
+  });
+}
+function rsCloseClaims_(codes) {                      // stock went down → open claims on that CODE are done
+  var want = {}; codes.forEach(function (k) { want[k] = 1; });
+  var s = ss_().getSheetByName(RS_CLAIM_SHEET); if (!s) return;
+  var all = rsClaims_(true), t = nowStr_();
+  Object.keys(all).forEach(function (k) { if (want[k]) all[k].forEach(function (x) { s.getRange(x.row, 7, 1, 2).setValues([['done', t]]); }); });
+}
+
+// ── for the duplicate-order popup: substitutable / leftover stock for the CODEs being ordered ──
+function rsForOrder_(keys) {
+  var want = {}, out = {}; keys.forEach(function (k) { want[k] = 1; });
+  var rows = []; try { rows = stockData_(); } catch (e) { return out; }
+  rsCompute_(rows, false).items.forEach(function (x) {
+    if (x.skip) return;
+    var target = x.replaceBy && want[x.replaceBy] ? x.replaceBy : want[x.key] ? x.key : '';
+    if (!target) return;
+    (out[target] = out[target] || []).push({ code: x.code, desc: x.desc, qty: x.qty, unit: x.unit, why: x.why, self: target === x.key,
+      useBefore: x.tag && x.tag.useBefore || '' });
+  });
+  return out;
 }
 function rsHist_(want) {
   var out = {};
@@ -108,8 +212,17 @@ function rsRqnYear_(rqn) { var m = /RQN\s*(\d{2})\s*-/i.exec(String(rqn || ''));
 
 // ── the list ────────────────────────────────────────────────────────
 function getRemainStock(token) {
-  var t0 = Date.now(), admin = isAdmin_(token), cfg = rsCfg_(), isBy = saByMatch_(cfg.by), tags = rsTags_(), items = {};
-  var rows = []; try { rows = stockData_(); } catch (e) {}
+  var t0 = Date.now(), admin = isAdmin_(token), rows = [];
+  try { rows = stockData_(); } catch (e) {}
+  var out = rsCompute_(rows, admin);
+  out.claims = rsClaims_(true);
+  out.saved = rsSavedSummary_(admin);
+  perf_('getRemainStock', t0);
+  return out;
+}
+// rows = packed Item-stock rows ("ITEMNO\tDESC\t…" strings)
+function rsCompute_(rows, admin) {
+  var cfg = rsCfg_(), isBy = saByMatch_(cfg.by), tags = rsTags_(), items = {};
   for (var i = 0; i < rows.length; i++) {
     var p = rows[i]; if (!p) continue;
     var f = p.split('\t'), k = ordCodeKey_(f[0]);
@@ -146,7 +259,6 @@ function getRemainStock(token) {
     out.push(it);
   });
   out.sort(function (a, b) { return admin ? (b.value - a.value) : ((b.still || 0) - (a.still || 0) || (b.rqnAge || 0) - (a.rqnAge || 0)); });
-  perf_('getRemainStock', t0);
   return { items: out, cfg: cfg, admin: admin, histStart: start, total: admin ? Math.round(total) : null,
     stockTime: (stockInfo_() || {}).time || '' };
 }
