@@ -4,7 +4,7 @@
  *  • Import (Admin)  : ไฟล์ BOM .xlsx อ่านในเบราว์เซอร์ (คอลัมน์ B = PROJECT, C = CODE, H = จำนวน)
  *                      Import โปรเจกต์เดิมซ้ำ = แทนที่ BOM ทั้งชุด (Revision ใหม่)
  *  • วันที่ต้องใช้      : จากตารางงานการผลิต (Q_SchedulesForUpdate) — ProjectNo ที่เป็นส่วนต้นของชื่อโปรเจกต์
- *                      (PP1024 ↔ PP1024D01) · Process LCC / RCC ตามชื่อ BOM (หรือค่าที่ตั้ง) · Start-date
+ *                      (PP1024 ↔ PP1024D01) · Start-date ที่ใกล้ที่สุดของ LCC หรือ RCC (จองรวมกัน)
  *                      Admin กำหนดเองทับได้รายโปรเจกต์
  *  • Onhand          : Item stock รวมทุกคลัง · กำลังเข้า = Pending Order ที่ยังไม่ปิด (ไม่เกิน 1 ปี)
  *  • จัดสรร           : ต่อ CODE เรียงตามวันที่ต้องใช้ — ใช้ Onhand ก่อน แล้วของที่จะเข้าทันวัน แล้วของที่เข้าไม่ทัน
@@ -162,13 +162,18 @@ function bomNeed_(p, sched, cfg) {
   var key = bomKey_(p.project), best = null;
   sched.forEach(function (r) { var pn = bomKey_(r[0]); if (pn && key.indexOf(pn) === 0 && (!best || pn.length > best.length)) best = pn; });
   if (!best) return { t: null, src: 'none', label: 'ไม่พบในตารางงาน' };
-  var want = cfg.process !== 'auto' ? cfg.process : /RCC|REMOTE/i.test(p.title) ? 'RCC' : /LCC|LOCAL/i.test(p.title) ? 'LCC' : '';
+  // LCC and RCC are booked together → need date = the earliest Start-date of either process
   var rows = sched.filter(function (r) { return bomKey_(r[0]) === best; });
-  var pick = function (rs) { var ts = rs.map(function (r) { return bomDate_(r[9]) || bomDate_(r[10]); }).filter(function (t) { return t != null; }); return ts.length ? Math.min.apply(null, ts) : null; };
-  var t = want ? pick(rows.filter(function (r) { return String(r[8]).toUpperCase().replace(/\s+/g, '') === want; })) : null;
-  if (t != null) return { t: t, src: 'sched', label: 'ตารางงาน ' + best + ' · ' + want + ' (Start)' };
-  t = pick(rows);
-  if (t != null) return { t: t, src: 'sched', label: 'ตารางงาน ' + best + ' · Process แรก (Start)' };
+  var first = function (rs) {
+    var b = null;
+    rs.forEach(function (r) { var d = bomDate_(r[9]) || bomDate_(r[10]); if (d != null && (!b || d < b.t)) b = { t: d, proc: String(r[8]).trim() }; });
+    return b;
+  };
+  var cc = first(rows.filter(function (r) { return /^(LCC|RCC)$/.test(String(r[8]).toUpperCase().replace(/\s+/g, '')); }));
+  if (cc) return { t: cc.t, src: 'sched', label: 'ตารางงาน ' + best + ' · ' + cc.proc + ' (Start ใกล้ที่สุดของ LCC/RCC)' };
+  var t;
+  var any = first(rows);
+  if (any) return { t: any.t, src: 'sched', label: 'ตารางงาน ' + best + ' · ไม่มี LCC/RCC → ' + any.proc + ' (Start)' };
   t = rows.map(function (r) { return bomDate_(r[6]) || bomDate_(r[5]); }).filter(function (x) { return x != null; })[0];
   return t != null ? { t: t, src: 'sched', label: 'ตารางงาน ' + best + ' · Delivery' } : { t: null, src: 'none', label: 'ตารางงาน ' + best + ' ไม่มีวันที่' };
 }
