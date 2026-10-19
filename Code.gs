@@ -1117,6 +1117,7 @@ function syncSchedulesInner_(why, force) {
       var rg = sh.getRange(1, 1, all.length, 11); fmtText_(rg); rg.setValues(all);
       var extra = sh.getMaxRows() - all.length; if (extra > 200) sh.deleteRows(all.length + 101, extra - 100);
     });
+    try { bomRefresh_(); } catch (e) { console.warn('bomRefresh_', e); }   // Booking BOM: need dates changed
     info.ok = true; info.rows = rows.length; info.projects = Object.keys(projects).length; info.zeroDates = zero; info.hash = hash;
     info.msg = 'อัปเดต ' + rows.length + ' แถว (' + info.projects + ' Project)';
     audit_([['System', 'ซิงค์ตารางงานจาก OneDrive', '', info.why + ' · ' + info.msg]]);
@@ -1359,6 +1360,7 @@ function syncStockInner_(why, force) {
     schedProp_('STOCK_HASH', hash);
     try { rsTrack_(rows); CacheService.getScriptCache().remove('rs_flags'); } catch (e) { console.warn('rsTrack_', e); }   // Stock ช่วยใช้: quantity history
     try { stockWarm_(rows.map(function (r) { return r[STOCK_NCOL]; }), hash); stockBundle_(); } catch (e) {}   // prime fast caches
+    try { bomRefresh_(); } catch (e) { console.warn('bomRefresh_', e); }   // Booking BOM: onhand changed
     info.ok = true; info.rows = rows.length; info.items = Object.keys(codes).length; info.hash = hash;
     info.secs = Math.round((Date.now() - t0) / 1000);
     info.msg = 'อัปเดต ' + rows.length.toLocaleString() + ' แถว (' + info.items.toLocaleString() + ' รายการ) ใช้เวลา ' + info.secs + ' วินาที';
@@ -1650,6 +1652,7 @@ function syncPendingInner_(why, force) {
 
     schedProp_('PO_HASH', hash);
     try { pendingBundle_(true); } catch (e) {}
+    try { bomRefresh_(); } catch (e) { console.warn('bomRefresh_', e); }   // Booking BOM: incoming changed
     var prs = {}, pos = {};
     rows.forEach(function (r) { if (r[1]) prs[r[1]] = 1; if (r[2]) pos[r[2]] = 1; });
     info.ok = true; info.rows = rows.length; info.hash = hash; info.secs = Math.round((Date.now() - t0) / 1000);
