@@ -1047,6 +1047,20 @@ function downloadShared_(u) {
   }
   throw new Error('ดาวน์โหลดไฟล์ไม่ได้ — ตรวจว่าแชร์แบบ "Anyone with the link" และลิงก์ยังไม่หมดอายุ [' + notes.join(' | ') + ']');
 }
+// Auto-sync schedule code (stored in *_SYNC_HOURS):  1–12 = every N hours · 24 = daily at the default hour
+// 100–123 = daily at hour (code − 100), e.g. 105 = every day 05:00 (Apps Script runs it within ±15 min).
+function syncTrigger_(tb, code, defHour, defEvery) {
+  code = Number(code) || 0;
+  if (code >= 100 && code <= 123) return tb.everyDays(1).atHour(code - 100).nearMinute(0).create();
+  if (code >= 24) return tb.everyDays(1).atHour(defHour).create();
+  return tb.everyHours([1, 2, 4, 6, 8, 12].indexOf(code) >= 0 ? code : defEvery).create();
+}
+function syncLabel_(code) {
+  code = Number(code) || 0;
+  if (!code) return 'ปิดอัตโนมัติ';
+  if (code >= 100) return 'วันละครั้ง ' + ('0' + (code - 100)).slice(-2) + ':00';
+  return code >= 24 ? 'วันละครั้ง' : 'ทุก ' + code + ' ชม.';
+}
 // ── one data sync at a time ─────────────────────────────────────────────────
 // Triggers for Stock / PendingOrder / Readtime / Schedules can fire at the same moment. A sync waits
 // (up to ~4 min) for another one to finish instead of running alongside it. The flag expires after
@@ -1129,10 +1143,10 @@ function setScheduleSource(token, url, hours) {
   hours = Number(hours) || 0;
   if (url && hours > 0) {
     var tb = ScriptApp.newTrigger('scheduleAutoSync').timeBased();
-    if (hours >= 24) tb.everyDays(1).atHour(6).create(); else tb.everyHours([1, 2, 4, 6, 8, 12].indexOf(hours) >= 0 ? hours : 1).create();
+    syncTrigger_(tb, hours, 6, 1);
     schedProp_('SCHED_SYNC_HOURS', String(hours));
   }
-  audit_([['Admin', 'ตั้งค่าซิงค์ตารางงาน', '', (url ? 'ตั้งลิงก์แล้ว' : 'ลบลิงก์') + ' · ' + (hours ? 'ทุก ' + hours + ' ชม.' : 'ปิดอัตโนมัติ')]]);
+  audit_([['Admin', 'ตั้งค่าซิงค์ตารางงาน', '', (url ? 'ตั้งลิงก์แล้ว' : 'ลบลิงก์') + ' · ' + syncLabel_(hours)]]);
   return getScheduleSource(token);
 }
 function syncSchedulesNow(token) { requireAdmin_(token); return syncSchedulesRun_('สั่งโดย Admin', true); }
@@ -1457,10 +1471,10 @@ function setStockSource(token, url, hours) {
   hours = Number(hours) || 0;
   if (url && hours > 0) {
     var tb = ScriptApp.newTrigger('stockAutoSync').timeBased();
-    if (hours >= 24) tb.everyDays(1).atHour(5).create(); else tb.everyHours([1, 2, 4, 6, 8, 12].indexOf(hours) >= 0 ? hours : 8).create();
+    syncTrigger_(tb, hours, 5, 8);
     schedProp_('STOCK_SYNC_HOURS', String(hours));
   }
-  audit_([['Admin', 'ตั้งค่าซิงค์ Item stock', '', (url ? 'ตั้งลิงก์แล้ว' : 'ลบลิงก์') + ' · ' + (hours ? 'ทุก ' + hours + ' ชม.' : 'ปิดอัตโนมัติ')]]);
+  audit_([['Admin', 'ตั้งค่าซิงค์ Item stock', '', (url ? 'ตั้งลิงก์แล้ว' : 'ลบลิงก์') + ' · ' + syncLabel_(hours)]]);
   return getStockSource(token);
 }
 function syncStockNow(token) { requireAdmin_(token); return syncStockRun_('สั่งโดย Admin', true); }
@@ -1698,10 +1712,10 @@ function setPendingSource(token, url, hours) {
   hours = Number(hours) || 0;
   if (url && hours > 0) {
     var tb = ScriptApp.newTrigger('pendingAutoSync').timeBased();
-    if (hours >= 24) tb.everyDays(1).atHour(6).create(); else tb.everyHours([1, 2, 4, 6, 8, 12].indexOf(hours) >= 0 ? hours : 4).create();
+    syncTrigger_(tb, hours, 6, 4);
     schedProp_('PO_SYNC_HOURS', String(hours));
   }
-  audit_([['Admin', 'ตั้งค่าซิงค์ Pending Order', '', (url ? 'ตั้งลิงก์แล้ว' : 'ลบลิงก์') + ' · ' + (hours ? 'ทุก ' + hours + ' ชม.' : 'ปิดอัตโนมัติ')]]);
+  audit_([['Admin', 'ตั้งค่าซิงค์ Pending Order', '', (url ? 'ตั้งลิงก์แล้ว' : 'ลบลิงก์') + ' · ' + syncLabel_(hours)]]);
   return getPendingSource(token);
 }
 function syncPendingNow(token) { requireAdmin_(token); return syncPendingRun_('สั่งโดย Admin', true); }

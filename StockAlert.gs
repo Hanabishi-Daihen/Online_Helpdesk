@@ -105,10 +105,10 @@ function setRtSource(token, url, hours) {
   hours = Number(hours) || 0;
   if (url && hours > 0) {
     var tb = ScriptApp.newTrigger('rtAutoSync').timeBased();
-    if (hours >= 24) tb.everyDays(1).atHour(6).create(); else tb.everyHours([1, 2, 4, 6, 8, 12].indexOf(hours) >= 0 ? hours : 12).create();
+    syncTrigger_(tb, hours, 6, 12);
     schedProp_('RT_SYNC_HOURS', String(hours));
   }
-  audit_([['Admin', 'ตั้งค่าซิงค์ Q_StockRT', '', (url ? 'ตั้งลิงก์แล้ว' : 'ลบลิงก์') + ' · ' + (hours ? 'ทุก ' + hours + ' ชม.' : 'ปิดอัตโนมัติ')]]);
+  audit_([['Admin', 'ตั้งค่าซิงค์ Q_StockRT', '', (url ? 'ตั้งลิงก์แล้ว' : 'ลบลิงก์') + ' · ' + syncLabel_(hours)]]);
   return getRtSource(token);
 }
 function syncRtNow(token) { requireAdmin_(token); return syncRtRun_('สั่งโดย Admin', true); }
