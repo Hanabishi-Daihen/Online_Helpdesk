@@ -1,0 +1,162 @@
+/**
+ * ═════════════════════════════════════════════════════════════════════
+ *  REMAIN STOCK — "Stock ช่วยใช้"  ของค้างนาน / RQN เก่า / ล็อตสุดท้าย → ช่วยกันนำไปใช้ ลดการ Scrap
+ *  • ขอบเขต      = Item stock ที่ "ผู้สั่งล่าสุด" (LastOfRequest_By) ตรงกับค่าที่ตั้ง (เริ่มต้น DS13)
+ *                  + CODE ที่ Admin ติดป้ายไว้เอง
+ *  • ค้างนาน     = จำนวนคงเหลือรวมทุกคลังไม่เปลี่ยนมา ≥ N วัน (จากประวัติ StockHistory ที่ระบบจดทุกครั้งที่ซิงค์ Stock)
+ *  • RQN เก่า     = เลข RQN ล่าสุดเก่ากว่า N ปี (RQNyy-xxxx)
+ *  • ป้าย (Admin) = last (ล็อตสุดท้าย/เปลี่ยนรุ่น) · sub (ใช้แทนกันได้ → CODE ใหม่) · skip (ไม่ต้องแจ้ง)
+ *  • ราคา / มูลค่า (QTY × LASTCOST) เห็นเฉพาะ Admin
+ *  ต้องมี Code.gs, OrderService.gs และ StockAlert.gs (ใช้ helper ร่วมกัน)
+ * ═════════════════════════════════════════════════════════════════════
+ */
+var RS_TAG_SHEET = 'RemainStockTags';
+var RS_TAG_HEADER = ['CODE', 'TAG', 'REPLACE_BY', 'USE_BEFORE', 'NOTE', 'UPDATED', 'BY'];
+var RS_HIST_SHEET = 'StockHistory';                    // in the Helpdesk_ItemStock workbook
+var RS_HIST_HEADER = ['CODE', 'QTY', 'SINCE', 'LAST_SEEN'];
+var RS_DEF = { days: 180, rqnYears: 2, by: 'DS13' };
+var RS_TAGS = { last: 'ล็อตสุดท้าย / เปลี่ยนรุ่น', sub: 'ใช้แทนกันได้', skip: 'ไม่ต้องแจ้ง' };
+
+function rsCfg_() {
+  var c = {}; try { c = JSON.parse(schedProp_('RS_CFG') || '{}') || {}; } catch (e) {}
+  var n = function (v, d, lo, hi) { v = Number(v); return isFinite(v) && v >= lo && v <= hi ? Math.round(v) : d; };
+  return { days: n(c.days, RS_DEF.days, 1, 3650), rqnYears: n(c.rqnYears, RS_DEF.rqnYears, 0, 20),
+    by: String(c.by || RS_DEF.by).substring(0, 200) };
+}
+function saveRemainCfg(token, cfg) {
+  requireAdmin_(token);
+  cfg = cfg || {};
+  var d = Number(cfg.days), y = Number(cfg.rqnYears), by = String(cfg.by || '').replace(/[^A-Za-z0-9,; ]/g, '').trim();
+  if (!(d >= 1 && d <= 3650)) throw new Error('จำนวนวันค้างนานต้องอยู่ระหว่าง 1–3650');
+  if (!(y >= 0 && y <= 20)) throw new Error('อายุ RQN ต้องอยู่ระหว่าง 0–20 ปี (0 = ไม่ใช้เกณฑ์นี้)');
+  if (!by) throw new Error('ต้องระบุผู้สั่งอย่างน้อย 1 ราย เช่น DS13');
+  var c = { days: Math.round(d), rqnYears: Math.round(y), by: by };
+  schedProp_('RS_CFG', JSON.stringify(c));
+  audit_([['Admin', 'ตั้งค่า Stock ช่วยใช้', '', 'ค้าง ≥ ' + c.days + ' วัน · RQN ≥ ' + c.rqnYears + ' ปี · ผู้สั่ง ' + c.by]]);
+  return c;
+}
+
+// ── tags (main spreadsheet) ─────────────────────────────────────────
+function rsTagSheet_() {
+  var s = ss_().getSheetByName(RS_TAG_SHEET);
+  if (!s) { s = ss_().insertSheet(RS_TAG_SHEET); s.getRange(1, 1, 1, RS_TAG_HEADER.length).setValues([RS_TAG_HEADER]).setFontWeight('bold'); s.setFrozenRows(1); }
+  return s;
+}
+function rsTags_() {
+  var s = ss_().getSheetByName(RS_TAG_SHEET), out = {};
+  if (!s || s.getLastRow() < 2) return out;
+  s.getRange(2, 1, s.getLastRow() - 1, RS_TAG_HEADER.length).getDisplayValues().forEach(function (r, i) {
+    var k = ordCodeKey_(r[0]); if (!k || !RS_TAGS[r[1]]) return;
+    out[k] = { row: i + 2, tag: r[1], replaceBy: r[2], useBefore: r[3], note: r[4], updated: r[5] };
+  });
+  return out;
+}
+// tag = 'last' | 'sub' | 'skip' | '' (remove)
+function saveRemainTag(token, code, t) {
+  requireAdmin_(token);
+  t = t || {};
+  var k = ordCodeKey_(code), tag = String(t.tag || '');
+  if (!k || k.length > 40) throw new Error('CODE ไม่ถูกต้อง');
+  if (tag && !RS_TAGS[tag]) throw new Error('ป้ายไม่ถูกต้อง');
+  var useBefore = String(t.useBefore || '').trim();
+  if (useBefore && !/^\d{2}\/\d{2}\/\d{4}$/.test(useBefore)) throw new Error('วันที่ควรใช้ให้หมดก่อน ต้องเป็นรูปแบบ วว/ดด/ปปปป');
+  return withLock_(function () {
+    var s = rsTagSheet_(), cur = rsTags_()[k];
+    var row = [k, tag, ordStr_(t.replaceBy, 40).toUpperCase().replace(/\s+/g, ''), useBefore, ordStr_(t.note, 300), nowStr_(), 'Admin'];
+    if (!tag) { if (cur) s.deleteRow(cur.row); }
+    else if (cur) writeText_(s, cur.row, 1, row);
+    else writeText_(s, s.getLastRow() + 1, 1, row);
+    audit_([['Admin', tag ? 'ติดป้าย Stock ช่วยใช้: ' + RS_TAGS[tag] : 'ลบป้าย Stock ช่วยใช้', k, row[2] ? '→ ' + row[2] : '']]);
+    CacheService.getScriptCache().remove('rs_flags');
+    return true;
+  });
+}
+
+// ── history: when did each CODE's total quantity last change? (Helpdesk_ItemStock → StockHistory) ──
+// Called after every successful Stock sync. One row per CODE, so it stays small.
+function rsTrack_(rows) {
+  var tot = {};
+  rows.forEach(function (r) { var k = ordCodeKey_(r[0]); if (!k) return; var q = Number(r[3]); tot[k] = Math.round(((tot[k] || 0) + (isFinite(q) ? q : 0)) * 1000) / 1000; });
+  var ss = stockSS_(), sh = ss.getSheetByName(RS_HIST_SHEET) || ss.insertSheet(RS_HIST_SHEET), today = ordToday_(), old = {};
+  if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, 4).getDisplayValues().forEach(function (r) { if (r[0]) old[r[0]] = r; });
+  var out = Object.keys(tot).sort().map(function (k) {
+    var o = old[k], q = String(tot[k]);
+    return [k, q, o && o[1] === q && o[2] ? o[2] : today, today];
+  });
+  var all = [RS_HIST_HEADER].concat(out);
+  sh.clearContents();
+  if (sh.getMaxRows() < all.length) sh.insertRowsAfter(sh.getMaxRows(), all.length - sh.getMaxRows());
+  var rg = sh.getRange(1, 1, all.length, 4); rg.setNumberFormat('@'); rg.setValues(all);
+  sh.setFrozenRows(1);
+  if (!schedProp_('RS_HIST_START')) schedProp_('RS_HIST_START', today);
+}
+function rsHist_(want) {
+  var out = {};
+  try {
+    var sh = stockSS_().getSheetByName(RS_HIST_SHEET);
+    if (sh && sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, 3).getDisplayValues().forEach(function (r) { if (want[r[0]]) out[r[0]] = r[2]; });
+  } catch (e) {}
+  return out;
+}
+function rsDays_(dmy) {
+  var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String(dmy || ''));
+  if (!m) return null;
+  var now = new Date(), t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  return Math.max(0, Math.round((t0 - new Date(+m[3], +m[2] - 1, +m[1]).getTime()) / 864e5));
+}
+function rsRqnYear_(rqn) { var m = /RQN\s*(\d{2})\s*-/i.exec(String(rqn || '')); return m ? 2000 + Number(m[1]) : null; }
+
+// ── the list ────────────────────────────────────────────────────────
+function getRemainStock(token) {
+  var t0 = Date.now(), admin = isAdmin_(token), cfg = rsCfg_(), isBy = saByMatch_(cfg.by), tags = rsTags_(), items = {};
+  var rows = []; try { rows = stockData_(); } catch (e) {}
+  for (var i = 0; i < rows.length; i++) {
+    var p = rows[i]; if (!p) continue;
+    var f = p.split('\t'), k = ordCodeKey_(f[0]);
+    if (!k || !(isBy(f[7]) || tags[k])) continue;
+    var q = saNum_(f[3]), c = saNum_(f[8]);
+    var it = items[k] || (items[k] = { code: f[0], desc: f[1], comment: f[2], unit: f[4], qty: 0, locs: [], cost: 0, rqn: '', by: f[7] });
+    if (q != null) it.qty += q;
+    it.locs.push([f[5] || '-', q == null ? '' : q]);
+    if (c != null && c > it.cost) it.cost = c;
+    if (f[9] && String(f[9]) > String(it.rqn)) it.rqn = f[9];
+    if (!it.unit && f[4]) it.unit = f[4];
+    if (isBy(f[7])) it.by = f[7];
+  }
+  var want = {}; Object.keys(items).forEach(function (k) { want[k] = 1; });
+  var hist = rsHist_(want), year = new Date().getFullYear(), out = [], total = 0, start = schedProp_('RS_HIST_START') || '';
+  Object.keys(items).forEach(function (k) {
+    var it = items[k], tg = tags[k] || null;
+    it.qty = Math.round(it.qty * 1000) / 1000;
+    if (!(it.qty > 0)) return;
+    it.since = hist[k] || ''; it.still = rsDays_(it.since);
+    var ry = rsRqnYear_(it.rqn); it.rqnAge = ry ? year - ry : null;
+    var why = [];
+    if (it.still != null && it.still >= cfg.days) why.push('still');
+    if (cfg.rqnYears > 0 && it.rqnAge != null && it.rqnAge >= cfg.rqnYears) why.push('rqn');
+    if (tg && (tg.tag === 'last' || tg.tag === 'sub')) why.push(tg.tag);
+    it.skip = !!(tg && tg.tag === 'skip');
+    if (!why.length && !it.skip) return;
+    it.why = why; it.key = k; it.len = k.length;
+    if (tg) it.tag = { tag: tg.tag, replaceBy: tg.replaceBy, useBefore: tg.useBefore, note: tg.note };
+    if (tg && tg.replaceBy) it.replaceBy = tg.replaceBy;
+    it.value = Math.round(it.qty * it.cost * 100) / 100;
+    if (!it.skip) total += it.value;
+    if (!admin) { delete it.cost; delete it.value; delete it.rqn; }
+    out.push(it);
+  });
+  out.sort(function (a, b) { return admin ? (b.value - a.value) : ((b.still || 0) - (a.still || 0) || (b.rqnAge || 0) - (a.rqnAge || 0)); });
+  perf_('getRemainStock', t0);
+  return { items: out, cfg: cfg, admin: admin, histStart: start, total: admin ? Math.round(total) : null,
+    stockTime: (stockInfo_() || {}).time || '' };
+}
+
+// small public map for badges in Item stock: { CODE: 'last' | 'sub' | 'old' }
+function getRemainFlags() {
+  var c = CacheService.getScriptCache(), hit = c.get('rs_flags');
+  if (hit) { try { return JSON.parse(hit); } catch (e) {} }
+  var m = {};
+  try { getRemainStock('').items.forEach(function (x) { if (!x.skip) m[x.key] = x.why.indexOf('last') >= 0 ? 'last' : x.why.indexOf('sub') >= 0 ? 'sub' : 'old'; }); } catch (e) {}
+  try { c.put('rs_flags', JSON.stringify(m), 3600); } catch (e) {}
+  return m;
+}

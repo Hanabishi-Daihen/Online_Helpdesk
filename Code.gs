@@ -1357,6 +1357,7 @@ function syncStockInner_(why, force) {
     var locList = Object.keys(locs).sort().map(function (k) { return [k, locs[k]]; });
     schedProp_('STOCK_META', JSON.stringify({ rows: rows.length, items: Object.keys(codes).length, locations: locList, bys: stockUnitList_(bys), time: info.time }));
     schedProp_('STOCK_HASH', hash);
+    try { rsTrack_(rows); CacheService.getScriptCache().remove('rs_flags'); } catch (e) { console.warn('rsTrack_', e); }   // Stock ช่วยใช้: quantity history
     try { stockWarm_(rows.map(function (r) { return r[STOCK_NCOL]; }), hash); stockBundle_(); } catch (e) {}   // prime fast caches
     info.ok = true; info.rows = rows.length; info.items = Object.keys(codes).length; info.hash = hash;
     info.secs = Math.round((Date.now() - t0) / 1000);
