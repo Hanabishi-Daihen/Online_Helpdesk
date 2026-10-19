@@ -272,3 +272,84 @@ function getRemainFlags() {
   try { c.put('rs_flags', JSON.stringify(m), 3600); } catch (e) {}
   return m;
 }
+
+// ── PDF report ──────────────────────────────────────────────────────
+// opt = { group: 'prefix4' | 'length' | 'none', scope: 'all' | '8' | '16', why: 'all' | 'still' | 'rqn' | 'last' | 'sub',
+//         claims: true/false (show only items without a claim) }
+// Everyone can export; cost / value columns appear only for Admin (same data the page gets).
+function exportRemainReport(token, opt) {
+  var t0 = Date.now(); opt = opt || {};
+  var d = getRemainStock(token), admin = d.admin, claims = d.claims || {};
+  var group = { prefix4: 1, length: 1, none: 1 }[opt.group] ? opt.group : 'prefix4';
+  var list = d.items.filter(function (x) {
+    if (x.skip) return false;
+    if (opt.scope === '8' && x.len !== 8) return false;
+    if (opt.scope === '16' && x.len !== 16) return false;
+    if (opt.why && opt.why !== 'all' && (x.why || []).indexOf(opt.why) < 0) return false;
+    if (opt.unclaimed && claims[x.key]) return false;
+    return true;
+  });
+  var keyOf = function (x) { return group === 'prefix4' ? x.key.substring(0, 4) : group === 'length' ? (x.len === 8 ? 'CODE 8 หลัก' : x.len === 16 ? 'CODE 16 หลัก' : 'CODE ' + x.len + ' หลัก') : 'ทุกรายการ'; };
+  var groups = {}, order = [];
+  list.forEach(function (x) { var k = keyOf(x); if (!groups[k]) { groups[k] = { name: k, items: [], value: 0, qtyItems: 0, oldest: 0, claimed: 0 }; order.push(k); }
+    var g = groups[k]; g.items.push(x); g.value += x.value || 0; g.oldest = Math.max(g.oldest, x.still || 0); if (claims[x.key]) g.claimed++; });
+  order.sort(function (a, b) { return admin ? groups[b].value - groups[a].value : String(a).localeCompare(String(b)); });
+  var WHY = { still: 'ค้างนาน', rqn: 'RQN เก่า', last: 'ล็อตสุดท้าย', sub: 'ใช้แทนได้' };
+  var fmt = function (n) { return n == null || n === '' ? '-' : Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 }); };
+  var money = function (n) { return '฿' + Number(Math.round(n || 0)).toLocaleString('en-US'); };
+  var cnt = function (w) { return list.filter(function (x) { return (x.why || []).indexOf(w) >= 0; }).length; };
+  var total = list.reduce(function (s, x) { return s + (x.value || 0); }, 0);
+  var claimedN = list.filter(function (x) { return claims[x.key]; }).length;
+  var scopeTxt = { all: 'ทุกความยาว CODE', '8': 'CODE 8 หลัก', '16': 'CODE 16 หลัก' }[opt.scope] || 'ทุกความยาว CODE';
+  var groupTxt = { prefix4: 'แบ่งหมวดตาม CODE 4 หลักแรก', length: 'แบ่งตามความยาว CODE (8 / 16 หลัก)', none: 'ไม่แบ่งหมวด' }[group];
+  var C = '#cc785c', L = '#e6dfd8', M = '#6c6a64';
+  var th = function (t, al) { return '<th style="background:#f5f0e8;border:1px solid ' + L + ';padding:4px 5px;font-size:8.5pt;text-align:' + (al || 'left') + ';">' + esc_(t) + '</th>'; };
+  var td = function (t, al, st) { return '<td style="border:1px solid ' + L + ';padding:4px 5px;font-size:8.5pt;vertical-align:top;text-align:' + (al || 'left') + ';' + (st || '') + '">' + t + '</td>'; };
+  var kpi = function (v, l, col) { return '<td style="border:1px solid ' + L + ';padding:8px;text-align:center;width:20%;"><div style="font-size:15pt;font-weight:bold;color:' + (col || '#141413') + ';">' + v + '</div><div style="font-size:8pt;color:' + M + ';">' + esc_(l) + '</div></td>'; };
+  var top = list.slice().sort(function (a, b) { return admin ? b.value - a.value : (b.still || 0) - (a.still || 0); }).slice(0, 10);
+  var h = [];
+  h.push('<html><head><meta charset="utf-8"><style>body{font-family:Sarabun,Tahoma,Arial,sans-serif;color:#141413;font-size:9pt;}h1{font-size:17pt;margin:0;}h2{font-size:12pt;margin:16px 0 6px;border-bottom:2px solid ' + C + ';padding-bottom:3px;}table{border-collapse:collapse;width:100%;}</style></head><body>');
+  h.push('<table><tr><td style="background:' + C + ';color:#fff;padding:10px 12px;"><h1>♻ รายงาน Stock ช่วยใช้ (Remain stock)</h1><div style="font-size:9pt;">DAIHEN ELECTRIC CO., LTD. · ช่วยกันนำของค้างไปใช้ เพื่อลดการ Scrap</div></td></tr></table>');
+  h.push('<p style="font-size:8.5pt;color:' + M + ';margin:6px 0;">ออกรายงาน ' + esc_(nowStr_()) + ' · ข้อมูล Stock ' + esc_(d.stockTime || '-') + ' · ผู้สั่ง ' + esc_(d.cfg.by) + ' · เกณฑ์: ค้างนาน ≥ ' + d.cfg.days + ' วัน' + (d.cfg.rqnYears ? ', RQN เก่า ≥ ' + d.cfg.rqnYears + ' ปี' : '') + ' · ' + esc_(scopeTxt) + ' · ' + esc_(groupTxt) + (opt.why && opt.why !== 'all' ? ' · เฉพาะ "' + esc_(WHY[opt.why] || '') + '"' : '') + (opt.unclaimed ? ' · เฉพาะที่ยังไม่มีผู้จอง' : '') + (d.histStart ? ' · เริ่มเก็บประวัติ ' + esc_(d.histStart) : '') + '</p>');
+  // 1) summary
+  h.push('<h2>1. สรุปภาพรวม</h2><table><tr>' + kpi(fmt(list.length), 'รายการช่วยใช้') +
+    (admin ? kpi(money(total), 'มูลค่าเสี่ยง Scrap', '#9f1239') : kpi(fmt(order.length), 'จำนวนหมวด')) +
+    kpi(fmt(claimedN), 'มีผู้จองนำไปใช้แล้ว', '#5b21b6') +
+    kpi(d.saved ? (admin ? money(d.saved.month.value) : fmt(d.saved.month.items)) : '-', admin ? 'ช่วยลด Scrap เดือนนี้' : 'รายการที่ถูกใช้เดือนนี้', '#065f46') +
+    kpi(d.saved ? (admin ? money(d.saved.all.value) : fmt(d.saved.all.items)) : '-', admin ? 'ช่วยลด Scrap สะสม' : 'ถูกใช้สะสม (ครั้ง)', '#065f46') + '</tr></table>');
+  h.push('<p style="font-size:8.5pt;margin:6px 0;">แยกตามเหตุผล: ค้างนาน ' + cnt('still') + ' · RQN เก่า ' + cnt('rqn') + ' · ล็อตสุดท้าย ' + cnt('last') + ' · ใช้แทนได้ ' + cnt('sub') + ' รายการ (1 รายการอาจมีหลายเหตุผล)</p>');
+  // 2) top 10
+  h.push('<h2>2. ' + (admin ? 'Top 10 มูลค่าสูงสุด — ควรเร่งนำไปใช้ก่อน' : 'Top 10 ค้างนานที่สุด') + '</h2><table><tr>' + th('#', 'center') + th('CODE') + th('รายการ') + th('คงเหลือ', 'right') + th('ไม่เคลื่อนไหว', 'right') + (admin ? th('มูลค่า', 'right') : '') + '</tr>');
+  top.forEach(function (x, i) { h.push('<tr>' + td(String(i + 1), 'center') + td('<b>' + esc_(x.code) + '</b>') + td(esc_(x.desc || '-')) + td(fmt(x.qty) + ' ' + esc_(x.unit || ''), 'right') + td(x.still != null ? x.still + ' วัน' : '-', 'right') + (admin ? td(money(x.value), 'right', 'color:#9f1239;font-weight:bold;') : '') + '</tr>'); });
+  h.push('</table>');
+  // 3) group summary
+  if (group !== 'none') {
+    h.push('<h2>3. สรุปตามหมวด (' + esc_(groupTxt) + ')</h2><table><tr>' + th(group === 'prefix4' ? 'หมวด (4 หลักแรก)' : 'หมวด') + th('จำนวนรายการ', 'right') + th('มีผู้จอง', 'right') + th('ค้างนานสุด', 'right') + (admin ? th('มูลค่ารวม', 'right') + th('สัดส่วน', 'right') : '') + '</tr>');
+    order.forEach(function (k) { var g = groups[k]; h.push('<tr>' + td('<b>' + esc_(g.name) + '</b>') + td(fmt(g.items.length), 'right') + td(fmt(g.claimed), 'right') + td(g.oldest ? g.oldest + ' วัน' : '-', 'right') + (admin ? td(money(g.value), 'right') + td(total ? (g.value / total * 100).toFixed(1) + '%' : '-', 'right') : '') + '</tr>'); });
+    h.push('</table>');
+  }
+  // 4) detail
+  h.push('<h2>' + (group !== 'none' ? '4' : '3') + '. รายละเอียด</h2>');
+  order.forEach(function (k) {
+    var g = groups[k];
+    if (group !== 'none') h.push('<div style="margin:10px 0 4px;font-weight:bold;font-size:10pt;color:' + C + ';">หมวด ' + esc_(g.name) + ' · ' + g.items.length + ' รายการ' + (admin ? ' · ' + money(g.value) : '') + '</div>');
+    h.push('<table><tr>' + th('CODE') + th('รายการ / Spec') + th('คงเหลือ', 'right') + th('คลัง') + th('ไม่เคลื่อนไหว', 'right') + th('เหตุผล / ป้าย') + th('ผู้จอง') + (admin ? th('มูลค่า', 'right') : '') + '</tr>');
+    g.items.forEach(function (x) {
+      var tg = x.tag ? [x.replaceBy ? 'ใช้แทน → ' + x.replaceBy : '', x.tag.useBefore ? 'ใช้ให้หมดก่อน ' + x.tag.useBefore : '', x.tag.note || ''].filter(String).map(esc_).join('<br>') : '';
+      var cl = (claims[x.key] || []).map(function (c) { return esc_(c.name) + (c.qty ? ' (' + esc_(c.qty) + ')' : '') + ': ' + esc_(c.purpose); }).join('<br>');
+      h.push('<tr>' + td('<b>' + esc_(x.code) + '</b>') + td(esc_(x.desc || '-') + (x.comment ? '<br><span style="color:' + M + ';">' + esc_(x.comment) + '</span>' : '')) +
+        td(fmt(x.qty) + ' ' + esc_(x.unit || ''), 'right') + td(esc_((x.locs || []).map(function (l) { return l[0] + ' ' + fmt(l[1]); }).join(', '))) +
+        td((x.still != null ? x.still + ' วัน' : '-') + (x.rqnAge != null ? '<br><span style="color:' + M + ';">RQN ' + x.rqnAge + ' ปี</span>' : ''), 'right') +
+        td(esc_((x.why || []).map(function (w) { return WHY[w] || w; }).join(', ')) + (tg ? '<br><span style="color:' + M + ';">' + tg + '</span>' : '')) +
+        td(cl || '-') + (admin ? td(money(x.value), 'right') : '') + '</tr>');
+    });
+    h.push('</table>');
+  });
+  if (!list.length) h.push('<p>ไม่มีรายการตามเงื่อนไขที่เลือก</p>');
+  h.push('<p style="font-size:8pt;color:' + M + ';margin-top:14px;">หมายเหตุ: "ไม่เคลื่อนไหว" = จำนวนคงเหลือรวมทุกคลังไม่เปลี่ยนแปลง นับจากประวัติที่ระบบบันทึกทุกครั้งที่ซิงค์ Stock · "ถูกใช้" นับจากจำนวนที่ลดลงของรายการช่วยใช้' + (admin ? ' · มูลค่า = คงเหลือ × LASTCOST (เอกสารนี้มีข้อมูลราคา — ใช้ภายในเท่านั้น)' : '') + '</p></body></html>');
+  var name = 'RemainStock_' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyyMMdd_HHmm') + '_' + group + (opt.scope && opt.scope !== 'all' ? '_' + opt.scope : '') + '.pdf';
+  var pdf = Utilities.newBlob(h.join(''), 'text/html', 'r.html').getAs('application/pdf').setName(name);
+  audit_([[admin ? 'Admin' : 'User', 'ออกรายงาน PDF Stock ช่วยใช้', '', groupTxt + ' · ' + scopeTxt + ' · ' + list.length + ' รายการ']]);
+  perf_('exportRemainReport', t0);
+  return { name: name, mime: 'application/pdf', b64: Utilities.base64Encode(pdf.getBytes()), count: list.length };
+}
