@@ -136,6 +136,31 @@ function rsSavedSummary_(admin) {
   return o;
 }
 
+// ── category names for the first 4 digits of a CODE (sheet RemainStockGroups: CODE4, NAME) ──
+var RS_GROUP_SHEET = 'RemainStockGroups';
+function rsGroups_() {
+  var s = ss_().getSheetByName(RS_GROUP_SHEET), out = {};
+  if (s && s.getLastRow() > 1) s.getRange(2, 1, s.getLastRow() - 1, 2).getDisplayValues().forEach(function (r) {
+    var k = String(r[0]).trim(); if (/^\d{4}$/.test(k) && String(r[1]).trim()) out[k] = String(r[1]).trim();
+  });
+  return out;
+}
+// map = { '1001': 'Bolt & Nut', ... } — replaces the whole list (empty name = remove)
+function saveRemainGroups(token, map) {
+  requireAdmin_(token);
+  var rows = Object.keys(map || {}).filter(function (k) { return /^\d{4}$/.test(k) && String(map[k] || '').trim(); }).sort()
+    .map(function (k) { return [k, ordStr_(map[k], 80).replace(/[\r\n]+/g, ' ').trim()]; });
+  if (rows.length > 2000) throw new Error('ตั้งชื่อหมวดได้สูงสุด 2,000 หมวด');
+  return withLock_(function () {
+    var s = rsSheet_(RS_GROUP_SHEET, ['CODE4', 'NAME']);
+    if (s.getLastRow() > 1) s.getRange(2, 1, s.getLastRow() - 1, 2).clearContent();
+    if (rows.length) { var rg = s.getRange(2, 1, rows.length, 2); rg.setNumberFormat('@'); rg.setValues(rows); }
+    audit_([['Admin', 'ตั้งชื่อหมวด Stock ช่วยใช้ (4 หลักแรก)', '', rows.length + ' หมวด']]);
+    return rsGroups_();
+  });
+}
+function rsGroupLabel_(k, names) { return names && names[k] ? k + ' — ' + names[k] : k; }
+
 // ── "ฉันจะนำไปใช้" claims ────────────────────────────────────────────
 var RS_CLAIM_SHEET = 'RemainStockClaims';
 var RS_CLAIM_HEADER = ['ID', 'CODE', 'QTY', 'NAME', 'PURPOSE', 'CREATED', 'STATUS', 'CLOSED'];
@@ -219,6 +244,7 @@ function getRemainStock(token) {
   try { rows = stockData_(); } catch (e) {}
   var out = rsCompute_(rows, admin);
   out.claims = rsClaims_(true);
+  out.groups = rsGroups_();
   out.saved = rsSavedSummary_(admin);
   perf_('getRemainStock', t0);
   return out;
@@ -290,9 +316,11 @@ function exportRemainReport(token, opt) {
     if (opt.scope === '16' && x.len !== 16) return false;
     if (opt.why && opt.why !== 'all' && (x.why || []).indexOf(opt.why) < 0) return false;
     if (opt.unclaimed && claims[x.key]) return false;
+    if (opt.prefix && x.key.substring(0, 4) !== opt.prefix) return false;
     return true;
   });
-  var keyOf = function (x) { return group === 'prefix4' ? x.key.substring(0, 4) : group === 'length' ? (x.len === 8 ? 'CODE 8 หลัก' : x.len === 16 ? 'CODE 16 หลัก' : 'CODE ' + x.len + ' หลัก') : 'ทุกรายการ'; };
+  var names = d.groups || {};
+  var keyOf = function (x) { return group === 'prefix4' ? rsGroupLabel_(x.key.substring(0, 4), names) : group === 'length' ? (x.len === 8 ? 'CODE 8 หลัก' : x.len === 16 ? 'CODE 16 หลัก' : 'CODE ' + x.len + ' หลัก') : 'ทุกรายการ'; };
   var groups = {}, order = [];
   list.forEach(function (x) { var k = keyOf(x); if (!groups[k]) { groups[k] = { name: k, items: [], value: 0, qtyItems: 0, oldest: 0, claimed: 0 }; order.push(k); }
     var g = groups[k]; g.items.push(x); g.value += x.value || 0; g.oldest = Math.max(g.oldest, x.still || 0); if (claims[x.key]) g.claimed++; });
