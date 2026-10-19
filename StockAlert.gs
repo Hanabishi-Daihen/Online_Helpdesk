@@ -47,7 +47,8 @@ function saBump_() { schedProp_('SA_VER', String(Date.now())); }
 
 // ── Q_StockRT (lead time) sync from OneDrive ────────────────────────
 function rtInfo_() { try { return JSON.parse(schedProp_('RT_SYNC_LAST') || 'null'); } catch (e) { return null; } }
-function syncRtRun_(why, force) {
+function syncRtRun_(why, force) { return syncMutex_('RT_SYNC_LAST', why, function () { return syncRtInner_(why, force); }); }
+function syncRtInner_(why, force) {
   var url = schedProp_('RT_SRC_URL'), info = { time: nowStr_(), why: why }, t0 = Date.now();
   if (!url) throw new Error('ยังไม่ได้ตั้งค่าลิงก์ OneDrive ของ Q_StockRT');
   try {

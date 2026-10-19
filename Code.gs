@@ -1047,7 +1047,33 @@ function downloadShared_(u) {
   }
   throw new Error('ดาวน์โหลดไฟล์ไม่ได้ — ตรวจว่าแชร์แบบ "Anyone with the link" และลิงก์ยังไม่หมดอายุ [' + notes.join(' | ') + ']');
 }
-function syncSchedulesRun_(why, force) {
+// ── one data sync at a time ─────────────────────────────────────────────────
+// Triggers for Stock / PendingOrder / Readtime / Schedules can fire at the same moment. A sync waits
+// (up to ~4 min) for another one to finish instead of running alongside it. The flag expires after
+// 15 min in case a run was killed. The script lock is held only for a moment, so users are not blocked.
+function syncMutex_(lastKey, why, fn) {
+  var P = PropertiesService.getScriptProperties(), L = LockService.getScriptLock(), until = Date.now() + 240000, me = Utilities.getUuid();
+  while (true) {
+    var got = false;
+    if (L.tryLock(5000)) {
+      try {
+        var cur = String(P.getProperty('SYNC_BUSY') || ''), at = Number(cur.split('|')[0]) || 0;
+        if (!cur || Date.now() - at > 15 * 60000) { P.setProperty('SYNC_BUSY', Date.now() + '|' + me + '|' + lastKey); got = true; }
+      } finally { L.releaseLock(); }
+    }
+    if (got) break;
+    if (Date.now() > until) {
+      var info = { time: nowStr_(), why: why, ok: false, msg: 'ข้าม: มีการซิงค์ข้อมูลอื่นทำงานอยู่นานเกินไป — จะลองใหม่รอบถัดไป' };
+      schedProp_(lastKey, JSON.stringify(info));
+      return info;
+    }
+    Utilities.sleep(10000);
+  }
+  try { return fn(); }
+  finally { if (String(P.getProperty('SYNC_BUSY') || '').indexOf('|' + me + '|') > 0) P.deleteProperty('SYNC_BUSY'); }
+}
+function syncSchedulesRun_(why, force) { return syncMutex_('SCHED_SYNC_LAST', why, function () { return syncSchedulesInner_(why, force); }); }
+function syncSchedulesInner_(why, force) {
   var url = schedProp_('SCHED_SRC_URL'), info = { time: nowStr_(), why: why };
   if (!url) throw new Error('ยังไม่ได้ตั้งค่าลิงก์ OneDrive');
   try {
@@ -1224,9 +1250,17 @@ var STOCK_COST_CODE_DEFAULT = 'Daihencost';
 var STOCK_ALL_MAX = 1500;                          // ≤ this many matches → return all rows at once
 var STOCK_CHUNK = 15000;
 
+// The Item-stock workbook (sheets Stock, PendingOrder, StockRT). A new workbook is created ONLY when none was
+// ever set up — a temporary openById failure must not replace it (that used to orphan PendingOrder / StockRT).
 function stockSS_() {
   var id = schedProp_('STOCK_SS_ID');
-  if (id) { try { return SpreadsheetApp.openById(id); } catch (e) {} }
+  if (id) {
+    var err;
+    for (var n = 0; n < 3; n++) {
+      try { return SpreadsheetApp.openById(id); } catch (e) { err = e; Utilities.sleep(1500 * (n + 1)); }
+    }
+    throw new Error('เปิดไฟล์ Helpdesk_ItemStock ไม่ได้ (' + (err && err.message || err) + ') — ระบบจะลองใหม่รอบถัดไป ไม่ได้สร้างไฟล์ใหม่');
+  }
   var ss = SpreadsheetApp.create('Helpdesk_ItemStock');
   try { DriveApp.getFileById(ss.getId()).moveTo(DriveApp.getFolderById(CONFIG.DRIVE_FOLDER_ID)); } catch (e) {}
   schedProp_('STOCK_SS_ID', ss.getId());
@@ -1260,7 +1294,8 @@ function stockRow_(f) {
   return r;
 }
 
-function syncStockRun_(why, force) {
+function syncStockRun_(why, force) { return syncMutex_('STOCK_SYNC_LAST', why, function () { return syncStockInner_(why, force); }); }
+function syncStockInner_(why, force) {
   var url = schedProp_('STOCK_SRC_URL'), info = { time: nowStr_(), why: why }, t0 = Date.now();
   if (!url) throw new Error('ยังไม่ได้ตั้งค่าลิงก์ OneDrive ของ Item stock');
   try {
@@ -1287,25 +1322,23 @@ function syncStockRun_(why, force) {
     lines = null;
     if (!rows.length) throw new Error('ไฟล์ไม่มีข้อมูล');
 
-    var ss = stockSS_(), tmpName = STOCK_SHEET + '_new', tmp = ss.getSheetByName(tmpName);
-    if (tmp) ss.deleteSheet(tmp);
-    tmp = ss.insertSheet(tmpName);
+    // Write in place: the "Stock" sheet keeps its sheet ID and the other sheets (PendingOrder, StockRT) are never touched.
+    // (Before: a temp sheet was swapped in and every other sheet in the workbook was deleted.)
+    var ss = stockSS_(), sh = ss.getSheetByName(STOCK_SHEET) || ss.insertSheet(STOCK_SHEET);
+    var left = ss.getSheetByName(STOCK_SHEET + '_new'); if (left) ss.deleteSheet(left);   // leftover of the old method
     var need = rows.length + 1;
-    if (tmp.getMaxRows() < need) tmp.insertRowsAfter(tmp.getMaxRows(), need - tmp.getMaxRows());
-    if (tmp.getMaxColumns() > STOCK_W) tmp.deleteColumns(STOCK_W + 1, tmp.getMaxColumns() - STOCK_W);
-    else if (tmp.getMaxColumns() < STOCK_W) tmp.insertColumnsAfter(tmp.getMaxColumns(), STOCK_W - tmp.getMaxColumns());
-    tmp.getRange(1, 1, need, STOCK_W).setNumberFormat('@');
-    tmp.getRange(1, 1, 1, STOCK_W).setValues([STOCK_HEADER]).setFontWeight('bold');
+    if (sh.getMaxRows() < need) sh.insertRowsAfter(sh.getMaxRows(), need - sh.getMaxRows());
+    if (sh.getMaxColumns() < STOCK_W) sh.insertColumnsAfter(sh.getMaxColumns(), STOCK_W - sh.getMaxColumns());
+    sh.clearContents();
+    sh.getRange(1, 1, need, STOCK_W).setNumberFormat('@');
+    sh.getRange(1, 1, 1, STOCK_W).setValues([STOCK_HEADER]).setFontWeight('bold');
     for (var s = 0; s < rows.length; s += STOCK_CHUNK) {
       var blk = rows.slice(s, s + STOCK_CHUNK);
-      tmp.getRange(s + 2, 1, blk.length, STOCK_W).setValues(blk);
+      sh.getRange(s + 2, 1, blk.length, STOCK_W).setValues(blk);
       SpreadsheetApp.flush();
     }
-    tmp.setFrozenRows(1); tmp.hideColumns(STOCK_W);
-    var old = ss.getSheetByName(STOCK_SHEET);
-    if (old) ss.deleteSheet(old);
-    tmp.setName(STOCK_SHEET);
-    ss.getSheets().forEach(function (x) { if (x.getName() !== STOCK_SHEET && ss.getSheets().length > 1) ss.deleteSheet(x); });
+    var spare = sh.getMaxRows() - need; if (spare > 200) sh.deleteRows(need + 101, spare - 100);
+    sh.setFrozenRows(1); sh.hideColumns(STOCK_W);
 
     var locList = Object.keys(locs).sort().map(function (k) { return [k, locs[k]]; });
     schedProp_('STOCK_META', JSON.stringify({ rows: rows.length, items: Object.keys(codes).length, locations: locList, bys: stockUnitList_(bys), time: info.time }));
@@ -1561,7 +1594,8 @@ function poDate_(v, order) {
   return (d < 10 ? '0' : '') + d + '/' + (mo < 10 ? '0' : '') + mo + '/' + y;
 }
 
-function syncPendingRun_(why, force) {
+function syncPendingRun_(why, force) { return syncMutex_('PO_SYNC_LAST', why, function () { return syncPendingInner_(why, force); }); }
+function syncPendingInner_(why, force) {
   var url = schedProp_('PO_SRC_URL'), info = { time: nowStr_(), why: why }, t0 = Date.now();
   if (!url) throw new Error('ยังไม่ได้ตั้งค่าลิงก์ OneDrive ของ Pending Order');
   try {
