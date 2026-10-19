@@ -15,6 +15,8 @@ var RS_TAG_HEADER = ['CODE', 'TAG', 'REPLACE_BY', 'USE_BEFORE', 'NOTE', 'UPDATED
 var RS_HIST_SHEET = 'StockHistory';                    // in the Helpdesk_ItemStock workbook
 var RS_HIST_HEADER = ['CODE', 'QTY', 'SINCE', 'LAST_SEEN'];
 var RS_DEF = { days: 180, rqnYears: 2, by: 'DS13' };
+// Only numeric item codes count (e.g. 10010001). Codes with letters such as SV024355 (Service) are left out.
+function rsCodeOk_(k) { return /^\d+$/.test(String(k || '')); }
 var RS_TAGS = { last: 'ล็อตสุดท้าย / เปลี่ยนรุ่น', sub: 'ใช้แทนกันได้', skip: 'ไม่ต้องแจ้ง' };
 
 function rsCfg_() {
@@ -57,6 +59,7 @@ function saveRemainTag(token, code, t) {
   t = t || {};
   var k = ordCodeKey_(code), tag = String(t.tag || '');
   if (!k || k.length > 40) throw new Error('CODE ไม่ถูกต้อง');
+  if (!rsCodeOk_(k)) throw new Error('Stock ช่วยใช้ รองรับเฉพาะ CODE ที่เป็นตัวเลข (เช่น SV… เป็นรหัส Service ไม่นำมาคิด)');
   if (tag && !RS_TAGS[tag]) throw new Error('ป้ายไม่ถูกต้อง');
   var useBefore = String(t.useBefore || '').trim();
   if (useBefore && !/^\d{2}\/\d{2}\/\d{4}$/.test(useBefore)) throw new Error('วันที่ควรใช้ให้หมดก่อน ต้องเป็นรูปแบบ วว/ดด/ปปปป');
@@ -226,7 +229,7 @@ function rsCompute_(rows, admin) {
   for (var i = 0; i < rows.length; i++) {
     var p = rows[i]; if (!p) continue;
     var f = p.split('\t'), k = ordCodeKey_(f[0]);
-    if (!k || !(isBy(f[7]) || tags[k])) continue;
+    if (!rsCodeOk_(k) || !(isBy(f[7]) || tags[k])) continue;
     var q = saNum_(f[3]), c = saNum_(f[8]);
     var it = items[k] || (items[k] = { code: f[0], desc: f[1], comment: f[2], unit: f[4], qty: 0, locs: [], cost: 0, rqn: '', by: f[7] });
     if (q != null) it.qty += q;
