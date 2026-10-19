@@ -35,6 +35,7 @@ function saveRemainCfg(token, cfg) {
   var c = { days: Math.round(d), rqnYears: Math.round(y), by: by };
   schedProp_('RS_CFG', JSON.stringify(c));
   audit_([['Admin', 'ตั้งค่า Stock ช่วยใช้', '', 'ค้าง ≥ ' + c.days + ' วัน · RQN ≥ ' + c.rqnYears + ' ปี · ผู้สั่ง ' + c.by]]);
+  try { rsSnapBuild_(); } catch (e) { console.warn(e); }   // new thresholds → refresh the list now
   return c;
 }
 
@@ -63,7 +64,7 @@ function saveRemainTag(token, code, t) {
   if (tag && !RS_TAGS[tag]) throw new Error('ป้ายไม่ถูกต้อง');
   var useBefore = String(t.useBefore || '').trim();
   if (useBefore && !/^\d{2}\/\d{2}\/\d{4}$/.test(useBefore)) throw new Error('วันที่ควรใช้ให้หมดก่อน ต้องเป็นรูปแบบ วว/ดด/ปปปป');
-  return withLock_(function () {
+  var ok = withLock_(function () {
     var s = rsTagSheet_(), cur = rsTags_()[k];
     var row = [k, tag, ordStr_(t.replaceBy, 40).toUpperCase().replace(/\s+/g, ''), useBefore, ordStr_(t.note, 300), nowStr_(), 'Admin'];
     if (!tag) { if (cur) s.deleteRow(cur.row); }
@@ -73,6 +74,8 @@ function saveRemainTag(token, code, t) {
     CacheService.getScriptCache().remove('rs_flags');
     return true;
   });
+  try { rsSnapBuild_(); } catch (e) { console.warn(e); }   // tags change which items are listed
+  return ok;
 }
 
 // ── history: when did each CODE's total quantity last change? (Helpdesk_ItemStock → StockHistory) ──
@@ -106,11 +109,15 @@ function rsMeasure_(ss, tot, rows) {
     if (k && q1 < q0) used.push([today, k, r[3], String(Math.round((q0 - q1) * 1000) / 1000), r[4], String(Math.round((q0 - q1) * c * 100) / 100), r[5]]);
   });
   if (used.length) {
+    var agg = rsSavedAgg_();                          // read the tally before the new rows are added
     var sv = rsSheet_(RS_SAVED_SHEET, RS_SAVED_HEADER);
     var rg = sv.getRange(sv.getLastRow() + 1, 1, used.length, RS_SAVED_HEADER.length); rg.setNumberFormat('@'); rg.setValues(used);
+    rsSavedAdd_(agg, used);
     rsCloseClaims_(used.map(function (u) { return u[1]; }));
   }
-  var cur = rsCompute_(rows.map(function (r) { return r[STOCK_NCOL]; }), true).items.filter(function (x) { return !x.skip; })
+  var snap = rsCompute_(rows.map(function (r) { return r[STOCK_NCOL]; }), true);
+  rsSnapPut_(snap);                                   // the page reads this instead of recomputing
+  var cur = snap.items.filter(function (x) { return !x.skip; })
     .map(function (x) { return [x.key, String(x.qty), String(x.cost || 0), x.desc || '', x.unit || '', (x.why || []).join(',')]; });
   var all = [['CODE', 'QTY', 'COST', 'DESC', 'UNIT', 'WHY']].concat(cur);
   prevSh.clearContents();
@@ -121,19 +128,30 @@ function rsSheet_(name, header) {
   if (!s) { s = ss_().insertSheet(name); s.getRange(1, 1, 1, header.length).setValues([header]).setFontWeight('bold'); s.setFrozenRows(1); }
   return s;
 }
+// Running tally of RemainStockSaved (Script property RS_SAVED_AGG) so the page never reads the whole log:
+// { m: { 'MM/yyyy': [items, value] }, all: [items, value], recent: [last 10 rows] }
+function rsSavedAgg_() {
+  var a = null; try { a = JSON.parse(schedProp_('RS_SAVED_AGG') || 'null'); } catch (e) {}
+  if (a && a.all) return a;
+  a = { m: {}, all: [0, 0], recent: [] };                 // first time: build once from the log
+  var s = ss_().getSheetByName(RS_SAVED_SHEET);
+  if (s && s.getLastRow() > 1) rsSavedAdd_(a, s.getRange(2, 1, s.getLastRow() - 1, RS_SAVED_HEADER.length).getDisplayValues(), true);
+  schedProp_('RS_SAVED_AGG', JSON.stringify(a));
+  return a;
+}
+function rsSavedAdd_(a, rows, noSave) {
+  rows.forEach(function (r) {
+    var v = Number(r[5]) || 0, mm = String(r[0]).slice(3), m = a.m[mm] || (a.m[mm] = [0, 0]);
+    m[0]++; m[1] = Math.round((m[1] + v) * 100) / 100; a.all[0]++; a.all[1] = Math.round((a.all[1] + v) * 100) / 100;
+    a.recent.unshift([r[0], r[1], String(r[2]).substring(0, 60), r[3], r[4], v]);
+  });
+  a.recent = a.recent.slice(0, 10);
+  if (!noSave) schedProp_('RS_SAVED_AGG', JSON.stringify(a));
+}
 function rsSavedSummary_(admin) {
-  var s = ss_().getSheetByName(RS_SAVED_SHEET), now = new Date(), mm = ('0' + (now.getMonth() + 1)).slice(-2) + '/' + now.getFullYear();
-  var o = { month: { items: 0, value: 0 }, all: { items: 0, value: 0 }, recent: [] };
-  if (s && s.getLastRow() > 1) {
-    var rows = s.getRange(2, 1, s.getLastRow() - 1, RS_SAVED_HEADER.length).getDisplayValues();
-    rows.forEach(function (r) {
-      var v = Number(r[5]) || 0; o.all.items++; o.all.value += v;
-      if (String(r[0]).slice(3) === mm) { o.month.items++; o.month.value += v; }
-    });
-    o.recent = rows.slice(-10).reverse().map(function (r) { return { date: r[0], code: r[1], desc: r[2], qty: r[3], unit: r[4], value: admin ? Number(r[5]) || 0 : null }; });
-  }
-  o.month.value = admin ? Math.round(o.month.value) : null; o.all.value = admin ? Math.round(o.all.value) : null;
-  return o;
+  var a = rsSavedAgg_(), now = new Date(), mm = ('0' + (now.getMonth() + 1)).slice(-2) + '/' + now.getFullYear(), m = a.m[mm] || [0, 0];
+  return { month: { items: m[0], value: admin ? Math.round(m[1]) : null }, all: { items: a.all[0], value: admin ? Math.round(a.all[1]) : null },
+    recent: a.recent.map(function (r) { return { date: r[0], code: r[1], desc: r[2], qty: r[3], unit: r[4], value: admin ? Number(r[5]) || 0 : null }; }) };
 }
 
 // ── category names for the first 4 digits of a CODE (sheet RemainStockGroups: CODE4, NAME) ──
@@ -212,8 +230,8 @@ function rsCloseClaims_(codes) {                      // stock went down → ope
 // ── for the duplicate-order popup: substitutable / leftover stock for the CODEs being ordered ──
 function rsForOrder_(keys) {
   var want = {}, out = {}; keys.forEach(function (k) { want[k] = 1; });
-  var rows = []; try { rows = stockData_(); } catch (e) { return out; }
-  rsCompute_(rows, false).items.forEach(function (x) {
+  var snap; try { snap = rsSnap_(); } catch (e) { return out; }
+  rsView_(snap, false).items.forEach(function (x) {
     if (x.skip) return;
     var target = x.replaceBy && want[x.replaceBy] ? x.replaceBy : want[x.key] ? x.key : '';
     if (!target) return;
@@ -238,11 +256,68 @@ function rsDays_(dmy) {
 }
 function rsRqnYear_(rqn) { var m = /RQN\s*(\d{2})\s*-/i.exec(String(rqn || '')); return m ? 2000 + Number(m[1]) : null; }
 
+// ── snapshot: the full (Admin) list computed at Stock sync / tag or setting change ──
+// Stored gzip+base64 in CacheService (fast) and in sheet RemainStockSnap of Helpdesk_ItemStock (survives cache expiry).
+var RS_SNAP_SHEET = 'RemainStockSnap', RS_SNAP_CHUNK = 40000;
+function rsSnapPut_(snap) {
+  var b64 = Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(JSON.stringify(snap), 'application/json')).getBytes()), parts = [];
+  for (var i = 0; i < b64.length; i += RS_SNAP_CHUNK) parts.push(b64.substring(i, i + RS_SNAP_CHUNK));
+  try {
+    var c = CacheService.getScriptCache(), put = { rss_n: String(parts.length) };
+    parts.forEach(function (p, i) { put['rss_' + i] = p; });
+    c.putAll(put, 21600);
+  } catch (e) { console.warn('rsSnap cache', e); }
+  try {
+    var ss = stockSS_(), sh = ss.getSheetByName(RS_SNAP_SHEET) || ss.insertSheet(RS_SNAP_SHEET);
+    sh.clearContents();
+    sh.getRange(1, 1, parts.length, 1).setValues(parts.map(function (p) { return [p]; }));
+  } catch (e) { console.warn('rsSnap sheet', e); }
+  CacheService.getScriptCache().remove('rs_flags');
+}
+function rsSnapGet_() {
+  var b64 = '';
+  try {
+    var c = CacheService.getScriptCache(), n = Number(c.get('rss_n') || 0);
+    if (n) { var keys = []; for (var i = 0; i < n; i++) keys.push('rss_' + i); var got = c.getAll(keys);
+      if (keys.every(function (k) { return got[k] != null; })) b64 = keys.map(function (k) { return got[k]; }).join(''); }
+  } catch (e) {}
+  if (!b64) {
+    try {
+      var sh = stockSS_().getSheetByName(RS_SNAP_SHEET);
+      if (sh && sh.getLastRow()) { b64 = sh.getRange(1, 1, sh.getLastRow(), 1).getValues().map(function (r) { return r[0]; }).join('');
+        var cc = CacheService.getScriptCache(), parts = {}, k = 0;               // re-prime the cache
+        for (var j = 0; j < b64.length; j += RS_SNAP_CHUNK) parts['rss_' + (k++)] = b64.substring(j, j + RS_SNAP_CHUNK);
+        parts.rss_n = String(k); try { cc.putAll(parts, 21600); } catch (e) {} }
+    } catch (e) {}
+  }
+  if (!b64) return null;
+  try { return JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(b64), 'application/x-gzip')).getDataAsString()); } catch (e) { return null; }
+}
+function rsSnapBuild_() {
+  var rows = []; try { rows = stockData_(); } catch (e) {}
+  var snap = rsCompute_(rows, true); rsSnapPut_(snap); return snap;
+}
+function rsSnap_() { return rsSnapGet_() || rsSnapBuild_(); }
+// per-viewer copy: refresh the day counters, strip prices for non-Admin, sort
+function rsView_(snap, admin) {
+  var cfg = rsCfg_(), total = 0;
+  var items = (snap && snap.items || []).map(function (x) {
+    var y = {}; Object.keys(x).forEach(function (k) { y[k] = x[k]; }); y.why = (x.why || []).slice();
+    y.still = rsDays_(y.since);
+    if (y.still != null && y.still >= cfg.days && y.why.indexOf('still') < 0) y.why.unshift('still');
+    if (!y.skip) total += y.value || 0;
+    if (!admin) { delete y.cost; delete y.value; delete y.rqn; }
+    return y;
+  });
+  items.sort(function (a, b) { return admin ? (b.value - a.value) : ((b.still || 0) - (a.still || 0) || (b.rqnAge || 0) - (a.rqnAge || 0)); });
+  return { items: items, cfg: cfg, admin: admin, histStart: schedProp_('RS_HIST_START') || '', total: admin ? Math.round(total) : null,
+    stockTime: (stockInfo_() || {}).time || '' };
+}
+
 // ── the list ────────────────────────────────────────────────────────
 function getRemainStock(token) {
-  var t0 = Date.now(), admin = isAdmin_(token), rows = [];
-  try { rows = stockData_(); } catch (e) {}
-  var out = rsCompute_(rows, admin);
+  var t0 = Date.now(), admin = isAdmin_(token);
+  var out = rsView_(rsSnap_(), admin);
   out.claims = rsClaims_(true);
   out.groups = rsGroups_();
   out.saved = rsSavedSummary_(admin);
@@ -297,7 +372,7 @@ function getRemainFlags() {
   var c = CacheService.getScriptCache(), hit = c.get('rs_flags');
   if (hit) { try { return JSON.parse(hit); } catch (e) {} }
   var m = {};
-  try { getRemainStock('').items.forEach(function (x) { if (!x.skip) m[x.key] = x.why.indexOf('last') >= 0 ? 'last' : x.why.indexOf('sub') >= 0 ? 'sub' : 'old'; }); } catch (e) {}
+  try { rsView_(rsSnap_(), false).items.forEach(function (x) { if (!x.skip) m[x.key] = x.why.indexOf('last') >= 0 ? 'last' : x.why.indexOf('sub') >= 0 ? 'sub' : 'old'; }); } catch (e) {}
   try { c.put('rs_flags', JSON.stringify(m), 3600); } catch (e) {}
   return m;
 }
