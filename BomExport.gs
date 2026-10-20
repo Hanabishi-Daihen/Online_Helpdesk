@@ -97,7 +97,9 @@ function bomExportPrep(token, project, kind, prefix) {
     var st = bomStockIdx_(function (k) { return want[k]; });
     items.forEach(function (it) {
       var k = ordCodeKey_(it.code);
-      if (!bomIs8_(k)) { excluded.push({ code: it.code, material: it.material, qty: it.qty, why: 'ไม่ใช่ CODE 8 หลัก' }); return; }
+      if (!bomIs8_(k)) { var s0 = st[k], L0 = s0 && s0.locs[0];
+        excluded.push({ code: s0 ? s0.code : it.code, material: (s0 && s0.desc) || it.material || '', qty: it.qty, store: L0 ? L0.loc : '', pk: L0 ? L0.pk : '', unit: (s0 && s0.unit) || '',
+          onhand: s0 ? s0.onhand : 0, locs: s0 ? s0.locs : [], known: !!s0, why: 'ไม่ใช่ CODE 8 หลัก' }); return; }
       var s = st[k], L = s && s.locs[0], b = snapIt[k] || {};
       rows.push({ code: s ? s.code : it.code, material: (s && s.desc) || it.material || '', store: L ? L.loc : '', pk: L ? L.pk : '', qty: it.qty,
         unit: (s && s.unit) || '', onhand: s ? s.onhand : 0, locs: s ? s.locs : [], known: !!s, st: b.st || '', short: b.short || 0, late: b.late || 0, eta: b.eta || '' });
@@ -109,7 +111,7 @@ function bomExportPrep(token, project, kind, prefix) {
     Object.keys(st2).sort().forEach(function (k) {
       var s = st2[k];
       s.locs.forEach(function (L) {
-        if (!(L.qty > 0)) { excluded.push({ code: s.code, material: s.desc, qty: L.qty, why: 'Onhand ' + L.qty + ' (' + (L.loc || '-') + ')' }); return; }
+        if (!(L.qty > 0)) { excluded.push({ code: s.code, material: s.desc, qty: 0, store: L.loc, pk: L.pk, unit: s.unit, onhand: s.onhand, locs: s.locs, known: true, why: 'Onhand ' + L.qty + ' (' + (L.loc || '-') + ')' }); return; }
         rows.push({ code: s.code, material: s.desc, store: L.loc, pk: L.pk, qty: L.qty, unit: s.unit, onhand: s.onhand, locs: s.locs, known: true });
       });
     });
