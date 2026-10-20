@@ -377,7 +377,19 @@ function ordClean_(o) {
   return x;
 }
 // public: create / update an order
+// what a person edits on the form — the browser keeps this "signature" of the order it opened (o._base)
+// and saving is refused when the stored order no longer matches it (someone else saved in between)
+function ordSig_(o) {
+  var t = function (v) { return String(v == null ? '' : v).trim(); };
+  o = o || {};
+  return JSON.stringify([
+    ['rqn', 'spec', 'issueDate', 'des', 'chk', 'app', 'manufacturer', 'supplier', 'delivery', 'place', 'remark', 'note'].map(function (k) { return t(o[k]); }),
+    (o.items || []).map(function (i) { return ['code', 'material', 'type', 'spec', 'qty', 'unit', 'manufac'].map(function (k) { return t((i || {})[k]); }); }),
+    (o.revs || []).map(function (r) { return ['rev', 'date', 'person'].map(function (k) { return t((r || {})[k]); }); })
+  ]);
+}
 function saveOrder(o) {
+  var base = o && typeof o._base === 'string' ? o._base : '', force = !!(o && o._force);
   var x = ordClean_(o || {});
   return withLock_(function () {
     var s = ordSheet_(), all = ordAll_(), now = nowStr_();
@@ -385,6 +397,8 @@ function saveOrder(o) {
     if (dup) throw new Error('เลข Spec ' + x.spec + ' ถูกใช้แล้วในใบสั่ง ' + dup.id + ' — กรุณาเปลี่ยนเลข');
     var cur = x.id ? all.filter(function (y) { return y.id === x.id; })[0] : null;
     if (x.id && !cur) throw new Error('ไม่พบใบสั่ง ' + x.id + ' (อาจถูกลบไปแล้ว)');
+    if (cur && base && !force && ordSig_(cur) !== base)
+      throw new Error('CONFLICT: ใบสั่ง ' + cur.id + ' ถูกแก้ไขโดยผู้อื่นเมื่อ ' + (cur.updated || '-') + ' หลังจากที่คุณเปิดใบสั่งนี้');
     if (cur) {
       x.created = cur.created; x.status = 'Saved'; x.pdf = ''; x.xlsx = '';
       var ap = cur.approval;                        // any edit voids a pending / given approval → must be re-submitted

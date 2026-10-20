@@ -32,10 +32,11 @@ function doGet(e) {
     ';window.__INIT_TRACK__=' + JSON.stringify(tr).replace(/</g, '\\u003c') + ';</script>');
   // Start-up data rendered into the page: each google.script.run round trip costs ~1 s,
   // so the page answers these first calls locally instead (see bootCall in index.html).
-  var t0 = Date.now(), boot = {};
+  var t0 = Date.now(), boot = {}, vers = null;
+  try { vers = getDataVers(); } catch (e) {}                      // read before the data → conflict checks stay safe
   [['getAppUrl', getAppUrl], ['getSettings', getSettings], ['getSchedules', getSchedules], ['getPublicTemplates', getPublicTemplates]]
     .forEach(function (f) { try { boot[f[0]] = f[1](); } catch (e) { console.warn(f[0], e); } });
-  out.append('<script>window.__ZQ_BOOT__=' + JSON.stringify({ t: Date.now(), r: boot }).replace(/</g, '\\u003c') + ';</script>');
+  out.append('<script>window.__ZQ_BOOT__=' + JSON.stringify({ t: Date.now(), r: boot, v: vers }).replace(/</g, '\\u003c') + ';</script>');
   perf_('doGet boot', t0);
   return out;
 }
@@ -160,9 +161,48 @@ function issVer_() {
   if (!v) { v = PropertiesService.getScriptProperties().getProperty('ISS_VER') || '0'; c.put('iss_ver', v, 21600); }
   return v + ':' + Math.floor(Date.now() / 3e5);
 }
-function issBump_() {
-  var v = String(Date.now());
-  PropertiesService.getScriptProperties().setProperty('ISS_VER', v); CacheService.getScriptCache().put('iss_ver', v, 21600);
+function issBump_(who) {
+  var v = verBump_('ISS', who || 'u');
+  CacheService.getScriptCache().put('iss_ver', v, 21600);
+}
+// ── data versions: who changed Issues / Schedules since a browser loaded them ──
+// Each write stamps a version (ms) and logs [version, writer]. A whole-sheet overwrite is refused
+// when anyone other than the same Admin session wrote after the version the browser loaded.
+var VER_LOG_MAX = 40;
+function verWho_(token) { return token ? 'a:' + String(token).substring(0, 12) : 'u'; }
+function verBump_(kind, who) {
+  var P = PropertiesService.getScriptProperties(), cur = Number(P.getProperty(kind + '_VER') || 0);
+  var v = String(Math.max(Date.now(), cur + 1)), log = [];
+  try { log = JSON.parse(P.getProperty(kind + '_VERLOG') || '[]'); } catch (e) {}
+  log.push([v, who]); if (log.length > VER_LOG_MAX) log = log.slice(-VER_LOG_MAX);
+  P.setProperties((function () { var o = {}; o[kind + '_VER'] = v; o[kind + '_VERLOG'] = JSON.stringify(log); return o; })());
+  return v;
+}
+// '' = no conflict · otherwise the time of the other write
+function verConflict_(kind, base, who) {
+  var P = PropertiesService.getScriptProperties(), cur = P.getProperty(kind + '_VER') || '0';
+  if (String(base) === cur) return '';
+  var log = []; try { log = JSON.parse(P.getProperty(kind + '_VERLOG') || '[]'); } catch (e) {}
+  var b = Number(base) || 0, after = log.filter(function (x) { return Number(x[0]) > b; });
+  var covered = log.length && (Number(log[0][0]) <= b || log.length < VER_LOG_MAX);
+  var other = after.filter(function (x) { return x[1] !== who; });
+  if (covered && !other.length) return '';
+  var t = Number((other[other.length - 1] || [cur])[0]) || Date.now();
+  return Utilities.formatDate(new Date(t), 'Asia/Bangkok', 'dd/MM/yyyy HH:mm');
+}
+// browser records these when it loads Issues / Schedules
+function getDataVers() {
+  var P = PropertiesService.getScriptProperties();
+  return { iss: P.getProperty('ISS_VER') || '0', sched: P.getProperty('SCHED_VER') || '0' };
+}
+// pre-check before "write everything back" (both sheets)
+function checkDataVers(token, vers) {
+  requireAdmin_(token); vers = vers || {};
+  var who = verWho_(token), out = {};
+  if (vers.iss == null || vers.sched == null) return { nobase: true };
+  var a = verConflict_('ISS', vers.iss, who), b = verConflict_('SCHED', vers.sched, who);
+  if (a) out.iss = a; if (b) out.sched = b;
+  return out;
 }
 function getIssuesVer() { return issVer_(); }
 function getIssues(token) {
@@ -206,14 +246,14 @@ function createIssue(issue) {
     issue.archived = false; issue.assignee = ''; issue.closedDate = ''; issue.related = [];   // admin-only fields
     issue.status = 'New';                                       // a new case always starts as New
     if (!isAdmin_(issue._token)) (issue.chat || []).forEach(function (m) { if (m && String(m.sender || '').trim().toLowerCase() === 'admin') m.sender = 'User'; });
-    delete issue._token;
+    var tk = issue._token || ''; delete issue._token;
     var sh = sheet_(CONFIG.ISSUES, ISSUE_HEADER), oldId = issue.id;
     ensureIssueCols_(sh);
     var last = sh.getLastRow();
     var ids = last > 1 ? sh.getRange(2, 1, last - 1, 1).getValues().map(function (r) { return String(r[0]).trim(); }) : [];
     if (!oldId || ids.indexOf(oldId) >= 0) issue.id = nextId_(sh);
     writeText_(sh, Math.max(last, 1) + 1, 1, issueToRow_(issue));
-    issBump_();
+    issBump_(verWho_(isAdmin_(tk) ? tk : ''));
     return { oldId: oldId, issue: issue };
   });
   try { notifyNew_(issue); } catch (e) { console.warn(e); }      // mail after the lock — never blocks other users
@@ -342,7 +382,7 @@ function upsertIssues(list, token) {
       fmtText_(rg2); rg2.setValues(blk2);
     }
     audit_(audits);
-    if (rows.length || appendRows.length) issBump_();
+    if (rows.length || appendRows.length) issBump_(verWho_(admin ? token : ''));
     return result;
   });
   notify.forEach(function (p) {                          // mails after the lock — a mail problem never blocks saving
@@ -389,8 +429,9 @@ function adminLogin(pass) {
   return token;
 }
 
-function saveAllIssues(token, issues) {
+function saveAllIssues(token, issues, baseVer) {
   requireAdmin_(token);
+  if (baseVer != null) { var cf = verConflict_('ISS', baseVer, verWho_(token)); if (cf) throw new Error('CONFLICT: มีผู้อื่นบันทึกเคสเมื่อ ' + cf + ' หลังจากที่คุณโหลดข้อมูล — กรุณารีเฟรชหน้าแล้วลองใหม่ (ระบบไม่ได้เขียนทับ)'); }
   try { backupRun_('ก่อนเขียนทับ Issues'); } catch (e) { console.warn(e); }
   audit_([['Admin', 'เขียนทับ Issues ทั้งชีต', '', (issues || []).length + ' รายการ']]);
   return withLock_(function () {
@@ -405,14 +446,15 @@ function saveAllIssues(token, issues) {
     var all = [ISSUE_HEADER].concat(rows);
     var r = sh.getRange(1, 1, all.length, NCOLS);
     fmtText_(r); r.setValues(all);
-    issBump_();
+    issBump_(verWho_(token));
     return true;
   });
 }
 
 // NOTE: overwrites the whole sheet. If Q_SchedulesForUpdate is a QUERY()/ImportRange formula sheet, do not use this.
-function saveAllSchedules(token, schedules) {
+function saveAllSchedules(token, schedules, baseVer) {
   requireAdmin_(token);
+  if (baseVer != null) { var cf = verConflict_('SCHED', baseVer, verWho_(token)); if (cf) throw new Error('CONFLICT: มีการแก้ไข/ซิงค์ตารางงานเมื่อ ' + cf + ' หลังจากที่คุณโหลดข้อมูล — กรุณารีเฟรชหน้าแล้วลองใหม่ (ระบบไม่ได้เขียนทับ)'); }
   try { backupRun_('ก่อนเขียนทับ Schedules'); } catch (e) { console.warn(e); }
   audit_([['Admin', 'เขียนทับ Schedules ทั้งชีต', '', (schedules || []).length + ' รายการ']]);
   return withLock_(function () {
@@ -426,6 +468,7 @@ function saveAllSchedules(token, schedules) {
     sh.clearContents();
     var all = [header].concat(rows);
     sh.getRange(1, 1, all.length, 11).setValues(all);
+    verBump_('SCHED', verWho_(token));
     return true;
   });
 }
@@ -1116,6 +1159,7 @@ function syncSchedulesInner_(why, force) {
       ensureRows_(sh, all.length);
       var rg = sh.getRange(1, 1, all.length, 11); fmtText_(rg); rg.setValues(all);
       var extra = sh.getMaxRows() - all.length; if (extra > 200) sh.deleteRows(all.length + 101, extra - 100);
+      verBump_('SCHED', 'sync');
     });
     try { bomRefresh_(); } catch (e) { console.warn('bomRefresh_', e); }   // Booking BOM: need dates changed
     info.ok = true; info.rows = rows.length; info.projects = Object.keys(projects).length; info.zeroDates = zero; info.hash = hash;
@@ -1228,6 +1272,7 @@ function importScheduleRows(token, header, rows, first, last, mode) {
       fmtText_(a); a.setValues(all);
     }
     book.deleteSheet(tmp);
+    verBump_('SCHED', verWho_(token));
     return { rows: all.length };
   });
 }
