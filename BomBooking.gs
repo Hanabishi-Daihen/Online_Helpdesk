@@ -19,6 +19,7 @@ var BOM_PROJ_HEADER = ['PROJECT', 'TITLE', 'REV', 'FILE', 'ITEMS', 'NEED_DATE', 
 var BOM_ITEM_SHEET = 'BomItems';
 var BOM_ITEM_HEADER = ['PROJECT', 'CODE', 'QTY', 'MATERIAL', 'TYPE', 'RATED', 'MAKER', 'REMARK', 'ITEM'];
 var BOM_SNAP_SHEET = 'BomSnap', BOM_SNAP_CHUNK = 40000;
+var BOM_SNAP_VER = 2;                                 // v2: + ผู้สั่งล่าสุด (LastOfRequest_By) — older snapshots are rebuilt once
 var BOM_DEF = { process: 'auto', autoClose: 0, formCode: 'PLf200-011-0-1/1', formRev: 'Rev.1' };
 
 function bomCfg_() {
@@ -77,7 +78,8 @@ function bomPreview(token, codes) {
   for (var i = 0; i < rows.length; i++) {
     var p = rows[i], t = p.indexOf('\t'); if (t < 0) continue;
     var k = ordCodeKey_(p.substring(0, t)); if (!want[k]) continue;
-    var f = p.split('\t'), q = saNum_(f[3]), o = out[k] || (out[k] = { desc: f[1], unit: f[4], onhand: 0 });
+    var f = p.split('\t'), q = saNum_(f[3]), o = out[k] || (out[k] = { desc: f[1], unit: f[4], onhand: 0, by: '' });
+    if (!o.by && f[7]) o.by = String(f[7]).trim();
     if (q != null) o.onhand = Math.round((o.onhand + q) * 1000) / 1000;
   }
   var exist = bomProjects_().reduce(function (m, p) { m[bomKey_(p.project)] = { rev: p.rev, status: p.status, items: p.items }; return m; }, {});
@@ -208,7 +210,8 @@ function bomCompute_() {
     for (var i = 0; i < rows.length; i++) {
       var pr = rows[i], tb = pr.indexOf('\t'); if (tb < 0) continue;
       var k = ordCodeKey_(pr.substring(0, tb)); if (!want[k]) continue;
-      var f = pr.split('\t'), q = saNum_(f[3]), o = stock[k] || (stock[k] = { desc: f[1], unit: f[4], onhand: 0 });
+      var f = pr.split('\t'), q = saNum_(f[3]), o = stock[k] || (stock[k] = { desc: f[1], unit: f[4], onhand: 0, by: '' });
+      if (!o.by && f[7]) o.by = String(f[7]).trim();
       if (q != null) o.onhand = Math.round((o.onhand + q) * 1000) / 1000;
     }
   } catch (e) {}
@@ -253,12 +256,12 @@ function bomCompute_() {
       });
       var stt = need > 0 ? 'short' : late > 0 ? 'late' : onTime > 0 ? 'incoming' : 'ok';
       (res[d.p.project] = res[d.p.project] || []).push({ code: d.it.code, qty: d.it.qty, material: d.it.material || st.desc, type: d.it.type, rated: d.it.rated,
-        maker: d.it.maker, remark: d.it.remark, item: d.it.item, unit: st.unit, st: stt, fromStock: fromStock, onTime: onTime, late: late, short: Math.max(0, need),
+        maker: d.it.maker, remark: d.it.remark, item: d.it.item, unit: st.unit, by: st.by || '', st: stt, fromStock: fromStock, onTime: onTime, late: late, short: Math.max(0, need),
         eta: bomFmt_(eta), known: !!stock[k] });
     });
     var incoming = ins.reduce(function (s2, x) { return s2 + x.qty; }, 0), bal = Math.round((st.onhand + incoming - booked) * 1000) / 1000;
     var mx = sa[k] && sa[k].max != null ? sa[k].max : null;
-    codes.push({ code: k, desc: st.desc || (dl[0].it.material || ''), unit: st.unit, onhand: st.onhand, incoming: Math.round(incoming * 1000) / 1000,
+    codes.push({ code: k, desc: st.desc || (dl[0].it.material || ''), unit: st.unit, by: st.by || '', onhand: st.onhand, incoming: Math.round(incoming * 1000) / 1000,
       booked: Math.round(booked * 1000) / 1000, balance: bal, max: mx, over: mx != null && bal > mx, short: bal < 0, known: !!stock[k],
       projects: dl.map(function (d) { return [d.p.project, d.it.qty]; }), po: (inc[k] || []).slice(0, 5).map(function (x) { return { qty: x.qty, due: bomFmt_(x.due), pr: x.pr, po: x.po, status: x.status }; }) });
   });
@@ -272,7 +275,7 @@ function bomCompute_() {
   });
   projects.sort(function (a, b) { return (a.status === 'active' ? 0 : 1) - (b.status === 'active' ? 0 : 1) || (a.daysLeft == null ? 9e9 : a.daysLeft) - (b.daysLeft == null ? 9e9 : b.daysLeft); });
   codes.sort(function (a, b) { return (a.balance - b.balance) || String(a.code).localeCompare(String(b.code)); });
-  return { projects: projects, codes: codes, cfg: cfg, built: nowStr_(), stockTime: (stockInfo_() || {}).time || '', poTime: (poInfo_() || {}).time || '',
+  return { v: BOM_SNAP_VER, projects: projects, codes: codes, cfg: cfg, built: nowStr_(), stockTime: (stockInfo_() || {}).time || '', poTime: (poInfo_() || {}).time || '',
     schedTime: (schedSyncInfo_() || {}).time || '' };
 }
 
@@ -332,6 +335,7 @@ function bomView_(snap) {
 // ── public: everything the page needs (everyone can view; Admin edits) ──
 function getBom(token) {
   var t0 = Date.now(), snap = bomSnapGet_();
+  if (snap && snap.v !== BOM_SNAP_VER) snap = null;
   if (!snap) snap = ss_().getSheetByName(BOM_PROJ_SHEET) ? bomSnapBuild_() : { projects: [], codes: [], cfg: bomCfg_() };
   var out = bomView_(snap); out.admin = isAdmin_(token); out.cfg = bomCfg_();
   try { out.exports = bomExpLast_(); } catch (e) { out.exports = {}; }

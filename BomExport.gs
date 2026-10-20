@@ -42,7 +42,8 @@ function bomStockIdx_(keep) {
     var p = rows[i], t = p.indexOf('\t'); if (t < 0) continue;
     var k = ordCodeKey_(p.substring(0, t)); if (!k || !keep(k)) continue;
     var f = p.split('\t'), q = saNum_(f[3]) || 0, o = out[k];
-    if (!o) o = out[k] = { code: String(f[0]).trim(), desc: f[1] || '', unit: f[4] || '', cost: saNum_(f[8]) || 0, onhand: 0, locs: [] };
+    if (!o) o = out[k] = { code: String(f[0]).trim(), desc: f[1] || '', unit: f[4] || '', cost: saNum_(f[8]) || 0, onhand: 0, locs: [], by: '' };
+    if (!o.by && f[7]) o.by = String(f[7]).trim();
     o.onhand = Math.round((o.onhand + q) * 1000) / 1000;
     var loc = String(f[5] || '').trim(), pk = String(f[6] || '').trim(), L = null;
     o.locs.forEach(function (x) { if (x.loc === loc && x.pk === pk) L = x; });
@@ -99,10 +100,10 @@ function bomExportPrep(token, project, kind, prefix) {
       var k = ordCodeKey_(it.code);
       if (!bomIs8_(k)) { var s0 = st[k], L0 = s0 && s0.locs[0];
         excluded.push({ code: s0 ? s0.code : it.code, material: (s0 && s0.desc) || it.material || '', qty: it.qty, store: L0 ? L0.loc : '', pk: L0 ? L0.pk : '', unit: (s0 && s0.unit) || '',
-          onhand: s0 ? s0.onhand : 0, locs: s0 ? s0.locs : [], known: !!s0, why: 'ไม่ใช่ CODE 8 หลัก' }); return; }
+          onhand: s0 ? s0.onhand : 0, locs: s0 ? s0.locs : [], known: !!s0, by: s0 ? s0.by : '', why: 'ไม่ใช่ CODE 8 หลัก' }); return; }
       var s = st[k], L = s && s.locs[0], b = snapIt[k] || {};
       rows.push({ code: s ? s.code : it.code, material: (s && s.desc) || it.material || '', store: L ? L.loc : '', pk: L ? L.pk : '', qty: it.qty,
-        unit: (s && s.unit) || '', onhand: s ? s.onhand : 0, locs: s ? s.locs : [], known: !!s, st: b.st || '', short: b.short || 0, late: b.late || 0, eta: b.eta || '' });
+        unit: (s && s.unit) || '', onhand: s ? s.onhand : 0, by: s ? s.by : '', locs: s ? s.locs : [], known: !!s, st: b.st || '', short: b.short || 0, late: b.late || 0, eta: b.eta || '' });
     });
   } else {
     pre = bomKey_(prefix || bomProjPrefix_(key));
@@ -111,8 +112,8 @@ function bomExportPrep(token, project, kind, prefix) {
     Object.keys(st2).sort().forEach(function (k) {
       var s = st2[k];
       s.locs.forEach(function (L) {
-        if (!(L.qty > 0)) { excluded.push({ code: s.code, material: s.desc, qty: 0, store: L.loc, pk: L.pk, unit: s.unit, onhand: s.onhand, locs: s.locs, known: true, why: 'Onhand ' + L.qty + ' (' + (L.loc || '-') + ')' }); return; }
-        rows.push({ code: s.code, material: s.desc, store: L.loc, pk: L.pk, qty: L.qty, unit: s.unit, onhand: s.onhand, locs: s.locs, known: true });
+        if (!(L.qty > 0)) { excluded.push({ code: s.code, material: s.desc, qty: 0, store: L.loc, pk: L.pk, unit: s.unit, onhand: s.onhand, locs: s.locs, known: true, by: s.by, why: 'Onhand ' + L.qty + ' (' + (L.loc || '-') + ')' }); return; }
+        rows.push({ code: s.code, material: s.desc, store: L.loc, pk: L.pk, qty: L.qty, unit: s.unit, onhand: s.onhand, locs: s.locs, known: true, by: s.by });
       });
     });
   }
@@ -133,7 +134,7 @@ function bomExportLookup(token, q) {
     var h = (k + ' ' + st[k].desc).toUpperCase();
     if (words.every(function (w) { return h.indexOf(w) >= 0; })) out.push(k);
   });
-  return out.slice(0, 25).map(function (k) { var s = st[k]; return { code: s.code, material: s.desc, unit: s.unit, onhand: s.onhand, locs: s.locs.slice(0, 8) }; });
+  return out.slice(0, 25).map(function (k) { var s = st[k]; return { code: s.code, material: s.desc, unit: s.unit, onhand: s.onhand, by: s.by, locs: s.locs.slice(0, 8) }; });
 }
 
 // ── public: fill the requisition form → PDF / Excel ─────────────────
@@ -340,7 +341,7 @@ function exportBomShortReport(token, opt) {
       var k = ordCodeKey_(x.code), s = st[k], cc = cMap[k] || {}, ob = (ords[k] || []).map(function (o) { return esc_(o.id + ' ' + (o.state || '') + (o.qty ? ' ×' + o.qty : '')); });
       var po = (cc.po || []).slice(0, 3).map(function (y) { return esc_((y.po || y.pr || '-') + ' ×' + fmt(y.qty) + (y.due ? ' (' + y.due + ')' : '')); });
       var sug = x.short || 0;
-      h.push('<tr>' + td(String(i + 1), 'center') + td('<b>' + esc_(x.code) + '</b>') + td(esc_(x.material || '-') + ([x.type, x.rated, x.maker].filter(Boolean).length ? '<br><span style="color:' + M + ';">' + esc_([x.type, x.rated, x.maker].filter(Boolean).join(' · ')) + '</span>' : '')) +
+      h.push('<tr>' + td(String(i + 1), 'center') + td('<b>' + esc_(x.code) + '</b>' + ((s && s.by) || x.by ? '<br><span style="color:' + M + ';">ผู้สั่ง ' + esc_((s && s.by) || x.by) + '</span>' : '')) + td(esc_(x.material || '-') + ([x.type, x.rated, x.maker].filter(Boolean).length ? '<br><span style="color:' + M + ';">' + esc_([x.type, x.rated, x.maker].filter(Boolean).join(' · ')) + '</span>' : '')) +
         td(fmt(x.qty) + ' ' + esc_(x.unit || ''), 'right') + td(x.fromStock ? fmt(x.fromStock) : '-', 'right') + td(x.onTime ? fmt(x.onTime) : '-', 'right') +
         td(x.late ? fmt(x.late) + (x.eta ? '<br><span style="color:#92400e;">' + esc_(x.eta) + '</span>' : '') : '-', 'right') + td(x.short ? fmt(x.short) : '-', 'right', x.short ? 'color:' + C + ';font-weight:bold;' : '') +
         td(sug ? '<b>' + fmt(sug) + '</b>' : '-', 'right') + td(pill(x.st)) + td((ob.concat(po)).join('<br>') || '<span style="color:' + C + ';">ยังไม่มี</span>') +
@@ -352,11 +353,11 @@ function exportBomShortReport(token, opt) {
   var agg = codes.map(function (k) {
     var c = cMap[k] || {}, s = st[k], need = 0, short = 0, late = 0, ps = [];
     projRows.forEach(function (r) { r.items.forEach(function (x) { if (ordCodeKey_(x.code) === k) { need += x.qty; short += x.short || 0; late += x.late || 0; ps.push(r.p.project + ' ×' + fmt(x.short || x.late)); } }); });
-    return { code: k, desc: (s && s.desc) || c.desc || '', unit: (s && s.unit) || c.unit || '', onhand: c.onhand, incoming: c.incoming, booked: c.booked, balance: c.balance, short: short, late: late, ps: ps, cost: s ? s.cost : 0, ord: (ords[k] || []).length };
+    return { code: k, desc: (s && s.desc) || c.desc || '', by: (s && s.by) || c.by || '', unit: (s && s.unit) || c.unit || '', onhand: c.onhand, incoming: c.incoming, booked: c.booked, balance: c.balance, short: short, late: late, ps: ps, cost: s ? s.cost : 0, ord: (ords[k] || []).length };
   }).sort(function (a, b) { return b.short - a.short || b.late - a.late || a.code.localeCompare(b.code); });
-  h.push('<h2>4. สรุปรวมตาม CODE (ใช้วางแผนสั่งซื้อ)</h2><table><tr>' + th('CODE') + th('รายการ') + th('Onhand', 'right') + th('กำลังเข้า', 'right') + th('จองรวม', 'right') + th('คงเหลือหลังจอง', 'right') + th('ขาดรวม', 'right') + th('เข้าไม่ทันรวม', 'right') + th('โปรเจกต์') + th('ใบสั่งเปิดอยู่', 'center') + (admin ? th('มูลค่าที่ขาด', 'right') : '') + '</tr>');
+  h.push('<h2>4. สรุปรวมตาม CODE (ใช้วางแผนสั่งซื้อ)</h2><table><tr>' + th('CODE') + th('รายการ') + th('ผู้สั่งล่าสุด') + th('Onhand', 'right') + th('กำลังเข้า', 'right') + th('จองรวม', 'right') + th('คงเหลือหลังจอง', 'right') + th('ขาดรวม', 'right') + th('เข้าไม่ทันรวม', 'right') + th('โปรเจกต์') + th('ใบสั่งเปิดอยู่', 'center') + (admin ? th('มูลค่าที่ขาด', 'right') : '') + '</tr>');
   agg.forEach(function (a) {
-    h.push('<tr>' + td('<b>' + esc_(a.code) + '</b>') + td(esc_(a.desc || '-')) + td(fmt(a.onhand), 'right') + td(fmt(a.incoming), 'right') + td(fmt(a.booked), 'right') +
+    h.push('<tr>' + td('<b>' + esc_(a.code) + '</b>') + td(esc_(a.desc || '-')) + td(esc_(a.by || '-')) + td(fmt(a.onhand), 'right') + td(fmt(a.incoming), 'right') + td(fmt(a.booked), 'right') +
       td(fmt(a.balance), 'right', a.balance < 0 ? 'color:' + C + ';font-weight:bold;' : '') + td(a.short ? fmt(a.short) + ' ' + esc_(a.unit) : '-', 'right', a.short ? 'color:' + C + ';font-weight:bold;' : '') +
       td(a.late ? fmt(a.late) : '-', 'right') + td(esc_(a.ps.join(', '))) + td(a.ord ? '✓ ' + a.ord : '-', 'center') + (admin ? td(a.cost && a.short ? money(a.short * a.cost) : '-', 'right') : '') + '</tr>');
   });
