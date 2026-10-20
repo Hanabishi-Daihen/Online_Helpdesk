@@ -2,8 +2,10 @@
  * ═════════════════════════════════════════════════════════════════════
  *  BOOKING BOM — Phase 3 : Export ใบเบิก (By Stock / By Project) · รายงาน PDF รายการที่ขาด
  *  • By Stock   : CODE 8 หลักจาก BOM ของโปรเจกต์ · จำนวน = ตาม BOM · เลขที่ MF253A
- *  • By Project : CODE ของงาน (ไม่ใช่ 8 หลัก) ใน Item stock ที่ขึ้นต้นด้วยโปรเจกต์ตัว C
- *                 (PP1024D01 → PP1024C…) · จำนวน = Onhand รายคลัง · เลขที่ MF253P
+ *  • By Project : CODE ของงาน (ไม่ใช่ 8 หลัก) ใน Item stock ที่มีคำว่าโปรเจกต์ตัว C
+ *                 (PP1024D01 → …PP1024C… เช่น 3694PP1024C00403) · จำนวน = Onhand รายคลัง · เลขที่ MF253P
+ *  • 1 หน้า A4 = 1 ชีต (หัวฟอร์ม + รายการ + ลายเซ็น + ท้ายกระดาษ "Page x of n" และรหัสฟอร์ม)
+ *                 หน้าแรกมี Rev ที่มุมขวาบน — รหัสฟอร์ม / Rev แก้ได้ที่ตั้งค่า Booking BOM
  *  • Preview ก่อนออกไฟล์ (ลบ / เพิ่ม / แก้จำนวน / เลือกคลัง) → Google Sheet แม่แบบ → PDF + Excel
  *  • คอลัมน์ G และ I เว้นว่างกว้างพิเศษสำหรับติด Barcode · ความสูงแถว 39.75–55 pt ตามความยาวข้อความ
  *  • Export แล้วปิดโปรเจกต์ (ปลดยอดจอง) ได้ทันที (Admin)
@@ -12,7 +14,9 @@
  */
 var BOM_EXP_SHEET = 'BomExports';
 var BOM_EXP_HEADER = ['TIME', 'PROJECT', 'KIND', 'DOC_NO', 'ITEMS', 'QTY', 'PDF', 'XLSX', 'BY', 'CLOSED'];
-var BOM_FORM = { ROW0: 7, TPL_ROWS: 23, MIN_ROWS: 10, MAX_ROWS: 300, COLS: 9, FOOT: 6 };
+// template rows after the Rev row is inserted on top:
+// 1 Rev · 2–6 heading · 7 table header · 8–30 items (23) · 31 gap · 32–36 signatures · then spacer + footer
+var BOM_FORM = { ROW0: 8, TPL_ROWS: 23, MAX_ROWS: 300, COLS: 9, RATIO: 1.43, REV_H: 24, FOOT_H: 28 };
 // column widths (px) — G and I are wide blank boxes for barcode stickers
 var BOM_FORM_W = [30, 132, 250, 50, 50, 54, 170, 44, 170];
 // row height (px): 53 px ≈ 39.75 pt (1 line) · 73 px ≈ 55 pt (2 lines)
@@ -101,7 +105,7 @@ function bomExportPrep(token, project, kind, prefix) {
   } else {
     pre = bomKey_(prefix || bomProjPrefix_(key));
     if (pre.length < 4) throw new Error('Prefix ต้องยาวอย่างน้อย 4 ตัวอักษร');
-    var st2 = bomStockIdx_(function (k) { return k.indexOf(pre) === 0 && !bomIs8_(k); });
+    var st2 = bomStockIdx_(function (k) { return k.indexOf(pre) >= 0 && !bomIs8_(k); });
     Object.keys(st2).sort().forEach(function (k) {
       var s = st2[k];
       s.locs.forEach(function (L) {
@@ -155,10 +159,10 @@ function exportBomForm(token, req) {
   try {
     var ss = SpreadsheetApp.openById(copy.getId()), sh = ss.getSheets()[0];
     ss.getSheets().forEach(function (x) { if (x.getSheetId() !== sh.getSheetId()) ss.deleteSheet(x); });
-    var last = bomFormFill_(sh, o);
+    bomFormBuild_(ss, sh, o, bomCfg_());
     SpreadsheetApp.flush();
     (fmt === 'both' ? ['pdf', 'xlsx'] : [fmt]).forEach(function (f) {
-      var blob = bomFetchExport_(ss.getId(), sh.getSheetId(), f, last).setName(base + (f === 'pdf' ? '.pdf' : '.xlsx'));
+      var blob = bomFetchExport_(ss.getId(), f).setName(base + (f === 'pdf' ? '.pdf' : '.xlsx'));
       var file = folder.createFile(blob);
       try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
       var b = blob.getBytes();
@@ -188,21 +192,51 @@ function bomRowH_(o, r) {
   return r && String(r.material || '').length > BOM_FORM_H.wrap ? BOM_FORM_H.max : BOM_FORM_H.min;
 }
 function bomQtyTxt_(q) { return String(Math.round(q * 1000) / 1000); }
-// returns the last printed row
-function bomFormFill_(sh, o) {
-  var F = BOM_FORM, r0 = F.ROW0, R = Math.max(o.rows.length, F.MIN_ROWS);
+function bomFormW_() { return BOM_FORM_W.reduce(function (s, w) { return s + w; }, 0); }
+// split the rows into A4 pages: every page = heading + items + signatures + footer, sized to the A4 aspect ratio
+function bomPages_(o, fixedPx) {
+  var budget = Math.round(bomFormW_() * BOM_FORM.RATIO) - fixedPx, pages = [], cur = [], used = 0;
+  o.rows.forEach(function (r) {
+    var h = bomRowH_(o, r);
+    if (cur.length && used + h > budget) { pages.push(cur); cur = []; used = 0; }
+    cur.push(r); used += h;
+  });
+  if (cur.length || !pages.length) pages.push(cur);
+  return { pages: pages, budget: budget };
+}
+// base = converted template sheet → one sheet per page ("Page 1", "Page 2", …), base removed
+function bomFormBuild_(ss, base, o, cfg) {
+  var F = BOM_FORM;
+  base.insertRowBefore(1); base.setRowHeight(1, F.REV_H);
+  BOM_FORM_W.forEach(function (w, i) { base.setColumnWidth(i + 1, w); });
+  var mc = base.getMaxColumns(); if (mc > F.COLS) base.deleteColumns(F.COLS + 1, mc - F.COLS);
+  try { base.setFrozenRows(0); } catch (e) {}
+  ordSet_(base, 'D4', 'เลขที่_____' + o.docNo + '__');
+  ordSet_(base, 'A5', 'วันที่_____' + o.date + '_____');
+  ordSet_(base, 'D5', 'เบอร์งาน__' + o.job + '__');
+  var hs = function (a, b) { var s = 0; for (var r = a; r <= b; r++) s += base.getRowHeight(r); return s; };
+  var tail = F.ROW0 + F.TPL_ROWS;                                    // gap row (31) + 5 signature rows (32–36)
+  var P = bomPages_(o, hs(1, F.ROW0 - 1) + hs(tail, tail + 5) + F.FOOT_H), no = 0;
+  P.pages.forEach(function (rows, pi) {
+    var sh = base.copyTo(ss).setName('Page ' + (pi + 1));
+    bomPageFill_(sh, o, rows, no, pi, P.pages.length, P.budget, cfg);
+    no += rows.length;
+  });
+  ss.deleteSheet(base);
+  return P.pages.length;
+}
+function bomPageFill_(sh, o, rows, no, pi, n, budget, cfg) {
+  var F = BOM_FORM, r0 = F.ROW0, used = 0;
+  rows.forEach(function (r) { used += bomRowH_(o, r); });
+  var blanks = Math.max(0, Math.floor((budget - used) / BOM_FORM_H.min)), R = Math.max(1, rows.length + blanks);
+  var spacer = Math.max(2, budget - used - blanks * BOM_FORM_H.min);
   if (R < F.TPL_ROWS) sh.deleteRows(r0 + R, F.TPL_ROWS - R);
   else if (R > F.TPL_ROWS) sh.insertRowsAfter(r0 + F.TPL_ROWS - 2, R - F.TPL_ROWS);     // inside the bordered block → keeps its format
-  BOM_FORM_W.forEach(function (w, i) { sh.setColumnWidth(i + 1, w); });
-  // header
-  ordSet_(sh, 'D3', 'เลขที่_____' + o.docNo + '__');
-  ordSet_(sh, 'A4', 'วันที่_____' + o.date + '_____');
-  ordSet_(sh, 'D4', 'เบอร์งาน__' + o.job + '__');
-  // items
+  // items (blank rows fill the rest of the page)
   var vals = [];
   for (var i = 0; i < R; i++) {
-    var x = o.rows[i];
-    vals.push(x ? [String(i + 1), x.code, x.material, x.store, x.pk, bomQtyTxt_(x.qty), '', x.unit, ''] : [String(i + 1), '', '', '', '', '', '', '', '']);
+    var x = rows[i];
+    vals.push(x ? [String(no + i + 1), x.code, x.material, x.store, x.pk, bomQtyTxt_(x.qty), '', x.unit, ''] : ['', '', '', '', '', '', '', '', '']);
   }
   var rg = sh.getRange(r0, 1, R, F.COLS);
   rg.setNumberFormat('@').setValues(vals);
@@ -212,20 +246,27 @@ function bomFormFill_(sh, o) {
   sh.getRange(r0, 3, R, 1).setHorizontalAlignment('left').setWrap(true);
   sh.getRange(r0, 6, R, 1).setFontWeight('bold');
   for (var j = 0; j < R; j++) {
-    var it = o.rows[j], n = it ? String(it.material || '').length : 0;
-    sh.setRowHeight(r0 + j, bomRowH_(o, it));
-    if (n > 90) sh.getRange(r0 + j, 3).setFontSize(13); else if (n > 70) sh.getRange(r0 + j, 3).setFontSize(14);
+    var it = rows[j], len = it ? String(it.material || '').length : 0;
+    sh.setRowHeight(r0 + j, it ? bomRowH_(o, it) : BOM_FORM_H.min);
+    if (len > 90) sh.getRange(r0 + j, 3).setFontSize(13); else if (len > 70) sh.getRange(r0 + j, 3).setFontSize(14);
     if (it && String(it.code).length > 16) sh.getRange(r0 + j, 2).setFontSize(14);
   }
-  try { sh.setFrozenRows(r0 - 1); } catch (e) {}                 // header block repeats on every PDF page
-  return r0 + R + F.FOOT;
+  // spacer (pushes the footer to the bottom of the page) + footer
+  var sp = r0 + R + 6, ft = sp + 1, mr = sh.getMaxRows();
+  if (mr < ft) sh.insertRowsAfter(mr, ft - mr);
+  else if (mr > ft) sh.deleteRows(ft + 1, mr - ft);
+  sh.setRowHeight(sp, spacer); sh.setRowHeight(ft, F.FOOT_H);
+  sh.getRange(sp, 1, 2, F.COLS).breakApart().clearContent().setBorder(false, false, false, false, false, false);
+  sh.getRange(ft, 1, 1, F.COLS - 1).merge();
+  ordSet_(sh, 'A' + ft, 'Page ' + (pi + 1) + ' of ' + n, { h: 'center', v: 'bottom', size: 12 });
+  ordSet_(sh, 'I' + ft, cfg.formCode || '', { h: 'right', v: 'bottom', size: 12 });
+  ordSet_(sh, 'I1', pi === 0 ? cfg.formRev || '' : '', { h: 'right', v: 'top', size: 14 });
 }
-function bomFetchExport_(ssId, gid, fmt, lastRow) {
+function bomFetchExport_(ssId, fmt) {
   var base = 'https://docs.google.com/spreadsheets/d/' + ssId + '/export?';
-  var q = fmt === 'pdf'
-    ? 'format=pdf&gid=' + gid + '&size=A4&portrait=true&fitw=true&gridlines=false&printtitle=false&sheetnames=false&pagenum=CENTER' +
-      '&fzr=true&horizontal_alignment=CENTER&vertical_alignment=TOP&top_margin=0.3&bottom_margin=0.4&left_margin=0.3&right_margin=0.3' +
-      '&r1=0&c1=0&r2=' + lastRow + '&c2=' + BOM_FORM.COLS
+  var q = fmt === 'pdf'                                               // all sheets · each sheet fitted to one A4 page
+    ? 'format=pdf&size=A4&portrait=true&scale=4&gridlines=false&printtitle=false&sheetnames=false&pagenum=UNDEFINED' +
+      '&fzr=false&horizontal_alignment=CENTER&vertical_alignment=TOP&top_margin=0.3&bottom_margin=0.3&left_margin=0.3&right_margin=0.3'
     : 'format=xlsx';
   var opt = { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true };
   for (var t = 0; t < 3; t++) {

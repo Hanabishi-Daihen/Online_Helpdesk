@@ -15,8 +15,10 @@ var RS_TAG_HEADER = ['CODE', 'TAG', 'REPLACE_BY', 'USE_BEFORE', 'NOTE', 'UPDATED
 var RS_HIST_SHEET = 'StockHistory';                    // in the Helpdesk_ItemStock workbook
 var RS_HIST_HEADER = ['CODE', 'QTY', 'SINCE', 'LAST_SEEN'];
 var RS_DEF = { days: 180, rqnYears: 2, by: 'DS13' };
-// Only numeric item codes count (e.g. 10010001). Codes with letters such as SV024355 (Service) are left out.
-function rsCodeOk_(k) { return /^\d+$/.test(String(k || '')); }
+// Every item code counts (8-digit stock codes and 16-char job codes such as 3694PP1024C00403)
+// except Service codes that start with SV (e.g. SV024355).
+var RS_SNAP_VER = 2;                                 // bump when the item filter changes → old snapshots are rebuilt
+function rsCodeOk_(k) { k = String(k || ''); return !!k && !/^SV/i.test(k); }
 var RS_TAGS = { last: 'ล็อตสุดท้าย / เปลี่ยนรุ่น', sub: 'ใช้แทนกันได้', skip: 'ไม่ต้องแจ้ง' };
 
 function rsCfg_() {
@@ -60,7 +62,7 @@ function saveRemainTag(token, code, t) {
   t = t || {};
   var k = ordCodeKey_(code), tag = String(t.tag || '');
   if (!k || k.length > 40) throw new Error('CODE ไม่ถูกต้อง');
-  if (!rsCodeOk_(k)) throw new Error('Stock ช่วยใช้ รองรับเฉพาะ CODE ที่เป็นตัวเลข (เช่น SV… เป็นรหัส Service ไม่นำมาคิด)');
+  if (!rsCodeOk_(k)) throw new Error('Stock ช่วยใช้ ไม่รองรับ CODE ที่ขึ้นต้นด้วย SV (รหัส Service ไม่นำมาคิด)');
   if (tag && !RS_TAGS[tag]) throw new Error('ป้ายไม่ถูกต้อง');
   var useBefore = String(t.useBefore || '').trim();
   if (useBefore && !/^\d{2}\/\d{2}\/\d{4}$/.test(useBefore)) throw new Error('วันที่ควรใช้ให้หมดก่อน ต้องเป็นรูปแบบ วว/ดด/ปปปป');
@@ -291,11 +293,11 @@ function rsSnapGet_() {
     } catch (e) {}
   }
   if (!b64) return null;
-  try { return JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(b64), 'application/x-gzip')).getDataAsString()); } catch (e) { return null; }
+  try { var o = JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(b64), 'application/x-gzip')).getDataAsString()); return o && o.v === RS_SNAP_VER ? o : null; } catch (e) { return null; }
 }
 function rsSnapBuild_() {
   var rows = []; try { rows = stockData_(); } catch (e) {}
-  var snap = rsCompute_(rows, true); rsSnapPut_(snap); return snap;
+  var snap = rsCompute_(rows, true); snap.v = RS_SNAP_VER; rsSnapPut_(snap); return snap;
 }
 function rsSnap_() { return rsSnapGet_() || rsSnapBuild_(); }
 // per-viewer copy: refresh the day counters, strip prices for non-Admin, sort

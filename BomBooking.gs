@@ -19,21 +19,24 @@ var BOM_PROJ_HEADER = ['PROJECT', 'TITLE', 'REV', 'FILE', 'ITEMS', 'NEED_DATE', 
 var BOM_ITEM_SHEET = 'BomItems';
 var BOM_ITEM_HEADER = ['PROJECT', 'CODE', 'QTY', 'MATERIAL', 'TYPE', 'RATED', 'MAKER', 'REMARK', 'ITEM'];
 var BOM_SNAP_SHEET = 'BomSnap', BOM_SNAP_CHUNK = 40000;
-var BOM_DEF = { process: 'auto', autoClose: 0 };
+var BOM_DEF = { process: 'auto', autoClose: 0, formCode: 'PLf200-011-0-1/1', formRev: 'Rev.1' };
 
 function bomCfg_() {
   var c = {}; try { c = JSON.parse(schedProp_('BOM_CFG') || '{}') || {}; } catch (e) {}
   var a = Number(c.autoClose);
-  return { process: { auto: 1, LCC: 1, RCC: 1 }[c.process] ? c.process : BOM_DEF.process, autoClose: a >= 0 && a <= 365 ? Math.round(a) : 0 };
+  return { process: { auto: 1, LCC: 1, RCC: 1 }[c.process] ? c.process : BOM_DEF.process, autoClose: a >= 0 && a <= 365 ? Math.round(a) : 0,
+    formCode: c.formCode != null ? String(c.formCode) : BOM_DEF.formCode, formRev: c.formRev != null ? String(c.formRev) : BOM_DEF.formRev };
 }
 function saveBomCfg(token, cfg) {
   requireAdmin_(token);
   cfg = cfg || {};
   var a = Number(cfg.autoClose);
   if (!(a >= 0 && a <= 365)) throw new Error('จำนวนวันปิดอัตโนมัติต้องอยู่ระหว่าง 0–365 (0 = ปิดเองเท่านั้น)');
-  var c = { process: { auto: 1, LCC: 1, RCC: 1 }[cfg.process] ? cfg.process : 'auto', autoClose: Math.round(a) };
+  var old = bomCfg_();
+  var c = { process: { auto: 1, LCC: 1, RCC: 1 }[cfg.process] ? cfg.process : 'auto', autoClose: Math.round(a),
+    formCode: cfg.formCode != null ? ordStr_(cfg.formCode, 40) : old.formCode, formRev: cfg.formRev != null ? ordStr_(cfg.formRev, 20) : old.formRev };
   schedProp_('BOM_CFG', JSON.stringify(c));
-  audit_([['Admin', 'ตั้งค่า Booking BOM', '', 'Process ' + c.process + ' · ปิดอัตโนมัติ ' + (c.autoClose ? c.autoClose + ' วันหลังวันที่ต้องใช้' : 'ปิด')]]);
+  audit_([['Admin', 'ตั้งค่า Booking BOM', '', 'Process ' + c.process + ' · ปิดอัตโนมัติ ' + (c.autoClose ? c.autoClose + ' วันหลังวันที่ต้องใช้' : 'ปิด') + ' · ใบเบิก ' + c.formCode + ' / ' + c.formRev]]);
   bomSnapBuild_();
   return c;
 }
