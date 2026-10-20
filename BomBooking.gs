@@ -20,13 +20,14 @@ var BOM_ITEM_SHEET = 'BomItems';
 var BOM_ITEM_HEADER = ['PROJECT', 'CODE', 'QTY', 'MATERIAL', 'TYPE', 'RATED', 'MAKER', 'REMARK', 'ITEM'];
 var BOM_SNAP_SHEET = 'BomSnap', BOM_SNAP_CHUNK = 40000;
 var BOM_SNAP_VER = 2;                                 // v2: + ผู้สั่งล่าสุด (LastOfRequest_By) — older snapshots are rebuilt once
-var BOM_DEF = { process: 'auto', autoClose: 0, formCode: 'PLf200-011-0-1/1', formRev: 'Rev.1' };
+var BOM_DEF = { process: 'auto', autoClose: 0, formCode: 'PLf200-011-0-1/1', formRev: 'Rev.1', orderBy: 'DS13' };
 
 function bomCfg_() {
   var c = {}; try { c = JSON.parse(schedProp_('BOM_CFG') || '{}') || {}; } catch (e) {}
   var a = Number(c.autoClose);
   return { process: { auto: 1, LCC: 1, RCC: 1 }[c.process] ? c.process : BOM_DEF.process, autoClose: a >= 0 && a <= 365 ? Math.round(a) : 0,
-    formCode: c.formCode != null ? String(c.formCode) : BOM_DEF.formCode, formRev: c.formRev != null ? String(c.formRev) : BOM_DEF.formRev };
+    formCode: c.formCode != null ? String(c.formCode) : BOM_DEF.formCode, formRev: c.formRev != null ? String(c.formRev) : BOM_DEF.formRev,
+    orderBy: c.orderBy ? String(c.orderBy) : BOM_DEF.orderBy };
 }
 function saveBomCfg(token, cfg) {
   requireAdmin_(token);
@@ -35,9 +36,10 @@ function saveBomCfg(token, cfg) {
   if (!(a >= 0 && a <= 365)) throw new Error('จำนวนวันปิดอัตโนมัติต้องอยู่ระหว่าง 0–365 (0 = ปิดเองเท่านั้น)');
   var old = bomCfg_();
   var c = { process: { auto: 1, LCC: 1, RCC: 1 }[cfg.process] ? cfg.process : 'auto', autoClose: Math.round(a),
-    formCode: cfg.formCode != null ? ordStr_(cfg.formCode, 40) : old.formCode, formRev: cfg.formRev != null ? ordStr_(cfg.formRev, 20) : old.formRev };
+    formCode: cfg.formCode != null ? ordStr_(cfg.formCode, 40) : old.formCode, formRev: cfg.formRev != null ? ordStr_(cfg.formRev, 20) : old.formRev,
+    orderBy: cfg.orderBy != null && String(cfg.orderBy).trim() ? ordStr_(String(cfg.orderBy).trim(), 30) : old.orderBy };
   schedProp_('BOM_CFG', JSON.stringify(c));
-  audit_([['Admin', 'ตั้งค่า Booking BOM', '', 'Process ' + c.process + ' · ปิดอัตโนมัติ ' + (c.autoClose ? c.autoClose + ' วันหลังวันที่ต้องใช้' : 'ปิด') + ' · ใบเบิก ' + c.formCode + ' / ' + c.formRev]]);
+  audit_([['Admin', 'ตั้งค่า Booking BOM', '', 'Process ' + c.process + ' · ปิดอัตโนมัติ ' + (c.autoClose ? c.autoClose + ' วันหลังวันที่ต้องใช้' : 'ปิด') + ' · ใบเบิก ' + c.formCode + ' / ' + c.formRev + ' · สร้างใบสั่งเฉพาะผู้สั่ง ' + c.orderBy]]);
   bomSnapBuild_();
   return c;
 }
