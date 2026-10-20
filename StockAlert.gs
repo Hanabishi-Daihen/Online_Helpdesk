@@ -168,6 +168,7 @@ function saCompute_() {
     });
     Object.keys(pend).forEach(function (k3) { pend[k3].list.sort(function (x, y) { return x.dist - y.dist; }); pend[k3].list = pend[k3].list.slice(0, 5); });
   } catch (e) {}
+  var bk = {}; try { bk = bomBooked_(); } catch (e) {}              // Booking BOM: stock already reserved for projects
   var out = [], cnt = { high: 0, mid: 0, low: 0, wait: 0, nomin: 0, over: 0, ok: 0, off: 0, out: 0 };
   Object.keys(items).forEach(function (k) {
     var it = items[k], s = set[k] || {}, P = pend[k] || { qty: 0, list: [], stale: 0 };
@@ -176,15 +177,16 @@ function saCompute_() {
     it.lt = s.lt != null && s.lt > 0 ? s.lt : (rt[k] || null); it.ltSrc = s.lt != null && s.lt > 0 ? 'set' : rt[k] ? 'rt' : '';
     it.ltRt = rt[k] || null;
     it.pend = P.qty; it.pendList = P.list; it.pendStale = P.stale;
+    var B = bk[k]; it.booked = B ? B.qty : 0; it.bookedBy = B ? B.projects : [];
     it.isOut = it.qty <= 0;
-    var avail = it.qty + it.pend, lv;
+    var eff = it.qty - it.booked, avail = eff + it.pend, lv;          // eff = onhand left after BOM bookings
     if (it.notUse) lv = 'off';
     else if (it.min == null) lv = 'nomin';                    // ยังไม่ตั้ง Min → ไม่แจ้งเตือน (แสดงป้าย "หมด" ถ้าคงเหลือ ≤ 0)
-    else if (it.qty < it.min) {
+    else if (eff < it.min) {
       if (avail >= it.min) lv = 'wait';
       else {
         lv = it.lt == null ? 'mid' : it.lt > cfg.ltHigh ? 'high' : it.lt <= cfg.ltLow ? 'low' : 'mid';
-        if (it.isOut) lv = lv === 'low' ? 'mid' : 'high';
+        if (eff <= 0) lv = lv === 'low' ? 'mid' : 'high';
       }
     }
     else if (it.max != null && it.qty > it.max) lv = 'over';

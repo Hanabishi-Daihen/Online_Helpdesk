@@ -300,15 +300,19 @@ function rsSnapBuild_() {
 function rsSnap_() { return rsSnapGet_() || rsSnapBuild_(); }
 // per-viewer copy: refresh the day counters, strip prices for non-Admin, sort
 function rsView_(snap, admin) {
-  var cfg = rsCfg_(), total = 0;
+  var cfg = rsCfg_(), total = 0, bk = {};
+  try { bk = bomBooked_(); } catch (e) {}                          // Booking BOM: reserved stock is not leftover
   var items = (snap && snap.items || []).map(function (x) {
+    var B = bk[x.key];
+    if (B && B.qty >= x.qty) return null;                         // fully booked by projects → not "ช่วยใช้"
     var y = {}; Object.keys(x).forEach(function (k) { y[k] = x[k]; }); y.why = (x.why || []).slice();
+    if (B) { y.booked = B.qty; y.bookedBy = B.projects; y.value = Math.round((x.qty - B.qty) * (x.cost || 0) * 100) / 100; }
     y.still = rsDays_(y.since);
     if (y.still != null && y.still >= cfg.days && y.why.indexOf('still') < 0) y.why.unshift('still');
     if (!y.skip) total += y.value || 0;
     if (!admin) { delete y.cost; delete y.value; delete y.rqn; }
     return y;
-  });
+  }).filter(Boolean);
   items.sort(function (a, b) { return admin ? (b.value - a.value) : ((b.still || 0) - (a.still || 0) || (b.rqnAge || 0) - (a.rqnAge || 0)); });
   return { items: items, cfg: cfg, admin: admin, histStart: schedProp_('RS_HIST_START') || '', total: admin ? Math.round(total) : null,
     stockTime: (stockInfo_() || {}).time || '' };

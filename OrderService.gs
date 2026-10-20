@@ -238,6 +238,10 @@ function checkOrderDup(codes, excludeId) {
     var rs = rsForOrder_(keys);
     Object.keys(rs).forEach(function (k) { hit(k).remain = rs[k]; });
   } catch (e) { console.warn(e); }
+  try {                                                   // Booking BOM: onhand + incoming already cover all bookings → ordering more may overstock
+    var bk = bomBooked_();
+    keys.forEach(function (k) { var B = bk[k]; if (B && B.balance >= 0) hit(k).bom = { booked: B.qty, balance: B.balance, onhand: B.onhand, incoming: B.incoming, projects: B.projects }; });
+  } catch (e) { console.warn(e); }
   var refs = null, cfg = ordDupCfg_();
   ordAll_().forEach(function (o) {
     if (o.id === excludeId) return;

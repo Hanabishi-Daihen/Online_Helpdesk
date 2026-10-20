@@ -283,6 +283,18 @@ function bomSnapPut_(snap) {
     sh.clearContents(); sh.getRange(1, 1, parts.length, 1).setValues(parts.map(function (p) { return [p]; }));
   } catch (e) { console.warn(e); }
   schedProp_('BOM_VER', String(Date.now()));
+  __bomBooked = null;
+  try { saBump_(); } catch (e) {}                                   // Stock Alert recomputes with the new bookings
+  try { CacheService.getScriptCache().remove('rs_flags'); } catch (e) {}
+}
+// { CODE: { qty: booked by active projects, balance, projects: [[project, qty], …] } } — read from the snapshot (cheap)
+var __bomBooked = null;
+function bomBooked_() {
+  if (__bomBooked) return __bomBooked;
+  var m = {}, s = null;
+  try { s = bomSnapGet_(); } catch (e) {}
+  (s && s.codes || []).forEach(function (c) { if (c.booked > 0) m[c.code] = { qty: c.booked, balance: c.balance, onhand: c.onhand, incoming: c.incoming, projects: c.projects }; });
+  return (__bomBooked = m);
 }
 function bomSnapGet_() {
   var b64 = '';
