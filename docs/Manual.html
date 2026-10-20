@@ -1,0 +1,473 @@
+<title>คู่มือ DAIHEN Helpdesk</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: a field manual — sticky contents rail on the left, numbered chapters on the right, step lists drawn as a work-instruction sheet */
+:root{
+  --bg:#f6f7f5; --paper:#ffffff; --ink:#1c2321; --muted:#5d6763; --line:#dde2df;
+  --accent:#1f6f5c; --accent-soft:#e3f0eb; --warn:#9a5b00; --warn-soft:#fff4dc; --bad:#a3233a; --bad-soft:#fde8ec; --info:#2457a6; --info-soft:#e6eefb;
+  --code-bg:#eef1ef;
+  --f-body:"IBM Plex Sans Thai","Sarabun","Leelawadee UI",Tahoma,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121615; --paper:#1a201e; --ink:#e6ebe8; --muted:#9aa6a1; --line:#2d3532;
+  --accent:#5fc3a6; --accent-soft:#1d332c; --warn:#f0b75c; --warn-soft:#33291a; --bad:#f08399; --bad-soft:#3a1f26; --info:#8db4f2; --info-soft:#1c2738; --code-bg:#232a28; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121615; --paper:#1a201e; --ink:#e6ebe8; --muted:#9aa6a1; --line:#2d3532;
+  --accent:#5fc3a6; --accent-soft:#1d332c; --warn:#f0b75c; --warn-soft:#33291a; --bad:#f08399; --bad-soft:#3a1f26; --info:#8db4f2; --info-soft:#1c2738; --code-bg:#232a28; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.75;margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding-block:28px 80px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;grid-template-columns:250px minmax(0,1fr);gap:40px}
+@media (max-width:900px){.wrap{grid-template-columns:minmax(0,1fr);gap:20px}}
+header.top{grid-column:1/-1;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:16px;border-bottom:2px solid var(--ink);padding-bottom:16px}
+header.top h1{font-size:2rem;line-height:1.2;margin:0;text-wrap:balance}
+header.top .doc{font-family:var(--f-mono);font-size:.78rem;color:var(--muted);text-align:right;line-height:1.6}
+.eyebrow{font-size:.74rem;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);font-weight:600}
+nav.toc{position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px);align-self:start;max-height:calc(100vh - 32px);overflow:auto;font-size:.88rem}
+@media (max-width:900px){nav.toc{position:static;max-height:none;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:12px 14px}}
+nav.toc b{display:block;font-size:.74rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:14px 0 4px}
+nav.toc a{display:flex;gap:8px;color:var(--ink);text-decoration:none;padding:3px 8px;border-radius:6px}
+nav.toc a:hover,nav.toc a:focus-visible{background:var(--accent-soft);outline:none}
+nav.toc a span{font-family:var(--f-mono);color:var(--muted);min-width:22px}
+main{min-width:0;display:grid;gap:44px}
+section{min-width:0;scroll-margin-top:20px}
+section>h2{display:flex;align-items:baseline;gap:12px;font-size:1.45rem;line-height:1.3;margin:0 0 6px;text-wrap:balance}
+section>h2 .no{font-family:var(--f-mono);font-size:.9rem;color:var(--paper);background:var(--accent);border-radius:6px;padding:1px 8px}
+section>.lead{color:var(--muted);margin:0 0 14px;max-width:70ch}
+h3{font-size:1.08rem;margin:22px 0 6px}
+p,li{max-width:72ch}
+code,kbd,.k{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);border-radius:4px;padding:1px 5px}
+kbd{border:1px solid var(--line);box-shadow:0 1px 0 var(--line)}
+.ui{font-weight:600;color:var(--accent);white-space:nowrap}
+.steps{list-style:none;padding:0;margin:10px 0;counter-reset:s;display:grid;gap:0;border:1px solid var(--line);border-radius:10px;background:var(--paper);overflow:hidden}
+.steps li{counter-increment:s;display:grid;grid-template-columns:44px minmax(0,1fr);gap:4px;padding:10px 14px 10px 0;border-top:1px solid var(--line);max-width:none}
+.steps li:first-child{border-top:0}
+.steps li::before{content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);text-align:center}
+.note{border-left:4px solid var(--info);background:var(--info-soft);padding:10px 14px;border-radius:0 8px 8px 0;margin:12px 0;max-width:76ch}
+.note.warn{border-color:var(--warn);background:var(--warn-soft)}
+.note.bad{border-color:var(--bad);background:var(--bad-soft)}
+.note b:first-child{display:block}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--paper);margin:10px 0}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{text-align:left;padding:8px 12px;border-top:1px solid var(--line);vertical-align:top}
+thead th{border-top:0;background:var(--code-bg);font-size:.78rem;letter-spacing:.04em;color:var(--muted)}
+.pill{display:inline-block;font-size:.76rem;font-weight:600;border-radius:999px;padding:0 9px;white-space:nowrap}
+.p-ok{background:var(--accent-soft);color:var(--accent)}.p-w{background:var(--warn-soft);color:var(--warn)}.p-b{background:var(--bad-soft);color:var(--bad)}.p-i{background:var(--info-soft);color:var(--info)}
+.role{display:inline-block;font-size:.72rem;font-weight:700;border:1px solid currentColor;border-radius:4px;padding:0 6px;margin-left:6px;vertical-align:middle}
+.r-a{color:var(--bad)}.r-u{color:var(--info)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin:12px 0}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:12px 16px}
+.card h4{margin:0 0 4px;font-size:.98rem}
+.card p{margin:0;color:var(--muted);font-size:.9rem}
+.flow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:10px 0;font-size:.88rem}
+.flow span{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:4px 10px}
+.flow i{color:var(--muted);font-style:normal}
+details{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:8px 0}
+details summary{cursor:pointer;font-weight:600}
+details[open] summary{margin-bottom:6px}
+.search{width:100%;font:inherit;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);margin-bottom:6px}
+.search:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:var(--muted);font-size:.82rem}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<div class="wrap">
+<header class="top">
+  <div>
+    <div class="eyebrow">คู่มือการใช้งาน · User &amp; Admin Manual</div>
+    <h1>DAIHEN Online Helpdesk &amp; Schedule Portal</h1>
+  </div>
+  <div class="doc">เอกสาร: MANUAL-HD-01<br>ฉบับ: Rev.1 · 20/10/2026<br>ใช้กับเว็บแอป Version 2.0</div>
+</header>
+
+<nav class="toc" aria-label="สารบัญ">
+  <input class="search" id="tocq" type="search" placeholder="ค้นหาหัวข้อ…" aria-label="ค้นหาหัวข้อในคู่มือ">
+  <b>เริ่มต้น</b>
+  <a href="#start"><span>01</span>เริ่มใช้งานใน 5 นาที</a>
+  <a href="#roles"><span>02</span>ผู้ใช้ทั่วไป และ Admin</a>
+  <a href="#screen"><span>03</span>ส่วนประกอบหน้าจอ</a>
+  <b>งานแจ้งปัญหา</b>
+  <a href="#dashboard"><span>04</span>แดชบอร์ด</a>
+  <a href="#ticket"><span>05</span>แจ้งปัญหาใหม่</a>
+  <a href="#schedule"><span>06</span>ตารางงานการผลิต</a>
+  <b>คลังและจัดซื้อ</b>
+  <a href="#stock"><span>07</span>Item stock</a>
+  <a href="#pending"><span>08</span>Pending Order</a>
+  <a href="#order"><span>09</span>Order Item (ใบสั่ง)</a>
+  <a href="#approval"><span>10</span>การอนุมัติใบสั่ง</a>
+  <a href="#alert"><span>11</span>Stock Alert</a>
+  <a href="#remain"><span>12</span>Stock ช่วยใช้</a>
+  <a href="#bom"><span>13</span>Booking BOM</a>
+  <a href="#bomexport"><span>14</span>Export ใบเบิก BOM</a>
+  <b>ดูแลระบบ (Admin)</b>
+  <a href="#settings"><span>15</span>ตั้งค่าระบบและการซิงค์</a>
+  <a href="#templates"><span>16</span>แม่แบบ และสุขภาพระบบ</a>
+  <a href="#deploy"><span>17</span>อัปเดตและ Deploy</a>
+  <b>ช่วยเหลือ</b>
+  <a href="#guides"><span>18</span>ไกด์งานประจำวัน</a>
+  <a href="#faq"><span>19</span>ปัญหาที่พบบ่อย</a>
+  <a href="#glossary"><span>20</span>คำศัพท์</a>
+</nav>
+
+<main>
+
+<section id="start">
+  <h2><span class="no">01</span>เริ่มใช้งานใน 5 นาที</h2>
+  <p class="lead">ระบบนี้รวมงานแจ้งปัญหา ตารางงานการผลิต และข้อมูลคลังสินค้า (Item stock, Pending Order, ใบสั่ง, การจอง BOM) ไว้ในเว็บเดียว เปิดได้จากเบราว์เซอร์ทั้งคอมพิวเตอร์และมือถือ ไม่ต้องติดตั้งโปรแกรม</p>
+  <ol class="steps">
+    <li><div>เปิดลิงก์เว็บแอปที่ได้รับจาก Admin (บันทึกเป็น Bookmark ไว้ใช้ครั้งต่อไป)</div></li>
+    <li><div>ดูเมนูด้านซ้าย (บนมือถือกดปุ่มเมนูมุมบน) เลือกงานที่ต้องการ เช่น <span class="ui">แจ้งปัญหาใหม่</span> หรือ <span class="ui">Item stock</span></div></li>
+    <li><div>ต้องการค้นหาอะไรด่วน ใช้ช่อง <span class="ui">ค้นหา</span> ด้านบน หรือกด <kbd>Ctrl</kbd>+<kbd>K</kbd> (Mac: <kbd>⌘</kbd>+<kbd>K</kbd>)</div></li>
+    <li><div>ขณะระบบโหลดหรือบันทึก จะมีแถบแสดงสถานะ "กำลังโหลด… / กำลังบันทึก…" รอจนหายไปก่อนกดซ้ำ</div></li>
+    <li><div>ถ้าเป็นผู้ดูแล กด <span class="ui">ปลดล็อค</span> ที่กล่อง <span class="ui">Admin: Locked</span> มุมล่างซ้าย แล้วใส่รหัส Admin</div></li>
+  </ol>
+  <div class="note"><b>เคล็ดลับ</b>ข้อมูลที่เปิดบ่อย (รายการเคส, Item stock) ถูกเก็บสำรองไว้ในเครื่อง หน้าจอจึงแสดงผลได้ทันทีแล้วค่อยอัปเดตเป็นข้อมูลล่าสุดตามมา</div>
+</section>
+
+<section id="roles">
+  <h2><span class="no">02</span>ผู้ใช้ทั่วไป และ Admin</h2>
+  <p class="lead">ในคู่มือนี้ หัวข้อที่มีป้าย <span class="role r-a">ADMIN</span> ทำได้เฉพาะเมื่อปลดล็อค Admin แล้ว ส่วน <span class="role r-u">ทุกคน</span> ใช้ได้ทุกคน</p>
+  <div class="tw"><table>
+    <thead><tr><th>งาน</th><th>ผู้ใช้ทั่วไป (User Mode)</th><th>Admin</th></tr></thead>
+    <tbody>
+      <tr><td>แจ้งปัญหา / ติดตามเคส</td><td>สร้างเคส ดูเคส คุยในแชทของเคส</td><td>เปลี่ยนสถานะ ผู้รับผิดชอบ ลบ เก็บเข้าคลัง</td></tr>
+      <tr><td>ตารางงานการผลิต</td><td>ดูอย่างเดียว</td><td>แก้ไข นำเข้า ซิงค์</td></tr>
+      <tr><td>Item stock / Pending Order</td><td>ค้นหา ดูรายละเอียด</td><td>เหมือนผู้ใช้ + สั่งซิงค์ข้อมูล</td></tr>
+      <tr><td>Order Item</td><td>สร้าง บันทึก ส่งออก PDF/Excel ส่งขออนุมัติ</td><td>ลบใบสั่ง อนุมัติแทน (Shortcut) ตั้งผู้อนุมัติ</td></tr>
+      <tr><td>Stock Alert</td><td>ดูได้เมื่อ Admin เปิดให้เห็น</td><td>ตั้ง Min/Max/LT สร้างใบสั่งจากรายการ</td></tr>
+      <tr><td>Stock ช่วยใช้</td><td>ดูรายการ จองนำไปใช้ ออกรายงาน (ไม่เห็นมูลค่า)</td><td>เห็นมูลค่า ตั้งเกณฑ์ ติดป้าย ตั้งชื่อหมวด</td></tr>
+      <tr><td>Booking BOM</td><td>ดูการจอง Export ใบเบิก ออกรายงาน สร้างใบสั่งจากรายการที่ขาด</td><td>Import BOM ปิด/เปิด/ลบโปรเจกต์ ตั้งค่า ปิดโปรเจกต์หลัง Export</td></tr>
+      <tr><td>ตั้งค่าระบบ / แม่แบบ / สุขภาพระบบ</td><td>ไม่เห็นเมนู</td><td>ใช้ได้ทั้งหมด</td></tr>
+    </tbody>
+  </table></div>
+  <h3>ปลดล็อคและล็อค Admin</h3>
+  <ol class="steps">
+    <li><div>กด <span class="ui">ปลดล็อค</span> ที่กล่อง <span class="ui">Admin: Locked</span> มุมล่างซ้าย</div></li>
+    <li><div>ใส่รหัส Admin แล้วกดยืนยัน ป้ายมุมบนจะเปลี่ยนจาก <span class="ui">USER</span> เป็น Admin และมีเมนูดูแลระบบเพิ่มขึ้น</div></li>
+    <li><div>ใช้เสร็จ กดล็อคกลับ หรือปุ่ม <span class="ui">User Mode</span> ด้านบนเพื่อดูหน้าจอแบบผู้ใช้ทั่วไป</div></li>
+  </ol>
+  <div class="note warn"><b>ความปลอดภัย</b>รหัส Admin ตั้งที่ Apps Script → Project Settings → Script properties ชื่อ <code>ADMIN_PASSCODE</code> ถ้ายังไม่ได้ตั้ง ระบบจะใช้รหัสเริ่มต้น ควรตั้งรหัสใหม่ทันที สิทธิ์ Admin หมดอายุเองเมื่อไม่ได้ใช้นาน ถ้าขึ้นข้อความ "สิทธิ์ Admin หมดอายุ" ให้ปลดล็อคใหม่</div>
+</section>
+
+<section id="screen">
+  <h2><span class="no">03</span>ส่วนประกอบหน้าจอ</h2>
+  <div class="grid2">
+    <div class="card"><h4>เมนูด้านซ้าย</h4><p>รายการงานทั้งหมด จุดสีข้างเมนูแปลว่ามีเรื่องรอดู เมนูที่ Admin ซ่อนไว้จะไม่แสดงในโหมดผู้ใช้</p></div>
+    <div class="card"><h4>แถบบน</h4><p>ชื่อหน้า สถานะการเชื่อมต่อ Google Sheets ช่องค้นหา (<kbd>Ctrl</kbd>+<kbd>K</kbd>) กระดิ่งแจ้งเตือน ปุ่ม User Mode และปุ่ม <span class="ui">+ แจ้งปัญหา</span></p></div>
+    <div class="card"><h4>กระดิ่งแจ้งเตือน</h4><p>แจ้งเมื่อเคสมีการตอบกลับ เปลี่ยนสถานะ หรือมีใบสั่งรออนุมัติ</p></div>
+    <div class="card"><h4>แถบสถานะการโหลด</h4><p>แสดงขณะดึงหรือบันทึกข้อมูล งานยาว เช่น ส่งออก PDF จะบอกว่ากำลังทำอะไรอยู่</p></div>
+  </div>
+</section>
+
+<section id="dashboard">
+  <h2><span class="no">04</span>แดชบอร์ด <span class="role r-u">ทุกคน</span></h2>
+  <p class="lead">ภาพรวมเคสแจ้งปัญหา แผนงาน 14 วันข้างหน้า และ (สำหรับ Admin) สรุป Stock Alert</p>
+  <ul>
+    <li><b>บอร์ดเคส</b> แบ่งตามสถานะ กดการ์ดเพื่อเปิดรายละเอียดและแชทของเคส</li>
+    <li><b>แผน 14 วัน</b> แสดง 5 รายการแรก กด "ดูทั้งหมด" เพื่อขยาย</li>
+    <li><b>Stock Alert</b> แสดงเฉพาะ Admin กดเพื่อไปหน้า Stock Alert</li>
+  </ul>
+  <h3>สถานะของเคส</h3>
+  <div class="flow"><span class="pill p-i">New</span><i>→</i><span class="pill p-w">In Progress</span><i>→</i><span class="pill p-w">Waiting</span><i>→</i><span class="pill p-ok">Resolved</span><i>→</i><span class="pill p-ok">Closed</span></div>
+  <p><b>Waiting</b> = รอข้อมูลหรือรออะไหล่ · <b>Resolved</b> = แก้แล้ว รอยืนยัน · <b>Closed</b> = ปิดเคส</p>
+</section>
+
+<section id="ticket">
+  <h2><span class="no">05</span>แจ้งปัญหาใหม่ <span class="role r-u">ทุกคน</span></h2>
+  <ol class="steps">
+    <li><div>กด <span class="ui">+ แจ้งปัญหา</span> มุมบนขวา หรือเมนู <span class="ui">แจ้งปัญหาใหม่</span></div></li>
+    <li><div>ถ้ามีปุ่มแม่แบบ เลือกแม่แบบที่ตรงกับปัญหา ระบบเติมหัวข้อ รายละเอียด หมวด และความสำคัญให้</div></li>
+    <li><div>กรอก Project / งานที่เกี่ยวข้อง รายละเอียดปัญหา ชื่อผู้แจ้ง แผนก และอีเมล (ใส่อีเมลเพื่อรับแจ้งเมื่อมีความคืบหน้า)</div></li>
+    <li><div>เลือกหมวด: อุปกรณ์ไม่มีติดตั้ง · ปรับปรุง · แก้ไขวายริ่ง · NC · เครื่องมือชำรุด · ระบบไอที · อื่นๆ และเลือกความสำคัญ</div></li>
+    <li><div>แนบรูปหรือไฟล์ (รูปภาพ, PDF, Office) แล้วกด <span class="ui">ส่ง</span> จะได้เลขเคสไว้ติดตาม</div></li>
+  </ol>
+  <h3>ติดตามและคุยในเคส</h3>
+  <p>เปิดเคสจากแดชบอร์ด พิมพ์ข้อความในช่องแชทเพื่อสอบถามหรือส่งข้อมูลเพิ่ม ผู้ใช้ทั่วไปเพิ่มข้อความได้อย่างเดียว การเปลี่ยนสถานะและผู้รับผิดชอบทำโดย Admin</p>
+</section>
+
+<section id="schedule">
+  <h2><span class="no">06</span>ตารางงานการผลิต <span class="role r-u">ทุกคน</span></h2>
+  <p class="lead">ข้อมูลจากชีต <code>Q_SchedulesForUpdate</code>: ProjectNo, MVA, RatingVolt, Purchaser, Customer, DeliveryByPO, NewDelivery, ActualPlanDelivery, Process, Start-date, Finish-date</p>
+  <ul>
+    <li>ค้นหาด้วยเลขโปรเจกต์หรือชื่อลูกค้า กรองตาม Process (เช่น LCC, RCC)</li>
+    <li><span class="role r-a">ADMIN</span> แก้ไขในตารางแล้วกด <span class="ui">บันทึกทั้งหมด</span> · นำเข้าจาก CSV · ดาวน์โหลดแม่แบบ CSV · ซิงค์จาก OneDrive</li>
+    <li>Start-date ของ LCC/RCC ถูกใช้เป็น "วันที่ต้องใช้" ใน Booking BOM อัตโนมัติ</li>
+  </ul>
+</section>
+
+<section id="stock">
+  <h2><span class="no">07</span>Item stock <span class="role r-u">ทุกคน</span></h2>
+  <p class="lead">ค้นหาสินค้าคงคลังทุกคลัง ข้อมูลมาจากไฟล์ Q_ItemOnhand (ITEMNO, DESC, COMMENT1, QTYONHAND, STOCKUNIT, LOCATION, PICKINGSEQ, LastOfRequest_By, LASTCOST, LastOfRequisition_No)</p>
+  <ol class="steps">
+    <li><div>พิมพ์ CODE หรือคำในชื่อ เช่น <code>42050002</code>, <code>BREAKER</code> หรือคำบางส่วนใน CODE อย่าง <code>PP1024C</code></div></li>
+    <li><div>เลือกขอบเขตการค้นหา: <span class="ui">ทั้งหมด</span> / <span class="ui">CODE</span> / <span class="ui">Desc</span> และกรองคลัง (LOCATION) หรือผู้สั่งล่าสุดได้</div></li>
+    <li><div>กดหัวคอลัมน์เพื่อเรียง (คงเหลือ ราคา ฯลฯ) ป้าย ♻ ข้าง CODE แปลว่าอยู่ในรายการ Stock ช่วยใช้</div></li>
+  </ol>
+  <div class="note"><b>ค้นหาในเครื่อง</b>เมื่อเห็นป้าย "⚡ ค้นหาในเครื่อง" แปลว่าค้นจากข้อมูลที่โหลดไว้แล้ว ผลจึงขึ้นทันที เวลาที่ซิงค์ล่าสุดแสดงไว้ในหน้า</div>
+</section>
+
+<section id="pending">
+  <h2><span class="no">08</span>Pending Order <span class="role r-u">ทุกคน</span></h2>
+  <p class="lead">ติดตาม PR / PO ที่ยังค้างรับ ดูเลข PR, PO, Spec, สถานะ, วันที่กำหนดส่ง, ผู้สั่ง, จำนวน</p>
+  <ul>
+    <li>ค้นหาด้วย CODE, เลข PR/PO หรือ Spec</li>
+    <li>รายการที่ปิดแล้ว (รับครบ/ยกเลิก) ไม่นับเป็น "กำลังเข้า" ใน Stock Alert และ Booking BOM</li>
+    <li>ข้อมูลซิงค์จาก OneDrive ตามเวลาที่ Admin ตั้งไว้ (ดูหัวข้อ 15)</li>
+  </ul>
+</section>
+
+<section id="order">
+  <h2><span class="no">09</span>Order Item (ใบสั่ง FormOrder) <span class="role r-u">ทุกคน</span></h2>
+  <p class="lead">ออกใบสั่งสินค้าตามแบบฟอร์ม FormOrder ใบละไม่เกิน 8 รายการ ส่งออกเป็น PDF และ Excel</p>
+  <h3>สร้างใบสั่ง</h3>
+  <ol class="steps">
+    <li><div>เมนู <span class="ui">Order Item</span> → แท็บฟอร์ม กรอกผู้ Order (DES'D), CHK'D, APP'D และวันที่ออก (ระบบจำชื่อไว้ให้ครั้งหน้า)</div></li>
+    <li><div>เพิ่มรายการ: พิมพ์ CODE ระบบเติม Material, Type, Spec, Manufacturer, หน่วย จากฐานข้อมูลสินค้าให้ ใส่จำนวน</div></li>
+    <li><div>ระบบตรวจ "สั่งซ้ำ" ให้อัตโนมัติ ถ้ามีป๊อปอัปเตือน อ่านแล้วเลือก <span class="ui">ข้ามรายการซ้ำ</span> หรือ <span class="ui">สั่งต่อ</span> (หัวข้อถัดไป)</div></li>
+    <li><div>กรอก Supplier, Delivery, สถานที่ส่ง, Remark, Note และแนบรูปได้</div></li>
+    <li><div>กด <span class="ui">บันทึก</span> ระบบออกเลข <code>ORDyy-nnnn</code> แล้วกด <span class="ui">ส่งออก PDF / Excel</span> ไฟล์ดาวน์โหลดและเก็บใน Drive โฟลเดอร์ FormOrder</div></li>
+  </ol>
+  <h3>ป๊อปอัปเตือนการสั่งซ้ำ</h3>
+  <div class="tw"><table>
+    <thead><tr><th>หัวข้อในป๊อปอัป</th><th>ความหมาย</th><th>ควรทำ</th></tr></thead>
+    <tbody>
+      <tr><td>Pending Order</td><td>มี PR/PO ของ CODE นี้ค้างรับอยู่</td><td>ตรวจจำนวนที่กำลังเข้าก่อนสั่งเพิ่ม</td></tr>
+      <tr><td>Order Item ในระบบ</td><td>มีใบสั่งที่บันทึก/รออนุมัติ/อนุมัติแล้วแต่ยังไม่เข้าระบบทางการ</td><td>อย่าสั่งซ้ำ ติดตามใบเดิม</td></tr>
+      <tr><td>Stock ช่วยใช้</td><td>มีของค้างหรือของใช้แทนได้ในคลัง</td><td>พิจารณาใช้ของที่มีก่อน</td></tr>
+      <tr><td>Booking BOM</td><td>ของที่มี + กำลังเข้า พอสำหรับทุกโปรเจกต์ที่จองแล้ว</td><td>สั่งเพิ่มอาจทำให้ Overstock</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note"><b>Admin ปรับเกณฑ์ได้</b>ใน Order Item ตั้งได้ว่าจะนับใบสั่งที่ "ไม่อนุมัติ" หรือไม่ และนับย้อนหลังกี่วัน (ค่าเริ่มต้น 120 วัน)</div>
+</section>
+
+<section id="approval">
+  <h2><span class="no">10</span>การอนุมัติใบสั่ง</h2>
+  <div class="flow"><span>ผู้สั่ง (DES)</span><i>→</i><span>CHK ตรวจสอบ</span><i>→</i><span>APP อนุมัติ</span><i>→</i><span>แจ้งผลผู้สั่ง</span></div>
+  <ol class="steps">
+    <li><div>เปิดใบสั่งที่บันทึกแล้ว กด <span class="ui">ส่งขออนุมัติ</span> เลือกอีเมล CHK และ APP จากรายชื่อที่ Admin ตั้งไว้</div></li>
+    <li><div>CHK ได้อีเมลพร้อมลิงก์ เปิดแล้วกด <span class="ui">ผ่าน</span> หรือ <span class="ui">ไม่ผ่าน</span> พร้อมเหตุผล</div></li>
+    <li><div>ถ้าผ่าน APP ได้อีเมลถัดไปและอนุมัติแบบเดียวกัน</div></li>
+    <li><div>ผู้สั่งได้อีเมลแจ้งผล ติดตามสถานะแบบเรียลไทม์ได้ที่แท็บ <span class="ui">รอการอนุมัติ</span></div></li>
+  </ol>
+  <div class="flow"><span class="pill p-i">รอ CHK ตรวจสอบ</span><span class="pill p-w">รอ APP อนุมัติ</span><span class="pill p-ok">อนุมัติแล้ว</span><span class="pill p-b">ไม่อนุมัติ</span></div>
+  <h3>Shortcut อนุมัติแทน <span class="role r-a">ADMIN</span></h3>
+  <p>ในแท็บ <span class="ui">รอการอนุมัติ</span> Admin อนุมัติต่อจนถึงขั้น APP ได้ทันที ระบบส่งอีเมลแจ้งเฉพาะผู้สั่งเพื่อประหยัดโควตาอีเมล</p>
+  <div class="note warn"><b>ลิงก์ไม่ถูกต้อง?</b>ลิงก์อนุมัติใช้ได้ครั้งเดียวต่อขั้น ถ้าใบสั่งถูกแก้ไขหรืออนุมัติไปแล้ว ลิงก์เดิมจะใช้ไม่ได้ ให้เปิดจากแท็บรอการอนุมัติแทน</div>
+</section>
+
+<section id="alert">
+  <h2><span class="no">11</span>Stock Alert</h2>
+  <p class="lead">เตือนสินค้า Stock (CODE 8 หลัก ผู้สั่ง DS13) ที่ต่ำกว่า Min โดยหักยอดที่ถูกจองใน Booking BOM แล้ว และนับของที่กำลังเข้าจาก Pending Order</p>
+  <div class="tw"><table>
+    <thead><tr><th>ระดับ</th><th>ความหมาย</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill p-b">สูงสุด</span></td><td>ต่ำกว่า Min และ Lead time นาน หรือของหมด ต้องสั่งด่วน</td></tr>
+      <tr><td><span class="pill p-w">กลาง</span></td><td>ต่ำกว่า Min</td></tr>
+      <tr><td><span class="pill p-w">ต่ำ</span></td><td>ต่ำกว่า Min แต่ Lead time สั้น</td></tr>
+      <tr><td><span class="pill p-i">รอของเข้า</span></td><td>ต่ำกว่า Min แต่สั่งไว้แล้วพอ</td></tr>
+      <tr><td><span class="pill p-i">เกิน Max</span></td><td>คงเหลือมากกว่า Max</td></tr>
+      <tr><td><span class="pill p-ok">ปกติ</span></td><td>อยู่ระหว่าง Min–Max</td></tr>
+      <tr><td>ยังไม่ตั้ง Min / เลิกใช้</td><td>ยังไม่เตือน / ปิดการเตือน</td></tr>
+    </tbody>
+  </table></div>
+  <h3>สร้างใบสั่งจาก Stock Alert</h3>
+  <ol class="steps">
+    <li><div>ติ๊กเลือกรายการ (ระบบเสนอจำนวน "แนะนำสั่ง" ให้)</div></li>
+    <li><div>กด <span class="ui">สร้างใบสั่ง</span> ระบบเช็คการสั่งซ้ำ แล้วพาไปหน้า Order Item พร้อมรายการ (สูงสุด 8 รายการต่อใบ)</div></li>
+  </ol>
+  <p><span class="role r-a">ADMIN</span> กดที่รายการเพื่อตั้ง Min, Max, Lead time, เลิกใช้ และหมายเหตุ · ตั้งเกณฑ์ LT สั้น/นาน · ส่งออก CSV · ส่งอีเมลสรุป</p>
+</section>
+
+<section id="remain">
+  <h2><span class="no">12</span>Stock ช่วยใช้ (Remain stock)</h2>
+  <p class="lead">รวมของค้างนาน ล็อตสุดท้าย และของที่ใช้แทนได้ เพื่อช่วยกันนำไปใช้และลดการ Scrap นับทุก CODE (8 และ 16 หลัก) ยกเว้นรหัส Service ที่ขึ้นต้นด้วย <code>SV</code></p>
+  <div class="grid2">
+    <div class="card"><h4>ค้างนาน</h4><p>จำนวนคงเหลือไม่เปลี่ยนเกินจำนวนวันที่กำหนด</p></div>
+    <div class="card"><h4>RQN เก่า</h4><p>เลขใบขอซื้อล่าสุดเก่ากว่ากี่ปีที่กำหนด</p></div>
+    <div class="card"><h4>ล็อตสุดท้าย</h4><p>Admin ติดป้ายไว้ว่าเป็นล็อตสุดท้าย</p></div>
+    <div class="card"><h4>ใช้แทนได้</h4><p>Admin ระบุ CODE ที่ใช้แทนกันได้</p></div>
+  </div>
+  <h3>จองนำไปใช้</h3>
+  <ol class="steps">
+    <li><div>กรอง: ทุกความยาว / CODE 8 หลัก / CODE 16 หลัก, หมวด 4 หลักแรก, เหตุผล</div></li>
+    <li><div>กด <span class="ui">จองนำไปใช้</span> ที่รายการ กรอกชื่อ จำนวน และงานที่จะใช้ ทุกคนจะเห็นว่ามีผู้จองแล้ว</div></li>
+    <li><div>ใช้เสร็จ กดปิดการจอง ระบบนับยอด "ช่วยลด Scrap" จากจำนวนที่ลดลงจริงเมื่อซิงค์ Stock รอบถัดไป</div></li>
+  </ol>
+  <h3>รายงาน PDF</h3>
+  <p>กด <span class="ui">รายงาน PDF</span> เลือกแบ่งหมวดตาม CODE 4 หลักแรก / ความยาว CODE / ไม่แบ่ง ผู้ใช้ทั่วไปไม่เห็นมูลค่าเงิน</p>
+  <p><span class="role r-a">ADMIN</span> ตั้งเกณฑ์วัน ผู้สั่ง ติดป้าย (ล็อตสุดท้าย, ใช้แทน, ใช้ให้หมดก่อน) และตั้งชื่อหมวด 4 หลัก เช่น <code>1001</code> = Bolt &amp; Nut</p>
+  <div class="note"><b>รายการที่ถูกจองใน BOM</b>ถ้าโปรเจกต์ใน Booking BOM จองของไว้ทั้งหมดแล้ว รายการนั้นจะไม่แสดงใน Stock ช่วยใช้ ถ้าจองบางส่วน มูลค่าจะคิดเฉพาะส่วนที่เหลือ</div>
+</section>
+
+<section id="bom">
+  <h2><span class="no">13</span>Booking BOM</h2>
+  <p class="lead">จอง Item ตาม BOM ของโปรเจกต์ที่จะผลิต เพื่อเช็คล่วงหน้าว่า Onhand + ของที่กำลังเข้า พอหรือไม่</p>
+  <h3>Import BOM <span class="role r-a">ADMIN</span></h3>
+  <ol class="steps">
+    <li><div>แท็บ <span class="ui">⬆ Import BOM</span> เลือกไฟล์ .xlsx (เลือกหลายไฟล์ได้) คอลัมน์ B = PROJECT, C = CODE, H = จำนวน ระบบหาแถวหัวตารางจากคำว่า CODE ในคอลัมน์ C</div></li>
+    <li><div>ตรวจตัวอย่าง: ชื่อใน Stock, Onhand, CODE ที่ไม่พบ (สีแดง) และโปรเจกต์ที่มีอยู่แล้ว (จะถูกแทนที่ทั้งชุดเป็น Revision ใหม่)</div></li>
+    <li><div>กด <span class="ui">✓ ยืนยันจอง</span> ระบบคำนวณการจองทันที</div></li>
+  </ol>
+  <h3>วันที่ต้องใช้และการจัดสรร</h3>
+  <ul>
+    <li>วันที่ต้องใช้ = Start-date ที่ใกล้ที่สุดของ LCC หรือ RCC ในตารางงาน (ProjectNo ที่เป็นส่วนต้นของชื่อโปรเจกต์ เช่น PP1024 ↔ PP1024D01) Admin กำหนดเองรายโปรเจกต์ได้</li>
+    <li>จัดสรรต่อ CODE ตามวันที่ต้องใช้ (ใกล้ก่อน): ใช้ Onhand ทุกคลังก่อน → ของที่เข้าทันวัน → ของที่เข้าไม่ทัน</li>
+  </ul>
+  <div class="flow"><span class="pill p-ok">✅ พอ (Stock)</span><span class="pill p-i">⏳ พอ (ของเข้าทัน)</span><span class="pill p-w">⚠ ของเข้าไม่ทัน</span><span class="pill p-b">❌ ขาด</span></div>
+  <h3>ปุ่มในการ์ดโปรเจกต์</h3>
+  <div class="tw"><table>
+    <thead><tr><th>ปุ่ม</th><th>ใช้ทำอะไร</th></tr></thead>
+    <tbody>
+      <tr><td><span class="ui">📤 Export ใบเบิก By Stock</span> / <span class="ui">By Project</span></td><td>ออกใบเบิกวัตถุดิบ (หัวข้อ 14)</td></tr>
+      <tr><td><span class="ui">📄 PDF รายการที่ขาด</span></td><td>รายงานรายการขาด/เข้าไม่ทันของโปรเจกต์ (ปุ่มด้านบนออกรวมทุกโปรเจกต์)</td></tr>
+      <tr><td><span class="ui">🛒 สร้างใบสั่งจากรายการที่ขาด</span></td><td>สร้างใบสั่ง Order Item จากจำนวนที่ขาด หมายเหตุ "FOR PROJECT …" ใบละ 8 รายการ บันทึกแล้วกดซ้ำเพื่อทำใบถัดไป ระบบข้ามรายการที่สั่งแล้ว</td></tr>
+      <tr><td>วันที่ต้องใช้ / ปิด / เปิด / ลบ <span class="role r-a">ADMIN</span></td><td>กำหนดวันเอง ปิดโปรเจกต์เพื่อปลดยอดจอง เปิดใหม่ หรือลบ</td></tr>
+    </tbody>
+  </table></div>
+  <p>แท็บ <span class="ui">🔢 ตาม CODE</span> รวมทุกโปรเจกต์: Onhand, กำลังเข้า, จองรวม, คงเหลือหลังจอง, Max และกรอง ❌ ไม่พอ / ⚠ เสี่ยง Overstock</p>
+  <p><span class="role r-a">ADMIN</span> ตั้งค่า (ท้ายแท็บ Import): ปิดโปรเจกต์อัตโนมัติเมื่อเลยวันที่ต้องใช้ N วัน, รหัสฟอร์มท้ายกระดาษใบเบิก, Rev มุมขวาบน</p>
+</section>
+
+<section id="bomexport">
+  <h2><span class="no">14</span>Export ใบเบิก BOM</h2>
+  <div class="tw"><table>
+    <thead><tr><th></th><th>By Stock (MF253A)</th><th>By Project (MF253P)</th></tr></thead>
+    <tbody>
+      <tr><td>รายการ</td><td>CODE 8 หลักใน BOM ของโปรเจกต์</td><td>CODE ของงานใน Item stock ที่มีคำค้นอยู่ใน CODE (โปรเจกต์ D → C) เช่น PP1024D01 → <code>3694PP1024C00403</code></td></tr>
+      <tr><td>จำนวนเริ่มต้น</td><td>ตาม BOM</td><td>Onhand รายคลัง</td></tr>
+      <tr><td>คลัง</td><td>คลังที่มีของมากที่สุด (เลือกเปลี่ยนได้)</td><td>แยกแถวรายคลัง</td></tr>
+    </tbody>
+  </table></div>
+  <ol class="steps">
+    <li><div>เปิดการ์ดโปรเจกต์ กด <span class="ui">📤 Export ใบเบิก By Stock</span> หรือ <span class="ui">By Project</span> หน้า Preview จะเปิดขึ้น</div></li>
+    <li><div>ตรวจหัวฟอร์ม: เลขที่, วันที่, เบอร์งาน (By Project แก้คำค้นแล้วกด <span class="ui">ค้นหาใหม่</span> ได้)</div></li>
+    <li><div>แก้ตาราง: จำนวน, MATERIAL, STORE, PK, UNIT · ▲▼ เลื่อนลำดับ · 🗑 ลบแถว ช่องแดง = ยังไม่มีจำนวน ช่องส้ม = เกิน Onhand</div></li>
+    <li><div>เพิ่มรายการ: ค้นจาก Item stock แล้วกด <span class="ui">+ เพิ่ม</span> · <span class="ui">+ แถวว่าง</span> · หรือเปิด "ไม่ได้นำมา" แล้วกด <span class="ui">+ เพิ่ม</span> / <span class="ui">+ เพิ่มทั้งหมดลงใบเบิก</span></div></li>
+    <li><div>เลือกไฟล์ (PDF + Excel / PDF / Excel) และความสูงแถว: อัตโนมัติตามความยาวข้อความ (39.75–55) / 39.75 / 55</div></li>
+    <li><div><span class="role r-a">ADMIN</span> ติ๊ก <span class="ui">ปิดโปรเจกต์หลัง Export</span> ถ้าต้องการปลดยอดจอง (ติ๊กไว้ให้สำหรับ By Stock)</div></li>
+    <li><div>กด <span class="ui">⬇ Export ใบเบิก</span> ไฟล์ดาวน์โหลดและเก็บใน Drive โฟลเดอร์ FormOrder/BOM_Export การ์ดโปรเจกต์แสดงลิงก์ไฟล์ล่าสุด</div></li>
+  </ol>
+  <h3>รูปแบบใบเบิก</h3>
+  <ul>
+    <li>1 หน้า A4 มีหัวฟอร์ม รายการ ช่องลายเซ็น (ผู้ขอเบิก / ผู้อนุมัติ / ผู้รับ / ผู้จ่าย) และท้ายกระดาษ "Page x of n" + รหัสฟอร์ม <code>PLf200-011-0-1/1</code></li>
+    <li>หน้าแรกมี <code>Rev.1</code> มุมขวาบน ลำดับ No. ต่อเนื่องข้ามหน้า ใน Excel แต่ละหน้าเป็นแท็บ Page 1, Page 2, …</li>
+    <li>คอลัมน์ G และ I เว้นว่างกว้าง สำหรับติด Barcode</li>
+  </ul>
+</section>
+
+<section id="settings">
+  <h2><span class="no">15</span>ตั้งค่าระบบและการซิงค์ <span class="role r-a">ADMIN</span></h2>
+  <p class="lead">เมนู <span class="ui">ตั้งค่าระบบ</span> → ส่วน <span class="ui">☁ แหล่งข้อมูล OneDrive (ซิงค์ข้อมูล)</span></p>
+  <ol class="steps">
+    <li><div>ในไฟล์ OneDrive กดแชร์แบบ "Anyone with the link" แล้วคัดลอกลิงก์</div></li>
+    <li><div>วางลิงก์ในช่องของแหล่งข้อมูลนั้น: Item stock, Pending Order, ตารางงาน, Readtime (StockRT)</div></li>
+    <li><div>เลือกความถี่ซิงค์อัตโนมัติ: ปิด / ทุก 1, 2, 4, 6, 8, 12 ชั่วโมง / วันละครั้งตามเวลา (00:00–23:00)</div></li>
+    <li><div>กด <span class="ui">ซิงค์ตอนนี้</span> เพื่อทดสอบ ตรวจเวลาและจำนวนแถวที่ซิงค์ล่าสุด</div></li>
+  </ol>
+  <div class="note"><b>ซิงค์ทีละงาน</b>ระบบจัดคิวให้ซิงค์ทีละงาน ถ้าตั้งเวลาซ้อนกัน งานหลังจะรอ ข้อมูลไม่หาย หลังซิงค์ Stock / Pending / ตารางงาน ระบบคำนวณ Booking BOM, Stock Alert และ Stock ช่วยใช้ใหม่ให้อัตโนมัติ</div>
+  <p>ส่วนอื่นในตั้งค่า: การแสดงเมนูสำหรับผู้ใช้ (ซ่อน/แสดงแต่ละเมนู), การ์ดบนแดชบอร์ด, การเชื่อม Google Sheets และธีม · รายชื่อผู้อนุมัติใบสั่ง (CHK/APP) ตั้งที่หน้า <span class="ui">Order Item</span> ในกล่อง <span class="ui">📨 ผู้อนุมัติใบสั่ง</span></p>
+</section>
+
+<section id="templates">
+  <h2><span class="no">16</span>แม่แบบ และสุขภาพระบบ <span class="role r-a">ADMIN</span></h2>
+  <div class="grid2">
+    <div class="card"><h4>แม่แบบอีเมล</h4><p>ข้อความอีเมลแจ้งเตือนเคสและใบสั่ง ดูตัวอย่างก่อนบันทึกได้</p></div>
+    <div class="card"><h4>แม่แบบรายงาน</h4><p>รูปแบบรายงานสรุปเคส</p></div>
+    <div class="card"><h4>แม่แบบปัญหา</h4><p>ปุ่มแม่แบบในหน้าแจ้งปัญหา: ชื่อปุ่ม หัวข้อ รายละเอียด หมวด ความสำคัญ</p></div>
+    <div class="card"><h4>สุขภาพระบบ</h4><p>สำรองข้อมูล (Backup) บันทึกการใช้งาน (Audit log) และความเร็วการทำงาน</p></div>
+  </div>
+  <p>แม่แบบ FormOrder ของใบสั่งเปลี่ยนได้ในหน้า Order Item โดยอัปโหลด .xlsx ที่มีตำแหน่งช่องเหมือนเดิม หรือคืนค่าแม่แบบเริ่มต้น</p>
+</section>
+
+<section id="deploy">
+  <h2><span class="no">17</span>อัปเดตและ Deploy <span class="role r-a">ADMIN</span></h2>
+  <ol class="steps">
+    <li><div>เปิดโปรเจกต์ Apps Script แทนที่ไฟล์ที่มีการแก้ไข (.gs และ index.html) ไฟล์ใหม่ให้สร้างชื่อเดียวกันทุกตัวอักษร</div></li>
+    <li><div>Deploy → Manage deployments → แก้ไข (✏) → Version: <b>New version</b> → Deploy ลิงก์เว็บแอปเดิมยังใช้ได้</div></li>
+    <li><div>ครั้งแรกหลังเพิ่มฟังก์ชัน Export ให้รัน <code>testOrderSetup</code> ใน Editor เพื่ออนุญาตสิทธิ์ Drive</div></li>
+  </ol>
+  <div class="tw"><table>
+    <thead><tr><th>ไฟล์</th><th>หน้าที่</th></tr></thead>
+    <tbody>
+      <tr><td><code>Code.gs</code></td><td>หลัก: เคส ตารางงาน Stock การซิงค์ ตั้งค่า Admin</td></tr>
+      <tr><td><code>OrderService.gs</code>, <code>OrderTemplate.gs</code></td><td>Order Item และแม่แบบ FormOrder</td></tr>
+      <tr><td><code>OrderApproval.gs</code>, <code>OrderApprovalPage.html</code></td><td>การอนุมัติใบสั่ง และหน้าอนุมัติจากลิงก์อีเมล</td></tr>
+      <tr><td><code>StockAlert.gs</code></td><td>Stock Alert</td></tr>
+      <tr><td><code>RemainStock.gs</code></td><td>Stock ช่วยใช้</td></tr>
+      <tr><td><code>BomBooking.gs</code>, <code>BomExport.gs</code>, <code>BomTemplate.gs</code></td><td>Booking BOM, ใบเบิก, รายงานรายการที่ขาด, แม่แบบใบเบิก</td></tr>
+      <tr><td><code>index.html</code></td><td>หน้าเว็บทั้งหมด</td></tr>
+      <tr><td><code>appsscript.json</code></td><td>สิทธิ์และ Drive API (เปิด Services → Drive API)</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="guides">
+  <h2><span class="no">18</span>ไกด์งานประจำวัน</h2>
+  <p class="lead">ลำดับงานแนะนำตามบทบาท กดหัวข้อเพื่อเปิดขั้นตอน</p>
+  <details open><summary>ฝ่ายผลิต: แจ้งปัญหาหน้างาน</summary>
+    <ol class="steps"><li><div><span class="ui">+ แจ้งปัญหา</span> → เลือกแม่แบบ → แนบรูป → ส่ง</div></li><li><div>จดเลขเคส ติดตามที่แดชบอร์ด ตอบแชทเมื่อมีคำถาม</div></li><li><div>เมื่อสถานะเป็น Resolved ตรวจหน้างาน ถ้ายังไม่เรียบร้อยให้พิมพ์แจ้งในแชท</div></li></ol></details>
+  <details><summary>จัดซื้อ / DS13: เช้าวันทำงาน</summary>
+    <ol class="steps"><li><div>เปิด <span class="ui">Stock Alert</span> ดูระดับ "สูงสุด" และ "กลาง" ก่อน</div></li><li><div>ติ๊กเลือก → <span class="ui">สร้างใบสั่ง</span> → อ่านป๊อปอัปสั่งซ้ำ</div></li><li><div>ตรวจ Stock ช่วยใช้ว่ามีของใช้แทนได้หรือไม่</div></li><li><div>บันทึก → ส่งออก PDF → ส่งขออนุมัติ</div></li><li><div>ติดตามที่แท็บ <span class="ui">รอการอนุมัติ</span></div></li></ol></details>
+  <details><summary>วางแผน: รับโปรเจกต์ใหม่เข้าผลิต</summary>
+    <ol class="steps"><li><div>ตรวจตารางงานว่ามี ProjectNo และ Start-date ของ LCC/RCC</div></li><li><div>Admin Import BOM ของโปรเจกต์ (D01, D02, …)</div></li><li><div>ดูการ์ดโปรเจกต์: ❌ ขาด / ⚠ เข้าไม่ทัน</div></li><li><div>กด <span class="ui">📄 PDF รายการที่ขาด</span> ส่งให้ทีมที่เกี่ยวข้อง</div></li><li><div>กด <span class="ui">🛒 สร้างใบสั่งจากรายการที่ขาด</span> ทำใบสั่ง ทีละ 8 รายการ</div></li></ol></details>
+  <details><summary>คลังสินค้า: เบิกของเข้าไลน์ผลิต</summary>
+    <ol class="steps"><li><div>Booking BOM → เปิดโปรเจกต์ → <span class="ui">📤 Export ใบเบิก By Stock</span></div></li><li><div>ตรวจจำนวนและคลัง แก้/ลบ/เพิ่มใน Preview</div></li><li><div>Export → พิมพ์ → ติด Barcode ในช่อง G และ I → เซ็นชื่อ</div></li><li><div>ของเฉพาะงาน (16 หลัก) ใช้ <span class="ui">By Project</span> แบบเดียวกัน</div></li><li><div>Admin ปิดโปรเจกต์หลังเบิกครบ เพื่อปลดยอดจอง</div></li></ol></details>
+  <details><summary>Admin: ตรวจระบบรายสัปดาห์</summary>
+    <ol class="steps"><li><div><span class="ui">ตั้งค่าระบบ</span>: เวลาซิงค์ล่าสุดของทุกแหล่งข้อมูลเป็นปัจจุบัน</div></li><li><div><span class="ui">สุขภาพระบบ</span>: สำรองข้อมูล และดู Audit log</div></li><li><div>Booking BOM: ปิดโปรเจกต์ที่ผลิตเสร็จ</div></li><li><div>Stock ช่วยใช้: ปิดการจองที่ใช้แล้ว ทบทวนป้าย</div></li></ol></details>
+</section>
+
+<section id="faq">
+  <h2><span class="no">19</span>ปัญหาที่พบบ่อย</h2>
+  <div class="tw"><table>
+    <thead><tr><th>อาการ</th><th>สาเหตุ / วิธีแก้</th></tr></thead>
+    <tbody>
+      <tr><td>"ฝั่งเซิร์ฟเวอร์ยังเป็นเวอร์ชันเก่า" หรือ "… is not defined"</td><td>ยังไม่ได้เพิ่มไฟล์ .gs ใหม่ หรือยังไม่ได้ Deploy New version</td></tr>
+      <tr><td>"สิทธิ์ Admin หมดอายุ"</td><td>ล็อคแล้วปลดล็อค Admin ใหม่</td></tr>
+      <tr><td>ข้อมูล Stock ไม่อัปเดต</td><td>ตรวจลิงก์ OneDrive ยังแชร์แบบ Anyone with the link และดูเวลาซิงค์ล่าสุดในตั้งค่า กด ซิงค์ตอนนี้</td></tr>
+      <tr><td>ส่งออก PDF แล้วขึ้น "Google ปฏิเสธการส่งออกชั่วคราว"</td><td>ส่งออกถี่เกินไป รอ 1–2 นาทีแล้วลองใหม่</td></tr>
+      <tr><td>Export ครั้งแรกช้า</td><td>ระบบสร้าง Google Sheet แม่แบบให้ครั้งเดียว ครั้งต่อไปจะเร็วขึ้น</td></tr>
+      <tr><td>By Project ไม่พบรายการ</td><td>แก้คำค้นให้ตรงกับส่วนใน CODE (เช่น PP1024C) แล้วกดค้นหาใหม่ · รายการ Onhand 0 อยู่ใน "ไม่ได้นำมา"</td></tr>
+      <tr><td>BOM ไม่มีวันที่ต้องใช้</td><td>ไม่พบ ProjectNo ในตารางงาน ให้ Admin กำหนดวันที่เองในการ์ดโปรเจกต์</td></tr>
+      <tr><td>CODE ใน BOM ขึ้น "ไม่พบใน Stock"</td><td>ตรวจ CODE ในไฟล์ BOM หรือรอซิงค์ Item stock รอบถัดไป</td></tr>
+      <tr><td>ลิงก์อนุมัติขึ้น "ลิงก์ไม่ถูกต้อง"</td><td>ใบสั่งถูกดำเนินการไปแล้ว หรือส่งขออนุมัติใหม่ ใช้ลิงก์ในอีเมลล่าสุด</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="glossary">
+  <h2><span class="no">20</span>คำศัพท์</h2>
+  <div class="tw"><table>
+    <tbody>
+      <tr><td><b>Onhand</b></td><td>จำนวนคงเหลือในคลัง (รวมทุก LOCATION)</td></tr>
+      <tr><td><b>PK / PICKINGSEQ</b></td><td>ตำแหน่งหยิบสินค้าในคลัง</td></tr>
+      <tr><td><b>PR / PO</b></td><td>ใบขอซื้อ / ใบสั่งซื้อ</td></tr>
+      <tr><td><b>RQN</b></td><td>เลขใบขอเบิก/ขอซื้อ (Requisition No.)</td></tr>
+      <tr><td><b>Min / Max / LT</b></td><td>จุดสั่งซื้อขั้นต่ำ / ระดับสูงสุด / Lead time (วันรอของ)</td></tr>
+      <tr><td><b>DES'D / CHK'D / APP'D</b></td><td>ผู้จัดทำ / ผู้ตรวจสอบ / ผู้อนุมัติ</td></tr>
+      <tr><td><b>LCC / RCC</b></td><td>Local Control Cabinet / Remote Control Cabinet (Process ในตารางงาน)</td></tr>
+      <tr><td><b>CODE 8 หลัก / 16 หลัก</b></td><td>สินค้า Stock ทั่วไป / ของเฉพาะงานของโปรเจกต์ (เช่น 3694PP1024C00403)</td></tr>
+      <tr><td><b>MF253A / MF253P</b></td><td>เลขที่ใบเบิกแบบ By Stock / By Project ของหน่วยงาน 253</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+</main>
+<footer>คู่มือ DAIHEN Online Helpdesk &amp; Schedule Portal · MANUAL-HD-01 Rev.1 · ปรับปรุงล่าสุด 20/10/2026 · สอบถามเพิ่มเติมติดต่อ Admin ของระบบ</footer>
+</div>
+
+<script>
+(function(){
+  var q=document.getElementById('tocq'),links=[].slice.call(document.querySelectorAll('nav.toc a'));
+  q.addEventListener('input',function(){
+    var t=q.value.trim().toLowerCase();
+    links.forEach(function(a){
+      var s=document.querySelector(a.getAttribute('href'));
+      var hit=!t||(a.textContent+' '+(s?s.textContent:'')).toLowerCase().indexOf(t)>=0;
+      a.hidden=!hit;
+    });
+  });
+})();
+</script>
