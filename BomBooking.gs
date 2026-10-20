@@ -331,6 +331,7 @@ function getBom(token) {
   var t0 = Date.now(), snap = bomSnapGet_();
   if (!snap) snap = ss_().getSheetByName(BOM_PROJ_SHEET) ? bomSnapBuild_() : { projects: [], codes: [], cfg: bomCfg_() };
   var out = bomView_(snap); out.admin = isAdmin_(token); out.cfg = bomCfg_();
+  try { out.exports = bomExpLast_(); } catch (e) { out.exports = {}; }
   perf_('getBom', t0);
   return out;
 }
