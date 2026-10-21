@@ -419,7 +419,7 @@ function saveOrder(o) {
     x.updated = now;
     var row = cur ? cur.row : s.getLastRow() + 1;
     writeText_(s, row, 1, ordObjToRow_(x));
-    x.row = row; ordMemoPut_(x);
+    x.row = row; ordMemoPut_(x); dataBump_('ORD_VER');
     audit_([['User', cur ? 'แก้ไขใบสั่ง (Order Item)' : 'สร้างใบสั่ง (Order Item)', x.id, x.spec + ' · ' + x.rqn + ' · ' + x.items.length + ' รายการ · ' + x.des]]);
     x.row = row;
     return { order: ordPub_(x), orders: ordPubAll_() };
@@ -429,7 +429,7 @@ function deleteOrder(token, id) {
   requireAdmin_(token);
   return withLock_(function () {
     var o = ordFind_(id); if (!o) throw new Error('ไม่พบใบสั่ง ' + id);
-    ordSheet_().deleteRow(o.row); ordMemoReset_();
+    ordSheet_().deleteRow(o.row); ordMemoReset_(); dataBump_('ORD_VER');
     if (o.approval) oaBump_();
     audit_([['Admin', 'ลบใบสั่ง (Order Item)', id, o.spec + ' · ' + o.rqn]]);
     return ordPubAll_();
@@ -604,7 +604,7 @@ function exportOrder(id, fmt) {
     var cur = ordFind_(id); if (!cur) return;
     files.forEach(function (f) { cur[f.fmt] = f.url; });
     cur.status = 'Exported'; cur.updated = nowStr_();
-    writeText_(ordSheet_(), cur.row, 1, ordObjToRow_(cur)); ordMemoPut_(cur);
+    writeText_(ordSheet_(), cur.row, 1, ordObjToRow_(cur)); ordMemoPut_(cur); dataBump_('ORD_VER');
   });
   audit_([['User', 'ส่งออกใบสั่ง (' + fmt.toUpperCase() + ')', id, o.spec]]);
   return { files: files, orders: ordPubAll_() };

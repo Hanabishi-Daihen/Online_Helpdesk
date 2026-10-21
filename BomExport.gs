@@ -82,6 +82,7 @@ function bomExpLog_(rec) {
   var keys = Object.keys(m);
   if (keys.length > 60) { keys.sort(function (a, b) { return String(m[b][0].t).localeCompare(String(m[a][0].t)); }); keys.slice(60).forEach(function (k) { delete m[k]; }); }
   schedProp_('BOM_EXP_LAST', JSON.stringify(m));
+  dataBump_('BOM_EXP_VER');
 }
 
 // ── public: rows for the preview ────────────────────────────────────

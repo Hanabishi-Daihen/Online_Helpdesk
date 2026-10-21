@@ -190,6 +190,20 @@ function verConflict_(kind, base, who) {
   var t = Number((other[other.length - 1] || [cur])[0]) || Date.now();
   return Utilities.formatDate(new Date(t), 'Asia/Bangkok', 'dd/MM/yyyy HH:mm');
 }
+// ── data pulse: one cheap call tells every open page what changed ──────────
+// Each data source has a version stamp in Script Properties. The browser polls getPulse() every
+// 30 s (and when the tab comes back into view) and reloads only the pages whose sources changed.
+//   iss   cases            sched  production schedule     stock  Item stock (hash)
+//   po    Pending Order    rt     lead time (StockRT)      sa     Stock Alert settings
+//   bom   Booking BOM      rs     Stock ช่วยใช้             ord    Order Item list
+//   oa    order approvals  odb    DatabaseItemOrder
+function dataBump_(key) { PropertiesService.getScriptProperties().setProperty(key, String(Date.now())); }
+function getPulse() {
+  var P = PropertiesService.getScriptProperties().getProperties(), g = function (k) { return String(P[k] || ''); };
+  return { iss: issVer_(), sched: g('SCHED_VER'), stock: g('STOCK_HASH').substring(0, 16), po: g('PO_HASH').substring(0, 16),
+    rt: g('RT_HASH').substring(0, 16), sa: g('SA_VER') + '|' + g('SA_CFG').length, bom: g('BOM_VER') + '|' + g('BOM_EXP_VER'),
+    rs: g('RS_VER'), ord: g('ORD_VER'), oa: g('ORD_AP_VER'), odb: g('ORD_DB_VER') };
+}
 // browser records these when it loads Issues / Schedules
 function getDataVers() {
   var P = PropertiesService.getScriptProperties();

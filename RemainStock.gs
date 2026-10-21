@@ -175,6 +175,7 @@ function saveRemainGroups(token, map) {
     var s = rsSheet_(RS_GROUP_SHEET, ['CODE4', 'NAME']);
     if (s.getLastRow() > 1) s.getRange(2, 1, s.getLastRow() - 1, 2).clearContent();
     if (rows.length) { var rg = s.getRange(2, 1, rows.length, 2); rg.setNumberFormat('@'); rg.setValues(rows); }
+    dataBump_('RS_VER');
     audit_([['Admin', 'ตั้งชื่อหมวด Stock ช่วยใช้ (4 หลักแรก)', '', rows.length + ' หมวด']]);
     return rsGroups_();
   });
@@ -204,7 +205,7 @@ function claimRemain(code, c) {
   return withLock_(function () {
     var s = rsSheet_(RS_CLAIM_SHEET, RS_CLAIM_HEADER), id = 'RS' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyMMddHHmmss') + Math.floor(Math.random() * 90 + 10);
     writeText_(s, s.getLastRow() + 1, 1, [id, k, qty, name, purpose, nowStr_(), 'open', '']);
-    rc.put(rk, String(n + 1), 3600);
+    rc.put(rk, String(n + 1), 3600); dataBump_('RS_VER');
     audit_([['User: ' + name, 'จองใช้ Stock ช่วยใช้', k, (qty ? qty + ' · ' : '') + purpose]]);
     return rsClaims_(true);
   });
@@ -217,7 +218,7 @@ function closeRemainClaim(token, id, status) {
     var all = rsClaims_(true), hit = null;
     Object.keys(all).forEach(function (k) { all[k].forEach(function (x) { if (x.id === id) hit = x; }); });
     if (!hit) throw new Error('ไม่พบรายการจอง ' + id);
-    ss_().getSheetByName(RS_CLAIM_SHEET).getRange(hit.row, 7, 1, 2).setValues([[status, nowStr_()]]);
+    ss_().getSheetByName(RS_CLAIM_SHEET).getRange(hit.row, 7, 1, 2).setValues([[status, nowStr_()]]); dataBump_('RS_VER');
     audit_([['Admin', status === 'done' ? 'ปิดรายการจอง (นำไปใช้แล้ว)' : 'ยกเลิกรายการจอง', id, '']]);
     return rsClaims_(true);
   });
@@ -275,6 +276,7 @@ function rsSnapPut_(snap) {
     sh.getRange(1, 1, parts.length, 1).setValues(parts.map(function (p) { return [p]; }));
   } catch (e) { console.warn('rsSnap sheet', e); }
   CacheService.getScriptCache().remove('rs_flags');
+  dataBump_('RS_VER');
 }
 function rsSnapGet_() {
   var b64 = '';
