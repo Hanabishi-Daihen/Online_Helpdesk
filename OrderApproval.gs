@@ -59,6 +59,45 @@ function oaPublic_(a) {
   return { state: a.state || '', stateLabel: OA_STATE_TH[a.state || ''] || '', req: a.req ? { name: a.req.name || '' } : null,
     chk: p(a.chk), app: p(a.app), sent: a.sent || '', history: a.history || [] };
 }
+// ── waiting-time warning (in the app only, no e-mail) ──
+// warn / over = working days (Mon–Fri) the order has waited at its current step (CHK since sent, APP since CHK passed)
+var OA_AGE_DEF = { warn: 2, over: 3 };
+function oaAgeCfg_() {
+  var c = {}; try { c = JSON.parse(schedProp_('OA_AGE_CFG') || '{}') || {}; } catch (e) {}
+  var w = Number(c.warn), o = Number(c.over);
+  w = w >= 1 && w <= 60 ? Math.round(w) : OA_AGE_DEF.warn; o = o >= 1 && o <= 90 ? Math.round(o) : OA_AGE_DEF.over;
+  return { warn: Math.min(w, o), over: o };
+}
+function saveOrderAgeCfg(token, cfg) {
+  requireAdmin_(token); cfg = cfg || {};
+  var w = Number(cfg.warn), o = Number(cfg.over);
+  if (!(w >= 1 && w <= 60) || !(o >= 1 && o <= 90)) throw new Error('จำนวนวันต้องอยู่ระหว่าง 1–60 (เตือน) และ 1–90 (เกินกำหนด)');
+  if (w > o) throw new Error('วันเริ่มเตือนต้องไม่มากกว่าวันเกินกำหนด');
+  schedProp_('OA_AGE_CFG', JSON.stringify({ warn: Math.round(w), over: Math.round(o) }));
+  oaBump_();                                                            // open pages recolour their badges
+  audit_([['Admin', 'ตั้งค่าเตือนใบสั่งค้างอนุมัติ', '', 'เตือน ≥ ' + Math.round(w) + ' วัน · เกินกำหนด ≥ ' + Math.round(o) + ' วันทำงาน']]);
+  return oaAgeCfg_();
+}
+function oaSince_(a) { return a && a.state === 'app' ? (a.chk && a.chk.at) || a.sent || '' : a ? a.sent || '' : ''; }
+// working days between a "dd/MM/yyyy …" stamp and today (today not counted)
+function oaWorkDays_(stamp) {
+  var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String(stamp || '')); if (!m) return null;
+  var d = new Date(+m[3], +m[2] - 1, +m[1]), now = new Date(), t = new Date(now.getFullYear(), now.getMonth(), now.getDate()), n = 0;
+  while (d < t) { d.setDate(d.getDate() + 1); var w = d.getDay(); if (w !== 0 && w !== 6) n++; }
+  return n;
+}
+// public: counts for the menu badge (cached per approval / order version)
+function getOrderAgeSummary() {
+  return wsCached_('oaage', ['oa', 'ord'], schedProp_('OA_AGE_CFG') || '', function () {
+    var cfg = oaAgeCfg_(), out = { warn: 0, over: 0, wait: 0, cfg: cfg };
+    ordAll_().forEach(function (o) {
+      var a = o.approval; if (!a || (a.state !== 'chk' && a.state !== 'app')) return;
+      out.wait++; var d = oaWorkDays_(oaSince_(a)); if (d == null) return;
+      if (d >= cfg.over) out.over++; else if (d >= cfg.warn) out.warn++;
+    });
+    return out;
+  });
+}
 function oaUrl_(id, k) { return baseUrl_() + '?ordapprove=' + encodeURIComponent(id) + '&k=' + encodeURIComponent(k); }
 function oaKeyOk_(a, k) { return !!a.k && typeof k === 'string' && k.length === a.k.length && k === a.k; }
 function oaSave_(o) { writeText_(ordSheet_(), o.row, 1, ordObjToRow_(o)); ordMemoPut_(o); oaBump_(); }

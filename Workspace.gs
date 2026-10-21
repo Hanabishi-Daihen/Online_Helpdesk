@@ -175,14 +175,14 @@ function getItem360(token, code) {
 // ── My day (all roles in one call; the browser shows the chosen role) ──
 function getMyDay(token) {
   var t0 = Date.now(), admin = isAdmin_(token);
-  var out = wsCached_('myday', ['sa', 'bom', 'ord', 'oa', 'po', 'stock', 'rs', 'iss', 'sched'], (admin ? 'A' : 'U') + schedProp_('BOM_CFG'), function () { return wsMyDay_(admin); });
+  var out = wsCached_('myday', ['sa', 'bom', 'ord', 'oa', 'po', 'stock', 'rs', 'iss', 'sched'], (admin ? 'A' : 'U') + schedProp_('BOM_CFG') + schedProp_('OA_AGE_CFG'), function () { return wsMyDay_(admin); });
   perf_('getMyDay', t0);
   return out;
 }
 function wsMyDay_(admin) {
   var today = wsToday_(), out = { time: nowStr_(), admin: admin };
   var cfg = bomCfg_(), ob = String(cfg.orderBy || 'DS13').toUpperCase();
-  out.orderBy = cfg.orderBy || 'DS13';
+  out.orderBy = cfg.orderBy || 'DS13'; out.ageCfg = oaAgeCfg_();
   // Stock Alert
   try {
     var sa = saData_(false);
@@ -206,8 +206,9 @@ function wsMyDay_(admin) {
     ordAll_().forEach(function (o) {
       if (ordAgeDays_(o.issueDate) > 120) return;
       var st = wsOrderState_(o), a = o.approval || {};
+      var since = oaSince_(a);
       out.orders.push({ id: o.id, spec: o.spec, rqn: o.rqn, des: o.des, chk: o.chk, app: o.app, date: o.issueDate, items: (o.items || []).length, state: st.key, stateTh: st.label,
-        sent: a.sent || '', remark: o.remark || '' });
+        sent: a.sent || '', since: since, waitDays: st.key === 'chk' || st.key === 'app' ? oaWorkDays_(since) : null, remark: o.remark || '' });
     });
     out.orders.reverse();
   } catch (e) {}

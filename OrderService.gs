@@ -338,7 +338,7 @@ function getOrderBoot(token) {
   var t0 = Date.now(), admin = isAdmin_(token), tpl = null;
   if (admin) { try { tpl = ordTplInfo_(); } catch (e) { tpl = { ok: false, msg: e.message }; } }
   var out = { db: getOrderDb(), orders: ordPubAll_(), next: null, today: ordToday_(), admin: admin, tpl: tpl,
-    approvers: oaNames_(), approverCfg: admin ? oaCfg_() : null, dupCfg: admin ? ordDupCfg_() : null, apVer: oaVer_() };
+    approvers: oaNames_(), approverCfg: admin ? oaCfg_() : null, dupCfg: admin ? ordDupCfg_() : null, apVer: oaVer_(), ageCfg: oaAgeCfg_() };
   perf_('getOrderBoot', t0);
   return out;
 }
