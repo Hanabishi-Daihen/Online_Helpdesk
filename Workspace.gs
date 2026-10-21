@@ -43,6 +43,34 @@ function wsHistory_(k) {
   } catch (e) { console.warn('wsHistory_', e); }
   return out.sort(function (a, b) { return a[0] - b[0]; });
 }
+// result cache keyed by the data versions it depends on (shared by every viewer, 10 min)
+function wsCached_(name, keys, extra, fn) {
+  var P = {}; try { P = getPulse(); } catch (e) {}
+  var raw = [name, ordToday_(), extra].concat(keys.map(function (k) { return P[k] || ''; })).join('|');
+  var key = 'ws_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, raw)).replace(/=+$/, '');
+  var hit = ordCacheGet_(key); if (hit) { hit.cached = true; return hit; }
+  var v = fn(); ordCachePut_(key, v, 600); return v;
+}
+// Issues: only id / project / description / date / status / archived — never the chat column
+function wsIssues_() {
+  var s = ss_().getSheetByName(CONFIG.ISSUES), n = s ? s.getLastRow() - 1 : 0;
+  if (n < 1) return [];
+  var a = s.getRange(2, 1, n, 3).getDisplayValues(), b = s.getRange(2, 8, n, 2).getDisplayValues(), c = s.getRange(2, 14, n, 1).getDisplayValues();
+  return a.map(function (r, i) { return { id: r[0], project: r[1], desc: r[2], date: b[i][0], status: b[i][1] || 'New', archived: String(c[i][0]).trim() === '1' }; })
+    .filter(function (x) { return x.id && !x.archived; });
+}
+// Project 360: which schedule processes appear on the timeline ([] = all)
+function wsP360Cfg_() { var c = {}; try { c = JSON.parse(schedProp_('P360_CFG') || '{}') || {}; } catch (e) {} return { procs: Array.isArray(c.procs) ? c.procs : [] }; }
+function wsProcs_(sched) { var m = {}; (sched || []).forEach(function (r) { var p = String(r[8] || '').trim(); if (p) m[p] = (m[p] || 0) + 1; }); return Object.keys(m).sort(); }
+function getP360Cfg(token) { requireAdmin_(token); var sched = []; try { sched = getSchedules(); } catch (e) {} var c = wsP360Cfg_(); return { all: wsProcs_(sched), procs: c.procs }; }
+function saveP360Cfg(token, procs) {
+  requireAdmin_(token);
+  var list = (procs || []).map(function (p) { return ordStr_(p, 40).trim(); }).filter(String).slice(0, 80);
+  schedProp_('P360_CFG', JSON.stringify({ procs: list }));
+  dataBump_('SCHED_VER');                                             // open Project 360 pages reload
+  audit_([['Admin', 'ตั้งค่า Process บนไทม์ไลน์ Project 360', '', list.length ? list.join(', ') : 'ทั้งหมด']]);
+  return getP360Cfg(token);
+}
 function wsToday_() { var d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); }
 function wsPendingRows_(match) {
   var out = [];
@@ -146,7 +174,13 @@ function getItem360(token, code) {
 
 // ── My day (all roles in one call; the browser shows the chosen role) ──
 function getMyDay(token) {
-  var t0 = Date.now(), admin = isAdmin_(token), today = wsToday_(), out = { time: nowStr_(), admin: admin };
+  var t0 = Date.now(), admin = isAdmin_(token);
+  var out = wsCached_('myday', ['sa', 'bom', 'ord', 'oa', 'po', 'stock', 'rs', 'iss', 'sched'], (admin ? 'A' : 'U') + schedProp_('BOM_CFG'), function () { return wsMyDay_(admin); });
+  perf_('getMyDay', t0);
+  return out;
+}
+function wsMyDay_(admin) {
+  var today = wsToday_(), out = { time: nowStr_(), admin: admin };
   var cfg = bomCfg_(), ob = String(cfg.orderBy || 'DS13').toUpperCase();
   out.orderBy = cfg.orderBy || 'DS13';
   // Stock Alert
@@ -184,25 +218,21 @@ function getMyDay(token) {
     wk.push({ code: f[0], name: f[5], po: f[2] || f[1], due: f[9] || f[7], qty: Number(f[13]) || 0, unit: f[14], by: f[12], t: d });
   });
   wk.sort(function (a, b) { return a.t - b.t; });
-  out.incoming = wk.slice(0, 30); out.incomingN = wk.length;
-  out.incomingMine = wk.filter(function (x) { return String(x.by || '').toUpperCase() === ob; }).length;
+  var wkMine = wk.filter(function (x) { return String(x.by || '').toUpperCase() === ob; });   // ผู้สั่ง = DS13 (ตั้งค่าได้)
+  out.incoming = wkMine.slice(0, 40); out.incomingN = wkMine.length; out.incomingMine = wkMine.length; out.incomingAll = wk.length;
   // Stock ช่วยใช้ claims waiting to be handed out
   try { var cl = rsClaims_(true), n = 0; Object.keys(cl).forEach(function (k) { n += cl[k].length; }); out.claims = n; } catch (e) { out.claims = 0; }
   // Admin: cases + system
   if (admin) {
     try {
-      var s = ss_().getSheetByName(CONFIG.ISSUES), open = 0, old = 0;
-      if (s && s.getLastRow() > 1) s.getRange(2, 1, s.getLastRow() - 1, 14).getDisplayValues().forEach(function (r) {
-        if (!r[0] || String(r[13]).trim() === '1' || /^(Resolved|Closed)$/.test(r[8])) return;
-        open++; var d = dateOf_(r[7]); if (d && (today - d.getTime()) / 864e5 > 7) old++;
-      });
+      var open = 0, old = 0;
+      wsIssues_().forEach(function (x) { if (/^(Resolved|Closed)$/.test(x.status)) return; open++; var d = dateOf_(x.date); if (d && (today - d.getTime()) / 864e5 > 7) old++; });
       out.cases = { open: open, old: old };
     } catch (e) {}
     out.sync = { stock: stockInfo_(), po: poInfo_(), sched: schedSyncInfo_(), rt: rtInfo_() };
     try { out.backup = JSON.parse(schedProp_('LAST_BACKUP') || 'null'); } catch (e) {}
     try { out.mailQuota = MailApp.getRemainingDailyQuota(); } catch (e) {}
   }
-  perf_('getMyDay', t0);
   return out;
 }
 
@@ -210,7 +240,12 @@ function getMyDay(token) {
 // base = schedule ProjectNo (PP1024); BOM projects are matched by prefix (PP1024D01, PP1024D02)
 function wsBase_(p) { var k = bomKey_(p), m = /^([A-Z]+\d+)[A-Z]/.exec(k); return m ? m[1] : k; }
 function getProjects(token) {
-  var t0 = Date.now(), sched = [], by = {}, today = wsToday_();
+  var t0 = Date.now(), out = wsCached_('projects', ['bom', 'sched'], '', wsProjects_);
+  perf_('getProjects', t0);
+  return out;
+}
+function wsProjects_() {
+  var sched = [], by = {}, today = wsToday_();
   try { sched = getSchedules(); } catch (e) {}
   var get = function (b) { return by[b] || (by[b] = { base: b, customer: '', mva: '', next: null, nextLabel: '', delivery: '', bom: [], total: 0, ready: 0, short: 0, late: 0 }); };
   sched.forEach(function (r) {
@@ -233,20 +268,30 @@ function getProjects(token) {
     .filter(function (P) { return P.bom.length || P.next != null; })
     .sort(function (a, b) { return (a.bom.some(function (x) { return x.status === 'active'; }) ? 0 : 1) - (b.bom.some(function (x) { return x.status === 'active'; }) ? 0 : 1) ||
       (a.next == null ? 9e15 : a.next) - (b.next == null ? 9e15 : b.next); });
-  perf_('getProjects', t0);
   return { projects: list.slice(0, 200), built: snap && snap.built || '' };
 }
 function getProject360(token, base) {
-  var t0 = Date.now(), B = bomKey_(base), today = wsToday_(), admin = isAdmin_(token);
+  var t0 = Date.now(), B = bomKey_(base);
   if (!B) throw new Error('ไม่ระบุโปรเจกต์');
-  var out = { base: B, admin: admin, sched: [], bom: [], short: [], orders: [], exports: [], issues: [], events: [] };
+  var out = wsCached_('p360', ['bom', 'sched', 'ord', 'iss'], B + '|' + (schedProp_('P360_CFG') || ''), function () { return wsProject360_(B); });
+  out.admin = isAdmin_(token);
+  perf_('getProject360', t0);
+  return out;
+}
+function wsProject360_(B) {
+  var today = wsToday_(), cfgP = wsP360Cfg_().procs, showP = {};
+  cfgP.forEach(function (p) { showP[String(p).toUpperCase()] = 1; });
+  var out = { base: B, sched: [], bom: [], short: [], orders: [], exports: [], issues: [], events: [], procFilter: cfgP };
   var sched = []; try { sched = getSchedules(); } catch (e) {}
   sched.forEach(function (r) {
     if (bomKey_(r[0]) !== B) return;
     out.sched.push({ process: String(r[8]).trim(), start: r[9], finish: r[10], mva: r[1], volt: r[2], customer: r[4], purchaser: r[3], delivery: r[7] || r[6] || r[5] });
   });
   var info = out.sched[0] || {}; out.customer = info.customer || ''; out.mva = info.mva || ''; out.volt = info.volt || ''; out.delivery = info.delivery || '';
-  out.sched.forEach(function (s) { var d = bomDate_(s.start); if (d != null) out.events.push({ t: d, label: s.process + ' Start', kind: 'sched' }); });
+  out.sched.forEach(function (s) {
+    if (cfgP.length && !showP[String(s.process).toUpperCase()]) return;
+    var d = bomDate_(s.start); if (d != null) out.events.push({ t: d, label: s.process + ' Start', kind: 'sched' });
+  });
   if (bomDate_(out.delivery) != null) out.events.push({ t: bomDate_(out.delivery), label: 'Delivery', kind: 'delivery' });
   var snap = null; try { snap = bomSnapGet_(); } catch (e) {}
   var exp = {}; try { exp = bomExpLast_(); } catch (e) {}
@@ -284,17 +329,18 @@ function getProject360(token, base) {
   } catch (e) {}
   // cases that mention the project
   try {
-    var s = ss_().getSheetByName(CONFIG.ISSUES);
-    if (s && s.getLastRow() > 1) s.getRange(2, 1, s.getLastRow() - 1, 14).getDisplayValues().forEach(function (r) {
-      if (!r[0] || String(r[13]).trim() === '1') return;
-      if (bomKey_(r[1] + ' ' + r[2]).indexOf(B) < 0) return;
-      out.issues.push({ id: r[0], project: r[1], desc: String(r[2]).substring(0, 120), status: r[8] || 'New', date: r[7] });
-    });
+    wsIssues_().forEach(function (x) { if (bomKey_(x.project + ' ' + x.desc).indexOf(B) >= 0) out.issues.push({ id: x.id, project: x.project, desc: String(x.desc).substring(0, 120), status: x.status, date: x.date }); });
     out.issues = out.issues.reverse().slice(0, 8);
   } catch (e) {}
   out.events.push({ t: today, label: 'วันนี้', kind: 'today' });
-  out.events.sort(function (a, b) { return a.t - b.t; });
-  out.events = out.events.map(function (e) { return { date: bomFmt_(e.t), label: e.label, kind: e.kind, days: Math.round((e.t - today) / 864e5) }; });
-  perf_('getProject360', t0);
+  // one marker per day: "LCC Start · RCC Start"
+  var rank = { today: 0, delivery: 1, sched: 2, export: 3, order: 4, bom: 5 }, day = {};
+  out.events.forEach(function (e) {
+    var g = day[e.t] || (day[e.t] = { t: e.t, labels: [], kind: e.kind });
+    if (g.labels.indexOf(e.label) < 0) g.labels.push(e.label);
+    if (rank[e.kind] < rank[g.kind]) g.kind = e.kind;
+  });
+  out.events = Object.keys(day).map(function (k) { return day[k]; }).sort(function (a, b) { return a.t - b.t; })
+    .map(function (g) { return { date: bomFmt_(g.t), label: g.labels.join(' · '), kind: g.kind, days: Math.round((g.t - today) / 864e5) }; });
   return out;
 }
