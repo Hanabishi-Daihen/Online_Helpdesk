@@ -87,6 +87,7 @@ function rsTrack_(rows) {
   rows.forEach(function (r) { var k = ordCodeKey_(r[0]); if (!k) return; var q = Number(r[3]); tot[k] = Math.round(((tot[k] || 0) + (isFinite(q) ? q : 0)) * 1000) / 1000; });
   var ss = stockSS_(), sh = ss.getSheetByName(RS_HIST_SHEET) || ss.insertSheet(RS_HIST_SHEET), today = ordToday_(), old = {};
   if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, 4).getDisplayValues().forEach(function (r) { if (r[0]) old[r[0]] = r; });
+  try { if (typeof wsLogChanges_ === 'function') wsLogChanges_(ss, old, tot); } catch (e) { console.warn('wsLogChanges_', e); }   // Workspace.gs: history for the CODE panel
   var out = Object.keys(tot).sort().map(function (k) {
     var o = old[k], q = String(tot[k]);
     return [k, q, o && o[1] === q && o[2] ? o[2] : today, today];
