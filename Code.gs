@@ -1176,6 +1176,7 @@ function syncSchedulesInner_(why, force) {
       verBump_('SCHED', 'sync');
     });
     try { bomRefresh_(); } catch (e) { console.warn('bomRefresh_', e); }   // Booking BOM: need dates changed
+    if (typeof wsWarmSafe_ === 'function') wsWarmSafe_('ตารางงาน');        // Workspace.gs: pre-build the shared page caches
     info.ok = true; info.rows = rows.length; info.projects = Object.keys(projects).length; info.zeroDates = zero; info.hash = hash;
     info.msg = 'อัปเดต ' + rows.length + ' แถว (' + info.projects + ' Project)';
     audit_([['System', 'ซิงค์ตารางงานจาก OneDrive', '', info.why + ' · ' + info.msg]]);

@@ -66,11 +66,12 @@ function fcCode_(onhand, ins, dl, min, lt, ltSrc, today) {
 }
 // public: every CODE that will run short (or below Min) — from the Booking BOM snapshot
 function getForecast(token) {
-  var t0 = Date.now(), out = wsCached_('fc', ['bom', 'ord', 'oa', 'sa'], schedProp_('FC_CFG') || '', fcList_);
+  var t0 = Date.now(), out = fcCached_();
   out.admin = isAdmin_(token);
   perf_('getForecast', t0);
   return out;
 }
+function fcCached_() { return wsCached_('fc', ['bom', 'ord', 'oa', 'sa'], schedProp_('FC_CFG') || '', fcList_); }
 function fcList_() {
   var snap = null; try { snap = bomSnapGet_(); } catch (e) {}
   var cfg = bomCfg_(), ob = String(cfg.orderBy || 'DS13').toUpperCase(), list = [], want = {};
@@ -166,11 +167,14 @@ function trkAll_(prevState) {
   out = out.reverse(); out.pn = P.n; out.gone = opt.gone;
   return out;
 }
-function getOrderTrack(token) {
-  var t0 = Date.now(), out = wsCached_('otrk', ['ord', 'oa', 'po', 'ntf'], '', function () {
+function trkCached_() {
+  return wsCached_('otrk', ['ord', 'oa', 'po', 'ntf'], '', function () {
     var list = trkAll_(trkStateGet_()).filter(function (x) { return x.stage !== 'done' && x.stage !== 'cancel' || ordAgeDays_(x.date) <= 180; });
     return { orders: list.slice(0, 400), time: nowStr_(), po: (poInfo_() || {}).time || '', ageCfg: oaAgeCfg_() };
   });
+}
+function getOrderTrack(token) {
+  var t0 = Date.now(), out = trkCached_();
   out.admin = isAdmin_(token);
   perf_('getOrderTrack', t0);
   return out;
@@ -244,7 +248,10 @@ function trkScan_(why) {
     return ev.length;
   });
 }
-function trkScanSafe_(why) { try { trkScan_(why); } catch (e) { console.warn('trkScan_', e); } }
+function trkScanSafe_(why) {
+  try { trkScan_(why); } catch (e) { console.warn('trkScan_', e); }
+  if (typeof wsWarmSafe_ === 'function') wsWarmSafe_(why);              // Workspace.gs: pre-build the shared page caches
+}
 function ntfSheet_() {
   var ss = stockSS_(), sh = ss.getSheetByName(NTF_SHEET);
   if (!sh) { sh = ss.insertSheet(NTF_SHEET); sh.getRange(1, 1, 1, NTF_HEADER.length).setValues([NTF_HEADER]).setFontWeight('bold'); sh.setFrozenRows(1); }

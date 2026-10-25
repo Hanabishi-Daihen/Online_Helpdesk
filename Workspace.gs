@@ -46,14 +46,27 @@ function wsHistory_(k) {
   } catch (e) { console.warn('wsHistory_', e); }
   return out.sort(function (a, b) { return a[0] - b[0]; });
 }
-// result cache keyed by the data versions it depends on (shared by every viewer, 10 min)
+// result cache keyed by the data versions it depends on (shared by every viewer). The key changes whenever
+// one of those versions (or the day) changes, so a long lifetime is safe: 6 h, pre-built after each sync (wsWarm_)
 function wsCached_(name, keys, extra, fn) {
   var P = {}; try { P = getPulse(); } catch (e) {}
   var raw = [name, ordToday_(), extra].concat(keys.map(function (k) { return P[k] || ''; })).join('|');
   var key = 'ws_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, raw)).replace(/=+$/, '');
   var hit = ordCacheGet_(key); if (hit) { hit.cached = true; return hit; }
-  var v = fn(); ordCachePut_(key, v, 600); return v;
+  var v = fn(); ordCachePut_(key, v, 21600); return v;
 }
+// after Stock / Pending Order / schedule syncs: compute the shared pages now, so the first viewer does not wait
+function wsWarm_(why) {
+  var t0 = Date.now(), done = [];
+  [['myday U', function () { return wsMyDayC_(false); }], ['myday A', function () { return wsMyDayC_(true); }], ['projects', wsProjectsC_],
+   ['stock alert', function () { return saData_(false); }], ['forecast', function () { return typeof fcCached_ === 'function' ? fcCached_() : null; }],
+   ['order track', function () { return typeof trkCached_ === 'function' ? trkCached_() : null; }]].forEach(function (w) {
+    if (Date.now() - t0 > 90000) return;                               // stay well inside the 6-min execution limit
+    try { w[1](); done.push(w[0]); } catch (e) { console.warn('wsWarm_ ' + w[0], e); }
+  });
+  perf_('wsWarm_ (' + why + ') ' + done.join(', '), t0);
+}
+function wsWarmSafe_(why) { try { wsWarm_(why); } catch (e) { console.warn('wsWarm_', e); } }
 // Issues: only id / project / description / date / status / archived — never the chat column
 function wsIssues_() {
   var s = ss_().getSheetByName(CONFIG.ISSUES), n = s ? s.getLastRow() - 1 : 0;
@@ -179,9 +192,12 @@ function getItem360(token, code) {
 // ── My day (all roles in one call; the browser shows the chosen role) ──
 function getMyDay(token) {
   var t0 = Date.now(), admin = isAdmin_(token);
-  var out = wsCached_('myday', ['sa', 'bom', 'ord', 'oa', 'po', 'stock', 'rs', 'iss', 'sched'], (admin ? 'A' : 'U') + schedProp_('BOM_CFG') + schedProp_('OA_AGE_CFG'), function () { return wsMyDay_(admin); });
+  var out = wsMyDayC_(admin);
   perf_('getMyDay', t0);
   return out;
+}
+function wsMyDayC_(admin) {
+  return wsCached_('myday', ['sa', 'bom', 'ord', 'oa', 'po', 'stock', 'rs', 'iss', 'sched'], (admin ? 'A' : 'U') + schedProp_('BOM_CFG') + schedProp_('OA_AGE_CFG'), function () { return wsMyDay_(admin); });
 }
 function wsMyDay_(admin) {
   var today = wsToday_(), out = { time: nowStr_(), admin: admin };
@@ -256,10 +272,11 @@ function wsMyDay_(admin) {
 // base = schedule ProjectNo (PP1024); BOM projects are matched by prefix (PP1024D01, PP1024D02)
 function wsBase_(p) { var k = bomKey_(p), m = /^([A-Z]+\d+)[A-Z]/.exec(k); return m ? m[1] : k; }
 function getProjects(token) {
-  var t0 = Date.now(), out = wsCached_('projects', ['bom', 'sched'], '', wsProjects_);
+  var t0 = Date.now(), out = wsProjectsC_();
   perf_('getProjects', t0);
   return out;
 }
+function wsProjectsC_() { return wsCached_('projects', ['bom', 'sched'], '', wsProjects_); }
 function wsProjects_() {
   var sched = [], by = {}, today = wsToday_();
   try { sched = getSchedules(); } catch (e) {}
