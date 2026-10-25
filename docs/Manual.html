@@ -428,6 +428,14 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
   </ol>
   <div class="note"><b>ซิงค์ทีละงาน</b>ระบบจัดคิวให้ซิงค์ทีละงาน ถ้าตั้งเวลาซ้อนกัน งานหลังจะรอ ข้อมูลไม่หาย หลังซิงค์ Stock / Pending / ตารางงาน ระบบคำนวณ Booking BOM, Stock Alert และ Stock ช่วยใช้ใหม่ให้อัตโนมัติ</div>
   <p>ส่วนอื่นในตั้งค่า: การแสดงเมนูสำหรับผู้ใช้ (ซ่อน/แสดงแต่ละเมนู), การ์ดบนแดชบอร์ด, การเชื่อม Google Sheets และธีม · รายชื่อผู้อนุมัติใบสั่ง (CHK/APP) ตั้งที่หน้า <span class="ui">Order Item</span> ในกล่อง <span class="ui">📨 ผู้อนุมัติใบสั่ง</span></p>
+  <h3>🧩 เมนูเพิ่มเติม (ลิงก์ / โปรแกรมอื่น)</h3>
+  <p>เพิ่มเมนูของโปรแกรมอื่นบนแถบด้านซ้าย แล้วเปิดโปรแกรมนั้นในหน้าเว็บนี้ได้เลย (สูงสุด 20 เมนู)</p>
+  <ol class="steps">
+    <li><div>ตั้งค่าระบบ → <span class="ui">🧩 เมนูเพิ่มเติม</span> → <span class="ui">+ เพิ่มเมนู</span></div></li>
+    <li><div>ใส่ชื่อเมนู คำอธิบาย กดกล่องไอคอนเพื่อเลือกไอคอน เลือกกลุ่ม (กลุ่มเดิม เช่น วางแผนผลิต หรือพิมพ์ชื่อกลุ่มใหม่) และวาง URL (ต้องขึ้นต้นด้วย https://)</div></li>
+    <li><div>เลือก <span class="ui">ฝังในหน้า</span> หรือ <span class="ui">เปิดแท็บใหม่</span> · ติ๊ก <span class="ui">แสดงให้ User เห็น</span> ออกถ้าให้เห็นเฉพาะ Admin · ใช้ ↑ ↓ จัดลำดับ แล้วกด <span class="ui">บันทึก</span></div></li>
+  </ol>
+  <div class="note"><b>ฝังได้หรือไม่ ขึ้นกับเว็บปลายทาง</b>ฝังได้ดี: Google Sheets / Docs / Slides (ลิงก์ /preview หรือ เผยแพร่ทางเว็บ), Looker Studio, Power BI (Publish to web), Apps Script Web App อื่นที่อนุญาตให้ฝัง · หลายเว็บ (เช่น SharePoint/OneDrive, ระบบ ERP, เว็บที่ต้องล็อกอิน) ไม่อนุญาตให้ฝังในเว็บอื่น จะเห็นหน้าว่างหรือ "refused to connect" ให้ตั้งเป็น "เปิดแท็บใหม่" · ลิงก์ http:// และ IP ภายใน เช่น http://192.168.x.x ใช้ฝังไม่ได้ เพราะเว็บนี้เป็น https</div>
 </section>
 
 <section id="templates">
