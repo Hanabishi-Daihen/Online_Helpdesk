@@ -13,11 +13,14 @@ var WS_LOG_SHEET = 'StockChangeLog', WS_LOG_MAX = 300000, WS_LOG_KEEP = 240000;
 
 // ── stock change log (Helpdesk_ItemStock → StockChangeLog: DATE, CODE, QTY) ──
 // old = { CODE: [code, qty, since, lastSeen] } from StockHistory before this sync, tot = { CODE: qty } now
+var __wsInc = null;                                   // { CODE: [before, after] } increases seen by this run's Stock sync (Tracking.gs notifications)
 function wsLogChanges_(ss, old, tot) {
   var today = ordToday_(), add = [], first = !Object.keys(old).length;
+  __wsInc = {};
   Object.keys(tot).forEach(function (k) {
     var q = String(tot[k]), o = old[k];
     if (first || !o || o[1] !== q) add.push([today, k, q]);
+    if (o && Number(tot[k]) > (Number(o[1]) || 0)) __wsInc[k] = [Number(o[1]) || 0, Number(tot[k])];
   });
   Object.keys(old).forEach(function (k) { if (!(k in tot) && old[k][1] !== '0') add.push([today, k, '0']); });
   if (!add.length) return 0;
@@ -131,6 +134,7 @@ function getItem360(token, code) {
     (snap.codes || []).forEach(function (x) { if (x.code === k) c = x; });
     var list = Object.keys(need).map(function (x) { return need[x]; }).sort(function (a, b) { return (a.daysLeft == null ? 9e9 : a.daysLeft) - (b.daysLeft == null ? 9e9 : b.daysLeft); });
     out.bom = c || list.length ? { booked: c ? c.booked : 0, balance: c ? c.balance : null, short: list.reduce(function (s, x) { return s + x.short; }, 0), projects: list } : null;
+    out.fc = c && c.fc || null;                                       // Tracking.gs: forecast
   } catch (e) { out.bom = null; }
   // Order Item (newest first)
   try {
@@ -183,6 +187,17 @@ function wsMyDay_(admin) {
   var today = wsToday_(), out = { time: nowStr_(), admin: admin };
   var cfg = bomCfg_(), ob = String(cfg.orderBy || 'DS13').toUpperCase();
   out.orderBy = cfg.orderBy || 'DS13'; out.ageCfg = oaAgeCfg_();
+  // forecast (Tracking.gs): CODEs of the orderer that need an order soon
+  try {
+    var fcs = (bomSnapGet_() || {}).codes || [], soon = [], n30 = 0;
+    fcs.forEach(function (c) {
+      if (!c.fc || !c.fc.t || String(c.by || '').toUpperCase() !== ob) return;
+      var t = bomDate_(c.fc.t), by = bomDate_(c.fc.by); if (t != null && t - today <= 30 * 864e5) n30++;
+      if (c.fc.k === 'short' && by != null && by - today <= 7 * 864e5) soon.push({ code: c.code, desc: c.desc, unit: c.unit, t: c.fc.t, by: c.fc.by, q: c.fc.perm, p: c.fc.p });
+    });
+    soon.sort(function (a, b) { return bomDate_(a.by) - bomDate_(b.by); });
+    out.fc = { soon: soon.slice(0, 8), soonN: soon.length, n30: n30 };
+  } catch (e) { out.fc = null; }
   // Stock Alert
   try {
     var sa = saData_(false);

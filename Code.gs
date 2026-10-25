@@ -196,13 +196,13 @@ function verConflict_(kind, base, who) {
 //   iss   cases            sched  production schedule     stock  Item stock (hash)
 //   po    Pending Order    rt     lead time (StockRT)      sa     Stock Alert settings
 //   bom   Booking BOM      rs     Stock ช่วยใช้             ord    Order Item list
-//   oa    order approvals  odb    DatabaseItemOrder
+//   oa    order approvals  odb    DatabaseItemOrder        ntf    notifications (Tracking.gs)
 function dataBump_(key) { PropertiesService.getScriptProperties().setProperty(key, String(Date.now())); }
 function getPulse() {
   var P = PropertiesService.getScriptProperties().getProperties(), g = function (k) { return String(P[k] || ''); };
   return { iss: issVer_(), sched: g('SCHED_VER'), stock: g('STOCK_HASH').substring(0, 16), po: g('PO_HASH').substring(0, 16),
     rt: g('RT_HASH').substring(0, 16), sa: g('SA_VER') + '|' + g('SA_CFG').length, bom: g('BOM_VER') + '|' + g('BOM_EXP_VER'),
-    rs: g('RS_VER'), ord: g('ORD_VER'), oa: g('ORD_AP_VER'), odb: g('ORD_DB_VER') };
+    rs: g('RS_VER'), ord: g('ORD_VER'), oa: g('ORD_AP_VER'), odb: g('ORD_DB_VER'), ntf: g('NTF_VER') };
 }
 // browser records these when it loads Issues / Schedules
 function getDataVers() {
@@ -1420,6 +1420,7 @@ function syncStockInner_(why, force) {
     try { rsTrack_(rows); CacheService.getScriptCache().remove('rs_flags'); } catch (e) { console.warn('rsTrack_', e); }   // Stock ช่วยใช้: quantity history
     try { stockWarm_(rows.map(function (r) { return r[STOCK_NCOL]; }), hash); stockBundle_(); } catch (e) {}   // prime fast caches
     try { bomRefresh_(); } catch (e) { console.warn('bomRefresh_', e); }   // Booking BOM: onhand changed
+    if (typeof trkScanSafe_ === 'function') trkScanSafe_('Item stock');      // Tracking.gs: order status + "ของเข้าแล้ว" notifications
     info.ok = true; info.rows = rows.length; info.items = Object.keys(codes).length; info.hash = hash;
     info.secs = Math.round((Date.now() - t0) / 1000);
     info.msg = 'อัปเดต ' + rows.length.toLocaleString() + ' แถว (' + info.items.toLocaleString() + ' รายการ) ใช้เวลา ' + info.secs + ' วินาที';
@@ -1712,6 +1713,7 @@ function syncPendingInner_(why, force) {
     schedProp_('PO_HASH', hash);
     try { pendingBundle_(true); } catch (e) {}
     try { bomRefresh_(); } catch (e) { console.warn('bomRefresh_', e); }   // Booking BOM: incoming changed
+    if (typeof trkScanSafe_ === 'function') trkScanSafe_('Pending Order');
     var prs = {}, pos = {};
     rows.forEach(function (r) { if (r[1]) prs[r[1]] = 1; if (r[2]) pos[r[2]] = 1; });
     info.ok = true; info.rows = rows.length; info.hash = hash; info.secs = Math.round((Date.now() - t0) / 1000);

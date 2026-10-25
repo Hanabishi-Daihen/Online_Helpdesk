@@ -19,7 +19,7 @@ var BOM_PROJ_HEADER = ['PROJECT', 'TITLE', 'REV', 'FILE', 'ITEMS', 'NEED_DATE', 
 var BOM_ITEM_SHEET = 'BomItems';
 var BOM_ITEM_HEADER = ['PROJECT', 'CODE', 'QTY', 'MATERIAL', 'TYPE', 'RATED', 'MAKER', 'REMARK', 'ITEM'];
 var BOM_SNAP_SHEET = 'BomSnap', BOM_SNAP_CHUNK = 40000;
-var BOM_SNAP_VER = 2;                                 // v2: + ผู้สั่งล่าสุด (LastOfRequest_By) — older snapshots are rebuilt once
+var BOM_SNAP_VER = 3;                                 // v2: + ผู้สั่งล่าสุด (LastOfRequest_By) · v3: + พยากรณ์ของขาด (fc) — older snapshots are rebuilt once
 var BOM_DEF = { process: 'auto', autoClose: 0, formCode: 'PLf200-011-0-1/1', formRev: 'Rev.1', orderBy: 'DS13' };
 
 function bomCfg_() {
@@ -232,6 +232,8 @@ function bomCompute_() {
     });
   } catch (e) {}
   var sa = {}; try { sa = saSettings_(); } catch (e) {}
+  var rt = {}; try { rt = rtMap_(want); } catch (e) {}
+  var fcc = fcCfg_();
   // allocate per code by need date
   var demand = {};
   active.forEach(function (p) { (itemsBy[p.project] || []).forEach(function (it) {
@@ -263,9 +265,11 @@ function bomCompute_() {
     });
     var incoming = ins.reduce(function (s2, x) { return s2 + x.qty; }, 0), bal = Math.round((st.onhand + incoming - booked) * 1000) / 1000;
     var mx = sa[k] && sa[k].max != null ? sa[k].max : null;
+    var lt = sa[k] && sa[k].lt > 0 ? [sa[k].lt, 'set'] : rt[k] ? [rt[k], 'rt'] : [fcc.lt, 'def'], fc = null;
+    try { fc = fcCode_(st.onhand, inc[k] || [], dl, sa[k] && sa[k].min != null && !sa[k].notUse ? sa[k].min : null, lt[0], lt[1], today); } catch (e) { console.warn('fcCode_', k, e); }   // Tracking.gs
     codes.push({ code: k, desc: st.desc || (dl[0].it.material || ''), unit: st.unit, by: st.by || '', onhand: st.onhand, incoming: Math.round(incoming * 1000) / 1000,
       booked: Math.round(booked * 1000) / 1000, balance: bal, max: mx, over: mx != null && bal > mx, short: bal < 0, known: !!stock[k],
-      projects: dl.map(function (d) { return [d.p.project, d.it.qty]; }), po: (inc[k] || []).slice(0, 5).map(function (x) { return { qty: x.qty, due: bomFmt_(x.due), pr: x.pr, po: x.po, status: x.status }; }) });
+      fc: fc, projects: dl.map(function (d) { return [d.p.project, d.it.qty]; }), po: (inc[k] || []).slice(0, 5).map(function (x) { return { qty: x.qty, due: bomFmt_(x.due), pr: x.pr, po: x.po, status: x.status }; }) });
   });
   var projects = projs.map(function (p) {
     var its = p.status === 'active' ? (res[p.project] || []) : (itemsBy[p.project] || []).map(function (it) { return { code: it.code, qty: it.qty, material: it.material, type: it.type, rated: it.rated, maker: it.maker, remark: it.remark, item: it.item, st: 'closed' }; });

@@ -98,9 +98,11 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
   <a href="#pending"><span>08</span>Pending Order</a>
   <a href="#order"><span>09</span>Order Item (ใบสั่ง)</a>
   <a href="#approval"><span>10</span>การอนุมัติใบสั่ง</a>
+  <a href="#ordtrack"><span>10.1</span>ติดตามใบสั่ง และแจ้งเตือนของเข้า</a>
   <a href="#alert"><span>11</span>Stock Alert</a>
   <a href="#remain"><span>12</span>Stock ช่วยใช้</a>
   <a href="#bom"><span>13</span>Booking BOM</a>
+  <a href="#forecast"><span>13.1</span>พยากรณ์ของขาด</a>
   <a href="#bomexport"><span>14</span>Export ใบเบิก BOM</a>
   <b>ดูแลระบบ (Admin)</b>
   <a href="#settings"><span>15</span>ตั้งค่าระบบและการซิงค์</a>
@@ -161,6 +163,7 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
     <div class="card"><h4>เมนูด้านซ้าย</h4><p>รายการงานทั้งหมด จุดสีข้างเมนูแปลว่ามีเรื่องรอดู เมนูที่ Admin ซ่อนไว้จะไม่แสดงในโหมดผู้ใช้</p></div>
     <div class="card"><h4>แถบบน</h4><p>ชื่อหน้า สถานะการเชื่อมต่อ Google Sheets ช่องค้นหา (<kbd>Ctrl</kbd>+<kbd>K</kbd>) กระดิ่งแจ้งเตือน ปุ่ม User Mode และปุ่ม <span class="ui">+ แจ้งปัญหา</span></p></div>
     <div class="card"><h4>กระดิ่งแจ้งเตือน</h4><p>แจ้งเมื่อเคสมีการตอบกลับ เปลี่ยนสถานะ หรือมีใบสั่งรออนุมัติ</p></div>
+    <div class="card"><h4>📦 แจ้งเตือนของเข้า</h4><p>ปุ่มรูปกล่องบนแถบบน: ออก PO แล้ว · ของเข้าแล้ว · Stock เพิ่มสำหรับ BOM / ใบสั่ง ตัวเลขสีแดง = รายการใหม่ ดูรายละเอียดที่หัวข้อ 10.1</p></div>
     <div class="card"><h4>อัปเดตอัตโนมัติ</h4><p>ทุกหน้าตรวจทุก 30 วินาที และทันทีเมื่อสลับกลับมาที่แท็บนี้ ถ้ามีคนอื่นบันทึกหรือมีการซิงค์ หน้าที่เกี่ยวข้องจะโหลดข้อมูลใหม่เอง ไม่ต้องออกแล้วเข้าใหม่ แบบฟอร์มที่กำลังกรอกจะไม่ถูกทับ</p></div>
     <div class="card"><h4>แถบสถานะการโหลด</h4><p>แสดงขณะดึงหรือบันทึกข้อมูล งานยาว เช่น ส่งออก PDF จะบอกว่ากำลังทำอะไรอยู่</p></div>
   </div>
@@ -263,6 +266,35 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
   <div class="note warn"><b>ลิงก์ไม่ถูกต้อง?</b>ลิงก์อนุมัติใช้ได้ครั้งเดียวต่อขั้น ถ้าใบสั่งถูกแก้ไขหรืออนุมัติไปแล้ว ลิงก์เดิมจะใช้ไม่ได้ ให้เปิดจากแท็บรอการอนุมัติแทน</div>
 </section>
 
+<section id="ordtrack">
+  <h2><span class="no">10.1</span>ติดตามใบสั่ง และแจ้งเตือนของเข้า</h2>
+  <p>เมนู <span class="ui">ติดตามใบสั่ง</span> (กลุ่มคลังและจัดซื้อ) แสดงทุกใบสั่งเป็นขั้นตอนต่อเนื่อง ไม่ต้องโทรถามว่าของถึงไหน</p>
+  <div class="flow"><span>บันทึก</span><i>→</i><span>ส่งขออนุมัติ</span><i>→</i><span>อนุมัติ</span><i>→</i><span>พบใน Pending (PR)</span><i>→</i><span>ออก PO</span><i>→</i><span>ของเข้าครบ</span></div>
+  <ol class="steps">
+    <li><div>ระบบจับคู่ใบสั่งกับ Pending Order ด้วย <b>เลข RQN หรือ Spec No</b> ที่เขียนในใบสั่ง (ต้องตรงกับ Requisition_No / Specification_No) แล้วดูสถานะราย CODE</div></li>
+    <li><div>ตัวกรองด้านบน: ยังไม่ครบ · ⚠ ต้องตาม · รออนุมัติ · รอเข้าระบบจัดซื้อ · มี PR · ออก PO · เข้าบางส่วน · ครบแล้ว ติ๊ก <span class="ui">เฉพาะของฉัน</span> แล้วใส่ชื่อ DES'D เพื่อดูเฉพาะใบสั่งของตัวเอง</div></li>
+    <li><div>"⚠ ต้องตาม" คือ PO เลยกำหนดส่ง · อนุมัติแล้วเกิน 7 วันแต่ยังไม่พบใน Pending Order · ค้างอนุมัติเกินกำหนด</div></li>
+  </ol>
+  <div class="tw"><table>
+    <thead><tr><th>สถานะราย CODE</th><th>ความหมาย</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill">ยังไม่พบใน Pending</span></td><td>ยังไม่มีแถวใน Pending Order ที่เลข RQN/Spec และ CODE ตรงกัน</td></tr>
+      <tr><td><span class="pill p-i">มี PR แล้ว</span> / <span class="pill p-i">ออก PO แล้ว</span></td><td>พบใน Pending Order แล้ว · มีเลข PO แล้ว</td></tr>
+      <tr><td><span class="pill p-w">เข้าบางส่วน</span></td><td>บางแถวของ CODE นี้มี Status รับแล้ว บางแถวยังไม่รับ</td></tr>
+      <tr><td><span class="pill p-ok">ของเข้าแล้ว</span> / <span class="pill p-ok">ปิดจาก Pending แล้ว</span></td><td>Status เป็นรับครบ/ปิด หรือแถวที่เคยเห็นหายไปจากไฟล์ Pending Order</td></tr>
+    </tbody>
+  </table></div>
+  <h3>📦 แจ้งเตือนของเข้า (ในระบบ ไม่ส่งอีเมล)</h3>
+  <p>ทุกครั้งที่ซิงค์ Item stock หรือ Pending Order ระบบเทียบกับรอบก่อน แล้วแจ้งที่ปุ่มรูปกล่องบนแถบบน และขึ้นข้อความมุมขวาล่างถ้าเปิดหน้าเว็บอยู่</p>
+  <ul>
+    <li><b>🧾 ออก PO แล้ว</b> — ใบสั่งของคุณได้เลข PO</li>
+    <li><b>📦 ของเข้าแล้ว / เข้าบางส่วน</b> — Pending Order บอกว่ารับของแล้ว</li>
+    <li><b>📈 Stock เพิ่ม</b> — CODE ที่จอง BOM, อยู่ในใบสั่งที่ยังไม่ครบ หรืออยู่ใน Stock Alert มีจำนวนเพิ่มขึ้น พร้อมบอกว่ายังขาดอีกเท่าไร</li>
+  </ul>
+  <div class="note"><b>"ของฉัน" ดูจากชื่อ DES'D</b>ใส่ชื่อผู้ Order ในหน้า งานของฉัน หรือ ติดตามใบสั่ง (ครั้งเดียว ระบบจำไว้ในเครื่อง) ถ้ายังไม่ใส่ จะแสดงทุกรายการ · ใบสั่งที่เพิ่งเห็นครั้งแรกจะยังไม่แจ้ง ระบบเริ่มแจ้งตั้งแต่การเปลี่ยนแปลงครั้งถัดไป</div>
+  <div class="note warn"><b>ไฟล์ Pending Order ไม่ครบ?</b>ถ้าไฟล์รอบใหม่มีแถวน้อยกว่าครึ่งหนึ่งของรอบก่อน ระบบจะไม่ตีว่าแถวที่หายไปคือ "รับแล้ว" เพื่อกันแจ้งเตือนผิด <span class="role r-a">ADMIN</span> กด <span class="ui">↻ อัปเดตสถานะตอนนี้</span> ในหน้าติดตามใบสั่งได้ทุกเมื่อ</div>
+</section>
+
 <section id="alert">
   <h2><span class="no">11</span>Stock Alert</h2>
   <p class="lead">เตือนสินค้า Stock (CODE 8 หลัก ผู้สั่ง DS13) ที่ต่ำกว่า Min โดยหักยอดที่ถูกจองใน Booking BOM แล้ว และนับของที่กำลังเข้าจาก Pending Order</p>
@@ -336,6 +368,27 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
   <p><span class="role r-a">ADMIN</span> ตั้งค่า (ท้ายแท็บ Import): ปิดโปรเจกต์อัตโนมัติเมื่อเลยวันที่ต้องใช้ N วัน, รหัสฟอร์มท้ายกระดาษใบเบิก, Rev มุมขวาบน</p>
 </section>
 
+<section id="forecast">
+  <h2><span class="no">13.1</span>พยากรณ์ของขาด</h2>
+  <p>เมนู <span class="ui">พยากรณ์ของขาด</span> (กลุ่มวางแผนผลิต) บอกล่วงหน้าว่า CODE ไหนจะขาด <b>วันไหน</b> กระทบโปรเจกต์อะไร และ <b>ควรสั่งภายในวันไหน</b></p>
+  <div class="flow"><span>Onhand วันนี้</span><i>+</i><span>PO ที่ยังไม่ปิด (ตามกำหนดส่ง)</span><i>−</i><span>ของที่โปรเจกต์ต้องใช้ (ตามวันที่ต้องใช้ใน Booking BOM)</span></div>
+  <div class="tw"><table>
+    <thead><tr><th>ประเภท</th><th>ความหมาย</th><th>ควรทำ</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill p-b">ต้องสั่งเพิ่ม</span></td><td>รวม PO ทั้งหมดแล้วก็ยังไม่พอ</td><td>สร้างใบสั่งตามจำนวนที่แสดง ภายในวันที่ "ควรสั่งภายใน"</td></tr>
+      <tr><td><span class="pill p-w">PO เข้าไม่ทัน</span></td><td>จำนวนพอ แต่ PO มาหลังวันที่ต้องใช้ ขาดเป็นช่วง</td><td>เร่ง PO ให้เข้าก่อนวันที่ขาด</td></tr>
+      <tr><td><span class="pill p-w">ต่ำกว่า Min</span></td><td>ไม่ขาด แต่หลังโปรเจกต์ใช้จะต่ำกว่า Min ใน Stock Alert</td><td>สั่งเติมให้ถึง Min</td></tr>
+    </tbody>
+  </table></div>
+  <ol class="steps">
+    <li><div>ค่าเริ่มต้นแสดงเฉพาะผู้สั่ง DS13 ในช่วง 60 วัน เปลี่ยนเป็น 14 / 30 วัน หรือทุกช่วงได้ และติ๊กออกเพื่อดูทุกหน่วย</div></li>
+    <li><div>คลิกหัวคอลัมน์ "ขาดวันที่" / "จำนวน" / "ควรสั่งภายใน" เพื่อเรียง · กด <span class="ui">ไทม์ไลน์</span> เพื่อดูยอดคงเหลือคาดการณ์ทีละวัน</div></li>
+    <li><div>ติ๊กหลายรายการแล้วกด <span class="ui">🛒 สร้างใบสั่ง</span> หรือกด <span class="ui">สั่ง</span> รายตัว ระบบเปิดหน้า Order Item พร้อมกรอก CODE จำนวน และ FOR PROJECT ให้</div></li>
+  </ol>
+  <div class="note"><b>ควรสั่งภายใน = วันที่ขาด − Lead time</b>Lead time ใช้ค่าที่ตั้งใน Stock Alert ก่อน ถ้าไม่มีใช้ Readtime ถ้าไม่มีทั้งคู่ใช้ค่าเริ่มต้น (30 วัน) <span class="role r-a">ADMIN</span> แก้ค่าเริ่มต้นได้ท้ายหน้า · หน้า งานของฉัน (จัดซื้อ) มีช่อง "ควรสั่งภายใน 7 วัน" และแผงข้อมูล CODE มีหัวข้อพยากรณ์</div>
+  <div class="note warn"><b>ข้อจำกัด</b>คำนวณเฉพาะ CODE ที่มีการจอง BOM · ไม่รวมการเบิกใช้ทั่วไปนอก BOM · โปรเจกต์ที่ไม่มีวันที่ต้องใช้ และ PO ที่ไม่มีกำหนดส่ง จะไม่ถูกนับ (แสดงหมายเหตุในไทม์ไลน์) · อัปเดตทุกครั้งที่ซิงค์ Stock / Pending Order / ตารางงาน</div>
+</section>
+
 <section id="bomexport">
   <h2><span class="no">14</span>Export ใบเบิก BOM</h2>
   <div class="tw"><table>
@@ -403,6 +456,8 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
       <tr><td><code>StockAlert.gs</code></td><td>Stock Alert</td></tr>
       <tr><td><code>RemainStock.gs</code></td><td>Stock ช่วยใช้</td></tr>
       <tr><td><code>BomBooking.gs</code>, <code>BomExport.gs</code>, <code>BomTemplate.gs</code></td><td>Booking BOM, ใบเบิก, รายงานรายการที่ขาด, แม่แบบใบเบิก</td></tr>
+      <tr><td><code>Workspace.gs</code></td><td>งานของฉัน, แผงข้อมูล CODE, Project 360</td></tr>
+      <tr><td><code>Tracking.gs</code></td><td>พยากรณ์ของขาด, ติดตามใบสั่ง, แจ้งเตือนของเข้า</td></tr>
       <tr><td><code>index.html</code></td><td>หน้าเว็บทั้งหมด</td></tr>
       <tr><td><code>appsscript.json</code></td><td>สิทธิ์และ Drive API (เปิด Services → Drive API)</td></tr>
     </tbody>
@@ -439,6 +494,9 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
       <tr><td>CODE ใน BOM ขึ้น "ไม่พบใน Stock"</td><td>ตรวจ CODE ในไฟล์ BOM หรือรอซิงค์ Item stock รอบถัดไป</td></tr>
       <tr><td>"ใบสั่ง … ถูกแก้ไขโดยผู้อื่นเมื่อ …"</td><td>มีคนบันทึกใบสั่งใบเดียวกันหลังจากที่คุณเปิด กด Cancel แล้วเปิดใบสั่งใหม่จากรายการเพื่อดูข้อมูลล่าสุด หรือกด OK ถ้าต้องการบันทึกทับ</td></tr>
       <tr><td>"ยกเลิกการเขียนทับเพื่อไม่ให้ข้อมูลของผู้อื่นหาย"</td><td>ระหว่างที่คุณเปิดหน้าจออยู่ มีคนบันทึกเคสหรือตารางงานถูกซิงค์ รีเฟรชหน้าแล้วกด "เขียนข้อมูลทั้งหมดกลับสู่ Google Sheets" ใหม่</td></tr>
+      <tr><td>ติดตามใบสั่งขึ้น "ยังไม่พบใน Pending" ทั้งที่ออก PR แล้ว</td><td>เลข RQN / Spec ในใบสั่งไม่ตรงกับ Pending Order (ช่องว่างไม่มีผล) แก้เลขในใบสั่งให้ตรง แล้วรอซิงค์ Pending Order รอบถัดไป</td></tr>
+      <tr><td>ไม่มีแจ้งเตือนของเข้าเลย</td><td>ระบบเริ่มเก็บสถานะหลังซิงค์ครั้งแรกหลัง Deploy และแจ้งตั้งแต่การเปลี่ยนแปลงครั้งถัดไป · ตรวจว่าใส่ชื่อ DES'D ตรงกับในใบสั่ง</td></tr>
+      <tr><td>พยากรณ์ไม่แสดง CODE ที่คิดว่าจะขาด</td><td>คำนวณเฉพาะ CODE ที่จองใน Booking BOM และโปรเจกต์ที่มีวันที่ต้องใช้ · ติ๊ก "เฉพาะผู้สั่ง DS13" ออก หรือเลือก "ทุกช่วง"</td></tr>
       <tr><td>ลิงก์อนุมัติขึ้น "ลิงก์ไม่ถูกต้อง"</td><td>ใบสั่งถูกดำเนินการไปแล้ว หรือส่งขออนุมัติใหม่ ใช้ลิงก์ในอีเมลล่าสุด</td></tr>
     </tbody>
   </table></div>
