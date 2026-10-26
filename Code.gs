@@ -1250,6 +1250,7 @@ function getSystemHealth(token) {
   if (h.cells > 8e6) h.warn.push('สเปรดชีตใกล้เต็ม (' + h.cells + ' / 10,000,000 เซลล์)');
   h.schedSync = schedSyncInfo_(); h.schedSrc = !!schedProp_('SCHED_SRC_URL');
   if (h.schedSrc && h.schedSync && !h.schedSync.ok) h.warn.push('ซิงค์ตารางงานจาก OneDrive ล่าสุดไม่สำเร็จ: ' + h.schedSync.msg);
+  if (typeof fbNewCount_ === 'function') { h.fbNew = fbNewCount_(); if (h.fbNew) h.warn.push('มีข้อเสนอแนะใหม่จากผู้ใช้ ' + h.fbNew + ' รายการ (ดูด้านล่าง)'); }   // Insights.gs
   h.audit = getAuditLog(token, 30);
   return h;
 }
