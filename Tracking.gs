@@ -173,6 +173,16 @@ function trkCached_() {
     return { orders: list.slice(0, 400), time: nowStr_(), po: (poInfo_() || {}).time || '', ageCfg: oaAgeCfg_() };
   });
 }
+// menu badge: orders not fully received yet (+ how many need chasing)
+function getOrderTrackSummary() {
+  var d = trkCached_(), ac = oaAgeCfg_(), s = { open: 0, issue: 0, st: {} };
+  (d.orders || []).forEach(function (o) {
+    if (/^(done|rejected|cancel)$/.test(o.stage)) return;
+    s.open++; s.st[o.stage] = (s.st[o.stage] || 0) + 1;
+    if (o.late > 0 || o.noPr >= 7 || (o.waitDays != null && o.waitDays >= ac.over)) s.issue++;
+  });
+  return s;
+}
 function getOrderTrack(token) {
   var t0 = Date.now(), out = trkCached_();
   out.admin = isAdmin_(token);
