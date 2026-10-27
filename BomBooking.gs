@@ -328,6 +328,15 @@ function bomSnapGet_() {
   if (!b64) return null;
   try { return JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(b64), 'application/x-gzip')).getDataAsString()); } catch (e) { return null; }
 }
+// menu badge: CODEs that are "ไม่พอ" (Onhand + incoming < all bookings) — same rule as the CODE tab filter
+function getBomSummary() {
+  return wsCached_('bomsum', ['bom'], '', function () {
+    var s = bomSnapGet_() || {}, out = { short: 0, late: 0, projects: 0 };
+    (s.codes || []).forEach(function (c) { if (c.short) out.short++; });
+    (s.projects || []).forEach(function (p) { if (p.status !== 'active') return; out.projects++; out.late += (p.count && p.count.late) || 0; });
+    return out;
+  });
+}
 function bomSnapBuild_() { var s = bomCompute_(); bomSnapPut_(s); return s; }
 // called after Stock / Pending Order / Schedule syncs (only when there are BOM projects)
 function bomRefresh_() { if (ss_().getSheetByName(BOM_PROJ_SHEET)) bomSnapBuild_(); }
