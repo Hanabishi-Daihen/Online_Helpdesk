@@ -95,23 +95,25 @@ function fcList_() {
 // ── F4: order tracking ──────────────────────────────────────────────
 // Pending Order rows indexed by RQN / Spec (the numbers the requester writes on the order)
 function trkPendIdx_() {
-  var idx = {}, n = 0;
+  var idx = {}, byCode = {}, n = 0;
   try {
     var b = pendingBundle_(false), txt = b && b.b64 ? Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(b.b64), 'application/x-gzip')).getDataAsString() : '';
     txt.split('\n').forEach(function (l) {
       var f = l.split('\t'); if (f.length < 14) return;
       n++;
-      var r = { code: ordCodeKey_(f[0]), pr: f[1], po: f[2], spec: f[3], status: f[4], name: f[5], req: f[6], poDate: f[8], due: f[9] || f[7], by: f[12], qty: Number(f[13]) || 0, unit: f[14] };
+      var r = { id: n, code: ordCodeKey_(f[0]), pr: f[1], po: f[2], spec: f[3], status: f[4], name: f[5], req: f[6], poDate: f[8], due: f[9] || f[7], by: f[12], qty: Number(f[13]) || 0, unit: f[14] };
+      (byCode[r.code] = byCode[r.code] || []).push(r);
       [f[1], f[3]].forEach(function (v) { var k = ordRefKey_(v); if (k) (idx[k] = idx[k] || []).push(r); });
     });
   } catch (e) { console.warn('trkPendIdx_', e); }
-  return { idx: idx, n: n };
+  return { idx: idx, byCode: byCode, n: n };
 }
+function trkRefOk_(v) { return /\d$/.test(String(v || '').trim()); }   // "RQN26-" / "DS1C26-" / "-" = not filled in yet
 function trkRows_(o, idx) {
   var seen = {}, rows = [];
   [o.rqn, o.spec].forEach(function (v) {
-    if (!/\d$/.test(String(v || '').trim())) return;                 // placeholders ("-", "RQN") never match
-    (idx[ordRefKey_(v)] || []).forEach(function (r) { var id = r.pr + '|' + r.po + '|' + r.code + '|' + r.qty + '|' + r.due; if (!seen[id]) { seen[id] = 1; rows.push(r); } });
+    if (!trkRefOk_(v)) return;                                        // placeholders never match
+    (idx[ordRefKey_(v)] || []).forEach(function (r) { if (!seen[r.id]) { seen[r.id] = 1; rows.push(r); } });
   });
   return rows;
 }
@@ -126,8 +128,8 @@ function trkItemSt_(rs) {
   return live.some(function (r) { return String(r.po || '').trim(); }) ? 'po' : 'pr';
 }
 var TRK_RANK = { none: 0, pr: 1, po: 2, part: 3, recv: 4, gone: 4, cancel: 5 };
-function trkOrder_(o, idx, prev, today, opt) {
-  var a = o.approval || {}, st = wsOrderState_(o), rows = trkRows_(o, idx), P = prev || {};
+function trkOrder_(o, idx, prev, today, opt, auto) {
+  var a = o.approval || {}, st = wsOrderState_(o), rows = auto || trkRows_(o, idx), P = prev || {};
   opt = opt || {};
   var items = (o.items || []).filter(function (it) { return it.code || it.material; }).map(function (it) {
     var k = ordCodeKey_(it.code), rs = rows.filter(function (r) { return r.code === k; }), s = trkItemSt_(rs), p = P[k];
@@ -157,13 +159,36 @@ function trkOrder_(o, idx, prev, today, opt) {
   ];
   var apDays = appr && hi === 0 && apAt ? Math.round((today - (bomDate_(apAt) || today)) / 864e5) : 0;
   return { id: o.id, spec: o.spec, rqn: o.rqn, des: o.des, chk: o.chk, app: o.app, date: o.issueDate, remark: o.remark || '', state: st.key, stateTh: st.label,
+    auto: auto ? auto.map(function (r) { return r.pr; }).filter(function (v, i, A) { return v && A.indexOf(v) === i; }) : null, refMissing: !trkRefOk_(o.rqn) && !trkRefOk_(o.spec),
     stage: stage, steps: steps, items: items, late: items.reduce(function (m, i) { return Math.max(m, i.late); }, 0), noPr: apDays, waitDays: st.key === 'chk' || st.key === 'app' ? oaWorkDays_(oaSince_(a)) : null };
 }
 // a Pending Order file much smaller than last time (partial export) must not turn every listed order into "received"
+// Orders whose RQN / Spec is not filled in ("RQN26-") are matched by CODE + request date instead:
+// a Pending Order line of the same CODE requested 3 days before … 90 days after the order date, not used by any
+// other order (exact matches first, then older orders first), nearest date first, same quantity preferred.
+function trkAuto_(orders, P) {
+  var used = {}, out = {};
+  orders.forEach(function (o) { trkRows_(o, P.idx).forEach(function (r) { used[r.id] = 1; }); });
+  orders.forEach(function (o) {
+    if (trkRefOk_(o.rqn) || trkRefOk_(o.spec) || wsOrderState_(o).key === 'rejected') return;
+    var t0 = bomDate_(o.issueDate), rs = []; if (t0 == null) return;
+    (o.items || []).forEach(function (it) {
+      var k = ordCodeKey_(it.code), best = null, bs = 9e15; if (!k) return;
+      (P.byCode[k] || []).forEach(function (r) {
+        var d = bomDate_(r.req); if (used[r.id] || d == null || d < t0 - 3 * 864e5 || d > t0 + 90 * 864e5) return;
+        var sc = Math.abs(d - t0) + (Number(it.qty) === r.qty ? 0 : 30 * 864e5); if (sc < bs) { bs = sc; best = r; }
+      });
+      if (best) { used[best.id] = 1; rs.push(best); }
+    });
+    if (rs.length) out[o.id] = rs;
+  });
+  return out;
+}
 function trkAll_(prevState) {
   var P = trkPendIdx_(), today = wsToday_(), prev = (prevState && prevState.o) || {}, out = [];
   var opt = { gone: !!(P.n && (!prevState || !prevState.pn || P.n >= prevState.pn * 0.5)) };
-  ordAll_().forEach(function (o) { if (ordAgeDays_(o.issueDate) > 365) return; out.push(trkOrder_(o, P.idx, prev[o.id], today, opt)); });
+  var orders = ordAll_().filter(function (o) { return ordAgeDays_(o.issueDate) <= 365; }), auto = trkAuto_(orders, P);
+  orders.forEach(function (o) { out.push(trkOrder_(o, P.idx, prev[o.id], today, opt, auto[o.id])); });
   out = out.reverse(); out.pn = P.n; out.gone = opt.gone;
   return out;
 }
