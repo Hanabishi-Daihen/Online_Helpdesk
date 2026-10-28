@@ -160,6 +160,7 @@ function trkOrder_(o, idx, prev, today, opt, auto) {
   var apDays = appr && hi === 0 && apAt ? Math.round((today - (bomDate_(apAt) || today)) / 864e5) : 0;
   return { id: o.id, spec: o.spec, rqn: o.rqn, des: o.des, chk: o.chk, app: o.app, date: o.issueDate, remark: o.remark || '', state: st.key, stateTh: st.label,
     auto: auto ? auto.map(function (r) { return r.pr; }).filter(function (v, i, A) { return v && A.indexOf(v) === i; }) : null, refMissing: !trkRefOk_(o.rqn) && !trkRefOk_(o.spec),
+    fill: auto ? trkFill_(o, auto) : null,
     stage: stage, steps: steps, items: items, late: items.reduce(function (m, i) { return Math.max(m, i.late); }, 0), noPr: apDays, waitDays: st.key === 'chk' || st.key === 'app' ? oaWorkDays_(oaSince_(a)) : null };
 }
 // a Pending Order file much smaller than last time (partial export) must not turn every listed order into "received"
@@ -183,6 +184,44 @@ function trkAuto_(orders, P) {
     if (rs.length) out[o.id] = rs;
   });
   return out;
+}
+// numbers to write back into an order matched by CODE + date (only the parts that are still a bare prefix)
+// sure = one PR of the order's year for every CODE, same quantities → filled automatically at the next scan;
+// otherwise the tracking card offers a button (trackFillRef)
+function trkFill_(o, rows) {
+  var uq = function (a) { return a.filter(function (v, i) { return v && a.indexOf(v) === i; }); };
+  var yy = ordYY_(o.issueDate), its = (o.items || []).filter(function (i) { return ordCodeKey_(i.code); });
+  var prs = uq(rows.map(function (r) { return String(r.pr || '').trim(); })), sps = uq(rows.map(function (r) { return String(r.spec || '').trim(); }));
+  var f = { rqn: '', spec: '', sure: false };
+  if (!trkRefOk_(o.rqn) && prs.length === 1 && new RegExp('^RQN' + yy + '-\\d+$', 'i').test(prs[0])) f.rqn = prs[0].toUpperCase();
+  var sm = sps.length === 1 ? new RegExp('^DS1C' + yy + '-0?(\\d{3})$', 'i').exec(sps[0]) : null;   // FormOrder prints 3 Spec digits: "DS1C26-0326" → 326
+  if (!trkRefOk_(o.spec) && sm) f.spec = 'DS1C' + yy + '-' + sm[1];
+  if (!f.rqn && !f.spec) return null;
+  f.sure = !!f.rqn && rows.length === its.length && its.every(function (i) { var r = rows.filter(function (x) { return x.code === ordCodeKey_(i.code); })[0]; return r && Number(i.qty) === r.qty; });
+  return f;
+}
+// write the numbers into the order (caller holds the script lock)
+function trkFillApply_(id, f, why) {
+  ordMemoReset_();
+  var o = ordFind_(id); if (!o || !f) return null;
+  var old = [o.rqn, o.spec], ch = [];
+  if (f.rqn && !trkRefOk_(o.rqn)) { o.rqn = f.rqn; ch.push('RQN ' + f.rqn); }
+  if (f.spec && !trkRefOk_(o.spec)) { o.spec = f.spec; ch.push('Spec ' + f.spec); }
+  if (!ch.length) return null;
+  o.updated = nowStr_();
+  writeText_(ordSheet_(), o.row, 1, ordObjToRow_(o)); ordMemoPut_(o); dataBump_('ORD_VER');
+  audit_([['System', 'เติมเลข RQN / Spec จาก Pending Order (' + why + ')', id, (old[0] || '-') + ' / ' + (old[1] || '-') + ' → ' + ch.join(' · ')]]);
+  return { o: o, text: ch.join(' · ') };
+}
+// public: "✓ ใช้เลขนี้ในใบสั่ง" on the tracking card
+function trackFillRef(id) {
+  return withLock_(function () {
+    var x = trkAll_(trkStateGet_()).filter(function (y) { return y.id === id; })[0];
+    if (!x || !x.fill) throw new Error('ใบสั่งนี้มีเลข RQN / Spec ครบแล้ว หรือยังไม่พบ PR ที่จับคู่ได้');
+    var r = trkFillApply_(id, x.fill, 'ยืนยันจากหน้าติดตามใบสั่ง');
+    if (!r) throw new Error('ไม่มีเลขที่ต้องเติม');
+    return { id: id, rqn: r.o.rqn, spec: r.o.spec, text: r.text };
+  });
 }
 function trkAll_(prevState) {
   var P = trkPendIdx_(), today = wsToday_(), prev = (prevState && prevState.o) || {}, out = [];
@@ -234,7 +273,13 @@ function trkStatePut_(st) {
 function trkScan_(why) {
   var t0 = Date.now();
   return withLock_(function () {
-    var prev = trkStateGet_(), list = trkAll_(prev), today = ordToday_(), now = Date.now(), ev = [], st = { v: 1, at: nowStr_(), pn: list.gone ? list.pn : (prev && prev.pn) || list.pn || 0, o: {} };   // keep the full-file size while a partial file is in
+    var prev = trkStateGet_(), list = trkAll_(prev), today = ordToday_(), now = Date.now(), ev = [];
+    list.forEach(function (x) {                                         // unambiguous CODE + date matches → write RQN / Spec into the order
+      if (!x.fill || !x.fill.sure) return;
+      var r = null; try { r = trkFillApply_(x.id, x.fill, 'อัตโนมัติ'); } catch (e) { console.warn('trkFillApply_', e); }
+      if (r) { ev.push(['ref', '', 'เติมเลขในใบสั่งแล้ว · ' + x.id, r.text + ' (จาก Pending Order)', x.id, '|' + String(x.des || '').trim().toLowerCase() + '|', '']); x.rqn = r.o.rqn; x.spec = r.o.spec; x.fill = null; }
+    });
+    var st = { v: 1, at: nowStr_(), pn: list.gone ? list.pn : (prev && prev.pn) || list.pn || 0, o: {} };   // keep the full-file size while a partial file is in
     var P = prev && prev.o || {};
     list.forEach(function (x) {
       var m = st.o[x.id] = {}, p = P[x.id], po = [], recv = [], part = [];
