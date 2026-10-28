@@ -463,8 +463,9 @@ function exportRemainReport(token, opt) {
   if (!list.length) h.push('<p>ไม่มีรายการตามเงื่อนไขที่เลือก</p>');
   h.push('<p style="font-size:8pt;color:' + M + ';margin-top:14px;">หมายเหตุ: "ไม่เคลื่อนไหว" = จำนวนคงเหลือรวมทุกคลังไม่เปลี่ยนแปลง นับจากประวัติที่ระบบบันทึกทุกครั้งที่ซิงค์ Stock · "ถูกใช้" นับจากจำนวนที่ลดลงของรายการช่วยใช้' + (admin ? ' · มูลค่า = คงเหลือ × LASTCOST (เอกสารนี้มีข้อมูลราคา — ใช้ภายในเท่านั้น)' : '') + '</p></body></html>');
   var name = 'RemainStock_' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyyMMdd_HHmm') + '_' + group + (opt.scope && opt.scope !== 'all' ? '_' + opt.scope : '') + '.pdf';
-  var pdf = Utilities.newBlob(h.join(''), 'text/html', 'r.html').getAs('application/pdf').setName(name);
   audit_([[admin ? 'Admin' : 'User', 'ออกรายงาน PDF Stock ช่วยใช้', '', groupTxt + ' · ' + scopeTxt + ' · ' + list.length + ' รายการ']]);
+  if (opt.html) { perf_('exportRemainReport (html)', t0); return { name: name, html: h.join(''), count: list.length }; }   // browser print preview (zqPrintReport)
+  var pdf = Utilities.newBlob(h.join(''), 'text/html', 'r.html').getAs('application/pdf').setName(name);
   perf_('exportRemainReport', t0);
   return { name: name, mime: 'application/pdf', b64: Utilities.base64Encode(pdf.getBytes()), count: list.length };
 }

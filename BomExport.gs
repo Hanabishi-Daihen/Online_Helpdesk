@@ -366,8 +366,9 @@ function exportBomShortReport(token, opt) {
   h.push('</table>');
   h.push('<p style="font-size:8pt;color:' + M + ';margin-top:14px;">หมายเหตุ: จัดสรรต่อ CODE ตามวันที่ต้องใช้ของโปรเจกต์ (ใกล้ก่อน) — ใช้ Onhand ทุกคลังก่อน แล้วของ Pending Order ที่เข้าทันวัน แล้วของที่เข้าไม่ทัน · "ควรสั่งเพิ่ม" = จำนวนที่ขาดหลังนับของที่กำลังเข้าทั้งหมดแล้ว · "ใบสั่งเปิดอยู่" = Order Item ที่บันทึก/รออนุมัติ/อนุมัติแล้วแต่ยังไม่เข้าระบบ' + (admin ? ' · มูลค่า = จำนวนที่ขาด × LASTCOST (ใช้ภายในเท่านั้น)' : '') + '</p></body></html>');
   var name = 'BOM_Shortage_' + (want || 'All') + '_' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyyMMdd_HHmm') + '.pdf';
-  var pdf = Utilities.newBlob(h.join(''), 'text/html', 'r.html').getAs('application/pdf').setName(name);
   audit_([[admin ? 'Admin' : 'User', 'ออกรายงาน PDF รายการที่ขาด (BOM)', want, nShort + ' ขาด · ' + nLate + ' เข้าไม่ทัน']]);
+  if (opt.html) { perf_('exportBomShortReport (html)', t0); return { name: name, html: h.join(''), short: nShort, late: nLate }; }   // browser print preview (zqPrintReport)
+  var pdf = Utilities.newBlob(h.join(''), 'text/html', 'r.html').getAs('application/pdf').setName(name);
   perf_('exportBomShortReport', t0);
   return { name: name, mime: 'application/pdf', b64: Utilities.base64Encode(pdf.getBytes()), short: nShort, late: nLate };
 }
