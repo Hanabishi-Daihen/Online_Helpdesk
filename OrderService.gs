@@ -13,8 +13,8 @@ var ORD_DB_DEFAULT_HEADER = ['CODE', 'MATERIAL', 'TYPE', 'SPEC', 'UNIT', 'MANUFA
 var ORD_SHEET = 'OrderItem';
 var ORD_HEADER = ['Order ID', 'RQN No', 'Spec No', 'Issue Date', "DES'D", "CHK'D", "APP'D", 'Revisions',
   'Manufacturer', 'Supplier', 'Delivery Date', 'Place', 'Remark', 'Items', 'Note', 'Images',
-  'Status', 'Created', 'Updated', 'PDF', 'XLSX', 'Item Codes', 'Approval'];
-var ORD_NCOL = ORD_HEADER.length;   // 23 (Approval = JSON, see OrderApproval.gs)
+  'Status', 'Created', 'Updated', 'PDF', 'XLSX', 'Item Codes', 'Approval', 'Sect Line'];
+var ORD_NCOL = ORD_HEADER.length;   // 24 (Approval = JSON, see OrderApproval.gs · Sect Line = 4 boxes after "C")
 var ORD_MAX_ITEMS = 8, ORD_MAX_REVS = 3, ORD_MAX_IMAGES = 6;
 var ORD_PLACE_DEFAULT = "DELCO'S FACTORY";
 // cell map of the template (sheet "Order")
@@ -281,14 +281,15 @@ function ordRowToObj_(r, row) {
     row: row, id: r[0], rqn: r[1], spec: r[2], issueDate: r[3], des: r[4], chk: r[5], app: r[6], revs: arr(r[7], []),
     manufacturer: r[8], supplier: r[9], delivery: r[10], place: r[11], remark: r[12], items: arr(r[13], []), note: r[14],
     images: arr(r[15], []), status: r[16] || 'Saved', created: r[17], updated: r[18], pdf: r[19], xlsx: r[20],
-    approval: (function () { try { var a = JSON.parse(r[22] || 'null'); return a && typeof a === 'object' ? a : null; } catch (e) { return null; } })()
+    approval: (function () { try { var a = JSON.parse(r[22] || 'null'); return a && typeof a === 'object' ? a : null; } catch (e) { return null; } })(),
+    sectLine: r[23] || ''
   };
 }
 function ordObjToRow_(o) {
   return [o.id, o.rqn, o.spec, o.issueDate, o.des, o.chk, o.app, JSON.stringify(o.revs || []), o.manufacturer, o.supplier,
     o.delivery, o.place, o.remark, JSON.stringify(o.items || []), o.note, JSON.stringify(o.images || []), o.status || 'Saved',
     o.created || '', o.updated || '', o.pdf || '', o.xlsx || '', (o.items || []).map(function (i) { return i.code; }).join(', '),
-    o.approval ? JSON.stringify(o.approval) : ''];
+    o.approval ? JSON.stringify(o.approval) : '', o.sectLine || ''];
 }
 // browser-safe copy: the approval step key and approvers' e-mails never leave the server
 function ordPub_(o) {
@@ -355,9 +356,10 @@ function ordClean_(o) {
     remark: ordStr_(o.remark, 200), note: ordStr_(o.note, 1500)
   };
   var yy = ordYY_(x.issueDate);
-  var rqn = ordStr_(o.rqnNo, 12).replace(/[^0-9A-Za-z]/g, ''), spec = ordStr_(o.specNo, 3).replace(/\D/g, '');
+  var rqn = ordStr_(o.rqnNo, 12).replace(/[^0-9A-Za-z]/g, ''), spec = ordStr_(o.specNo, 4).replace(/\D/g, '');   // 3–4 digits
   x.rqn = 'RQN' + yy + '-' + rqn; x.spec = 'DS1C' + yy + '-' + spec;
   x.rqnNo = rqn; x.specNo = spec;
+  var sl = String(o.sectLine == null ? '' : o.sectLine).replace(/[^0-9 ]/g, '').slice(0, 4); x.sectLine = sl.trim() ? sl : '';   // one digit per box (space = empty box)
   x.revs = (o.revs || []).slice(0, ORD_MAX_REVS).map(function (r) { return { rev: ordStr_(r.rev, 6), date: ordStr_(r.date, 12), person: ordStr_(r.person, 40) }; })
     .filter(function (r) { return r.rev || r.date || r.person; });
   x.items = (o.items || []).map(function (i) {
@@ -368,7 +370,7 @@ function ordClean_(o) {
   if (x.items.length > ORD_MAX_ITEMS) throw new Error('สั่งได้สูงสุด ' + ORD_MAX_ITEMS + ' รายการต่อใบ');
   x.items.forEach(function (i, n) { if (!i.code) throw new Error('รายการที่ ' + (n + 1) + ': ต้องมี CODE'); if (!(Number(i.qty.replace(/,/g, '')) > 0)) throw new Error('รายการที่ ' + (n + 1) + ' (' + i.code + '): จำนวนต้องมากกว่า 0'); });
   if (!x.des) throw new Error("ต้องกรอกชื่อผู้ Order (DES'D)");
-  if (spec && spec.length !== 3) throw new Error('เลข Spec ต้องเป็นตัวเลข 3 หลัก (DS1C' + yy + '-___) หรือเว้นว่าง');
+  if (spec && (spec.length < 3 || spec.length > 4)) throw new Error('เลข Spec ต้องเป็นตัวเลข 3–4 หลัก (DS1C' + yy + '-____) หรือเว้นว่าง');
   if (!x.delivery) throw new Error('ต้องระบุ Delivery Date (วว/ดด/ปปปป ค.ศ.)');
   var imgs = (o.images || []).slice(0, ORD_MAX_IMAGES);
   imgs.forEach(function (f) { if (f && f.url && f.url.indexOf('data:image/') !== 0 && !/^https:\/\/drive\.google\.com\//.test(f.url)) throw new Error('รูปแนบไม่ถูกต้อง'); });
@@ -383,7 +385,7 @@ function ordSig_(o) {
   var t = function (v) { return String(v == null ? '' : v).trim(); };
   o = o || {};
   return JSON.stringify([
-    ['rqn', 'spec', 'issueDate', 'des', 'chk', 'app', 'manufacturer', 'supplier', 'delivery', 'place', 'remark', 'note'].map(function (k) { return t(o[k]); }),
+    ['rqn', 'spec', 'issueDate', 'des', 'chk', 'app', 'manufacturer', 'supplier', 'delivery', 'place', 'remark', 'note', 'sectLine'].map(function (k) { return t(o[k]); }),
     (o.items || []).map(function (i) { return ['code', 'material', 'type', 'spec', 'qty', 'unit', 'manufac'].map(function (k) { return t((i || {})[k]); }); }),
     (o.revs || []).map(function (r) { return ['rev', 'date', 'person'].map(function (k) { return t((r || {})[k]); }); })
   ]);
@@ -507,12 +509,16 @@ function ordFill_(sh, o) {
     var hr = sh.getRange(1, 1, 19, ORD_PRINT_COLS), fz = hr.getFontSizes();
     hr.setFontSizes(fz.map(function (r) { return r.map(function (z) { z = Number(z) || 10; return z <= 12 ? Math.round(z * 1.25) : z; }); }));
   } catch (e) { console.warn('header fonts', e); }
-  var yy = ordYY_(o.issueDate), sp = String(o.specNo || o.spec.split('-').pop() || '').slice(-3);
+  var yy = ordYY_(o.issueDate), sp = String(o.specNo || String(o.spec || '').split('-').pop() || '').replace(/\D/g, '').slice(-4);
   ordSet_(sh, 'O4', 'RQN' + yy + '-', { h: 'center' });
   ordSet_(sh, 'Q4', o.rqnNo != null ? o.rqnNo : String(o.rqn || '').split('-').slice(1).join('-'), { h: 'center' });
-  ['D', 'S', '1', 'C', yy.charAt(0), yy.charAt(1), '-', sp.charAt(0), sp.charAt(1), sp.charAt(2)].forEach(function (ch, i) {
-    ordSet_(sh, String.fromCharCode(79 + i) + '5', ch, { h: 'center' });   // O5 … X5
+  // O5 … X5 = 10 boxes: D S 1 C y y - n n n · a 4-digit number puts the year in one box: D S 1 C yy - n n n n
+  (sp.length === 4 ? ['D', 'S', '1', 'C', yy, '-', sp.charAt(0), sp.charAt(1), sp.charAt(2), sp.charAt(3)] : ['D', 'S', '1', 'C', yy.charAt(0), yy.charAt(1), '-', sp.charAt(0), sp.charAt(1), sp.charAt(2)]).forEach(function (ch, i) {
+    ordSet_(sh, String.fromCharCode(79 + i) + '5', ch, { h: 'center' });
   });
+  if (sp.length === 4) try { sh.getRange('T5:X5').setBorder(true, true, true, true, true, null); } catch (e) {}
+  var sl = String(o.sectLine || '');                         // Sect&Line No. of  C [M8][N8][O8][P8]
+  ['M8', 'N8', 'O8', 'P8'].forEach(function (a, i) { ordSet_(sh, a, (sl.charAt(i) || '').trim(), { h: 'center' }); });
   ordSet_(sh, 'F6', 'Name.   ' + (((o.items || [])[0] || {}).material || ''));               // Name. = MATERIAL ของรายการที่ 1
   ordSet_(sh, 'U10', o.issueDate, { h: 'center' });
   ordSet_(sh, 'U11', o.des, { h: 'center' }); ordSet_(sh, 'U12', o.chk, { h: 'center' }); ordSet_(sh, 'U13', o.app, { h: 'center' });

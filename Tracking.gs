@@ -194,7 +194,7 @@ function trkFill_(o, rows) {
   var prs = uq(rows.map(function (r) { return String(r.pr || '').trim(); })), sps = uq(rows.map(function (r) { return String(r.spec || '').trim(); }));
   var f = { rqn: '', spec: '', sure: false };
   if (!trkRefOk_(o.rqn) && prs.length === 1 && new RegExp('^RQN' + yy + '-\\d+$', 'i').test(prs[0])) f.rqn = prs[0].toUpperCase();
-  var sm = sps.length === 1 ? new RegExp('^DS1C' + yy + '-0?(\\d{3})$', 'i').exec(sps[0]) : null;   // FormOrder prints 3 Spec digits: "DS1C26-0326" → 326
+  var sm = sps.length === 1 ? new RegExp('^DS1C' + yy + '-(\\d{3,4})$', 'i').exec(sps[0]) : null;   // Spec No 3–4 digits
   if (!trkRefOk_(o.spec) && sm) f.spec = 'DS1C' + yy + '-' + sm[1];
   if (!f.rqn && !f.spec) return null;
   f.sure = !!f.rqn && rows.length === its.length && its.every(function (i) { var r = rows.filter(function (x) { return x.code === ordCodeKey_(i.code); })[0]; return r && Number(i.qty) === r.qty; });
