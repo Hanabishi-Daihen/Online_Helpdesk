@@ -503,6 +503,10 @@ function ordFit_(s, base, steps) {                           // smaller font for
   var n = String(s || '').length; for (var i = 0; i < steps.length; i++) if (n > steps[i][0]) return steps[i][1]; return base;
 }
 function ordFill_(sh, o) {
+  try {                                                     // header + labels (rows 1–19): small template fonts × 1.25 for a clearer print
+    var hr = sh.getRange(1, 1, 19, ORD_PRINT_COLS), fz = hr.getFontSizes();
+    hr.setFontSizes(fz.map(function (r) { return r.map(function (z) { z = Number(z) || 10; return z <= 12 ? Math.round(z * 1.25) : z; }); }));
+  } catch (e) { console.warn('header fonts', e); }
   var yy = ordYY_(o.issueDate), sp = String(o.specNo || o.spec.split('-').pop() || '').slice(-3);
   ordSet_(sh, 'O4', 'RQN' + yy + '-', { h: 'center' });
   ordSet_(sh, 'Q4', o.rqnNo != null ? o.rqnNo : String(o.rqn || '').split('-').slice(1).join('-'), { h: 'center' });
@@ -521,19 +525,31 @@ function ordFill_(sh, o) {
   ordSet_(sh, 'K16', ': ' + (o.delivery || ''));
   ordSet_(sh, 'K17', ':  ' + (o.place || ORD_PLACE_DEFAULT));
   ordSet_(sh, 'K18', ':  ' + (o.remark || ''));
+  // item table: only as many rows as there are items; larger text; a row grows (instead of the text shrinking) when it is long
+  var items = o.items || [], n = 0;
+  items.forEach(function (it, i) { if (it && (it.code || it.material || it.spec || it.type)) n = i + 1; });
+  n = Math.max(1, Math.min(ORD_MAX_ITEMS, n));
+  var COLS = [['B', 'B', 'no'], ['C', 'E', 'code'], ['F', 'J', 'material'], ['K', 'N', 'type'], ['O', 'R', 'spec'], ['S', 'U', 'qty'], ['V', 'X', 'manufac']];
+  var colW = {}; COLS.forEach(function (c) { var w = 0; for (var x = c[0].charCodeAt(0); x <= c[1].charCodeAt(0); x++) w += sh.getColumnWidth(x - 64); colW[c[2]] = w; });
   for (var i = 0; i < ORD_MAX_ITEMS; i++) {
-    var it = (o.items || [])[i], row = ORD_ITEM_ROW0 + i * 2;
-    if (!it) { ['B', 'C', 'F', 'K', 'O', 'S', 'V'].forEach(function (c) { ordSet_(sh, c + row, ''); }); continue; }
+    var it = items[i], row = ORD_ITEM_ROW0 + i * 2;
+    if (!it) { COLS.forEach(function (c) { ordSet_(sh, c[0] + row, ''); }); continue; }
     var qty = it.qty ? it.qty + (it.unit ? ' ' + it.unit : '') : '';
-    var o2 = { h: 'center', v: 'middle', wrap: true };
-    ordSet_(sh, 'B' + row, String(i + 1), { h: 'center', v: 'middle', size: 14 });
-    ordSet_(sh, 'C' + row, it.code, { h: 'center', v: 'middle', wrap: true, size: ordFit_(it.code, 13, [[14, 10], [10, 12]]) });
-    ordSet_(sh, 'F' + row, it.material, { h: 'center', v: 'middle', wrap: true, size: ordFit_(it.material, 13, [[100, 9], [70, 10], [40, 11], [26, 12]]) });
-    ordSet_(sh, 'K' + row, it.type, { h: 'center', v: 'middle', wrap: true, size: ordFit_(it.type, 13, [[70, 9], [45, 10], [28, 11], [18, 12]]) });
-    ordSet_(sh, 'O' + row, it.spec, { h: 'center', v: 'middle', wrap: true, size: ordFit_(it.spec, 13, [[110, 9], [75, 10], [45, 11], [28, 12]]) });
-    ordSet_(sh, 'S' + row, qty, o2).setFontSize(ordFit_(qty, 13, [[14, 11]]));
-    ordSet_(sh, 'V' + row, it.manufac, { h: 'center', v: 'middle', wrap: true, size: ordFit_(it.manufac, 12, [[30, 8], [20, 9], [14, 10], [9, 11]]) });
+    var val = { no: String(i + 1), code: it.code, material: it.material, type: it.type, spec: it.spec, qty: qty, manufac: it.manufac };
+    var fs = { no: 16, code: ordFit_(it.code, 16, [[14, 12], [10, 14]]), material: ordFit_(it.material, 16, [[160, 11], [110, 12], [70, 13], [36, 14]]),
+      type: ordFit_(it.type, 15, [[160, 10], [100, 11], [60, 12], [30, 13]]), spec: ordFit_(it.spec, 15, [[200, 10], [130, 11], [80, 12], [40, 13]]),
+      qty: ordFit_(qty, 16, [[14, 13]]), manufac: ordFit_(it.manufac, 14, [[40, 10], [26, 11], [16, 12]]) };
+    var need = 0;
+    COLS.forEach(function (c) {
+      var k = c[2], v = val[k] == null ? '' : String(val[k]);
+      ordSet_(sh, c[0] + row, v, { h: 'center', v: 'middle', wrap: true, size: fs[k] });
+      var px = fs[k] * 1.333, perLine = Math.max(1, Math.floor((colW[k] - 10) / (px * 0.56)));
+      var lines = v.split(/\n/).reduce(function (t, part) { return t + Math.max(1, Math.ceil(part.length / perLine)); }, 0);
+      need = Math.max(need, Math.ceil(lines * px * 1.3 + 12));
+    });
+    try { var cur = sh.getRowHeight(row) + sh.getRowHeight(row + 1); if (need > cur) { sh.setRowHeight(row, Math.ceil(need / 2)); sh.setRowHeight(row + 1, Math.ceil(need / 2)); } } catch (e) {}
   }
+  if (n < ORD_MAX_ITEMS) try { sh.hideRows(ORD_ITEM_ROW0 + n * 2, (ORD_MAX_ITEMS - n) * 2); } catch (e) { console.warn('hideRows', e); }
   var hasImg = (o.images || []).length > 0;
   if (!hasImg) { try { sh.getRange('D38:X40').breakApart(); sh.getRange('D38:W' + ORD_IMG_ROW1).merge(); } catch (e) {} }
   ordSet_(sh, 'D38', o.note || '', { h: 'left', v: 'top', wrap: true, size: ordFit_(o.note, 12, [[260, 9], [160, 10]]) });
