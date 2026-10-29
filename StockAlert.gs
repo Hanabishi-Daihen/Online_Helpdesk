@@ -16,7 +16,7 @@ var SA_SET_HEADER = ['CODE', 'MIN', 'MAX', 'NOT_USE', 'LT_DAYS', 'NOTE', 'UPDATE
 var RT_SHEET = 'StockRT';
 var SA_DEF = { by: 'DS13', ltLow: 7, ltHigh: 30 };
 var SA_CODE_LEN = 8;                                 // ใช้เฉพาะ CODE 8 หลัก (Stock) — ไม่เอา 16 หลัก (ของเฉพาะงาน)
-function saCodeOk_(k) { return String(k || '').length === SA_CODE_LEN; }
+function saCodeOk_(k) { k = String(k || ''); return k.length === SA_CODE_LEN && !/^SV/i.test(k); }   // SV… = service / non-stock codes → never alerted
 
 function saCfg_() {
   var c = {}; try { c = JSON.parse(schedProp_('SA_CFG') || '{}') || {}; } catch (e) {}
@@ -203,7 +203,7 @@ function saCompute_() {
     src: { stock: si && si.time || '', pending: pi && pi.ok ? pi.time : '', rt: ri && ri.ok ? ri.time : '', rtRows: ri && ri.rows || 0 } };
 }
 function saKey_() {
-  var raw = [schedProp_('STOCK_HASH') || '', schedProp_('PO_HASH') || '', schedProp_('RT_HASH') || '', saVer_(), schedProp_('SA_CFG') || '', ordToday_()].join('|');
+  var raw = ['nosv', schedProp_('STOCK_HASH') || '', schedProp_('PO_HASH') || '', schedProp_('RT_HASH') || '', saVer_(), schedProp_('SA_CFG') || '', ordToday_()].join('|');
   return 'sa_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, raw)).replace(/=+$/, '');
 }
 function saData_(force) {
@@ -212,7 +212,11 @@ function saData_(force) {
   var d = saCompute_(); ordCachePut_(key, d, 21600); return d;
 }
 // public: full list for the Stock Alert page
-function getStockAlert(token, force) { var d = saData_(!!force && isAdmin_(token)); d.admin = isAdmin_(token); return d; }
+function getStockAlert(token, force) {
+  var d = saData_(!!force && isAdmin_(token)); d.admin = isAdmin_(token);
+  try { d.groups = rsGroups_(); } catch (e) { d.groups = {}; }      // category names for the CODE 4-digit filter (RemainStock.gs)
+  return d;
+}
 // public: small summary for the menu badge + dashboard card
 function getStockAlertSummary() {
   var d = saData_(false);
@@ -270,7 +274,7 @@ function saveStockAlertBulk(token, list) {
     list.forEach(function (it) {
       var code = ordStr_(it && it.code, 40), k = ordCodeKey_(code);
       if (!k) { errs.push('มีแถวที่ไม่มี CODE'); return; }
-      if (!saCodeOk_(k)) { errs.push(code + ': CODE ต้องยาว ' + SA_CODE_LEN + ' หลัก'); return; }
+      if (!saCodeOk_(k)) { errs.push(code + ': CODE ต้องยาว ' + SA_CODE_LEN + ' หลัก และไม่ขึ้นต้นด้วย SV'); return; }
       var i = idx[k], cur = i != null ? tbl[i] : [code, '', '', '', '', '', '', ''];
       var mn = num(it.min, 'Min', code), mx = num(it.max, 'Max', code), lt = num(it.lt, 'LT', code);
       var row = cur.slice();
