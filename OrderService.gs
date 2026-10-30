@@ -632,6 +632,19 @@ function exportOrder(id, fmt) {
   return { files: files, orders: ordPubAll_() };
 }
 
+// public: a PDF the system exported earlier (FormOrder or FormOrder/BOM_Export only) → base64 for the in-app preview
+function getExportPdf(url) {
+  var m = /\/d\/([\w-]+)/.exec(String(url || '')) || /[?&]id=([\w-]+)/.exec(String(url || ''));
+  if (!m) throw new Error('ลิงก์ไฟล์ไม่ถูกต้อง');
+  var f = DriveApp.getFileById(m[1]), ok = [schedProp_('ORDER_FOLDER_ID'), schedProp_('BOM_EXP_FOLDER_ID')].filter(String), mine = false;
+  for (var it = f.getParents(); it.hasNext() && !mine;) mine = ok.indexOf(it.next().getId()) >= 0;
+  if (!mine) throw new Error('เปิดตัวอย่างได้เฉพาะไฟล์ที่ระบบ Export ไว้');
+  if (f.getMimeType() !== MimeType.PDF) throw new Error('ไฟล์นี้ไม่ใช่ PDF');
+  var out = { fmt: 'pdf', name: f.getName(), mime: 'application/pdf', url: f.getUrl(), b64: '' };
+  if (f.getSize() < 9 * 1024 * 1024) out.b64 = Utilities.base64Encode(f.getBlob().getBytes());
+  return out;
+}
+
 // Run ONCE from the editor (▶ Run) to authorize Drive/export and create the template sheet.
 function testOrderSetup() {
   var id = ordTplId_();
