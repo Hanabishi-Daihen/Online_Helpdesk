@@ -76,15 +76,25 @@ function wsIssues_() {
     .filter(function (x) { return x.id && !x.archived; });
 }
 // Project 360: which schedule processes appear on the timeline ([] = all)
-function wsP360Cfg_() { var c = {}; try { c = JSON.parse(schedProp_('P360_CFG') || '{}') || {}; } catch (e) {} return { procs: Array.isArray(c.procs) ? c.procs : [] }; }
+// procs = processes on the timeline ([] = all) · dept = ordering-unit letters (CODE position 11) shown by default · deptNames = "C=DS13,F=DS11"
+var P360_DEPT_DEF = 'C', P360_DEPT_NAMES_DEF = 'C=DS13,F=DS11';
+function wsP360Cfg_() {
+  var c = {}; try { c = JSON.parse(schedProp_('P360_CFG') || '{}') || {}; } catch (e) {}
+  var dept = String(c.dept == null ? P360_DEPT_DEF : c.dept).toUpperCase().replace(/[^A-Z]/g, '');
+  return { procs: Array.isArray(c.procs) ? c.procs : [], dept: dept, deptNames: c.deptNames != null ? String(c.deptNames) : P360_DEPT_NAMES_DEF };
+}
+function wsDeptNames_(s) { var m = {}; String(s || '').split(/[,;\n]+/).forEach(function (p) { var x = /^\s*([A-Za-z])\s*[=:]\s*(.+?)\s*$/.exec(p); if (x) m[x[1].toUpperCase()] = x[2]; }); return m; }
 function wsProcs_(sched) { var m = {}; (sched || []).forEach(function (r) { var p = String(r[8] || '').trim(); if (p) m[p] = (m[p] || 0) + 1; }); return Object.keys(m).sort(); }
-function getP360Cfg(token) { requireAdmin_(token); var sched = []; try { sched = getSchedules(); } catch (e) {} var c = wsP360Cfg_(); return { all: wsProcs_(sched), procs: c.procs }; }
-function saveP360Cfg(token, procs) {
+function getP360Cfg(token) { requireAdmin_(token); var sched = []; try { sched = getSchedules(); } catch (e) {} var c = wsP360Cfg_(); return { all: wsProcs_(sched), procs: c.procs, dept: c.dept, deptNames: c.deptNames }; }
+// procs: list ([] = all) · opt (optional): { dept: 'C' / 'CF', deptNames: 'C=DS13,F=DS11' }
+function saveP360Cfg(token, procs, opt) {
   requireAdmin_(token);
-  var list = (procs || []).map(function (p) { return ordStr_(p, 40).trim(); }).filter(String).slice(0, 80);
-  schedProp_('P360_CFG', JSON.stringify({ procs: list }));
+  var cur = wsP360Cfg_(), list = procs == null ? cur.procs : (procs || []).map(function (p) { return ordStr_(p, 40).trim(); }).filter(String).slice(0, 80);
+  var dept = opt && opt.dept != null ? String(opt.dept).toUpperCase().replace(/[^A-Z]/g, '').slice(0, 10) : cur.dept;
+  var names = opt && opt.deptNames != null ? ordStr_(opt.deptNames, 300) : cur.deptNames;
+  schedProp_('P360_CFG', JSON.stringify({ procs: list, dept: dept, deptNames: names }));
   dataBump_('SCHED_VER');                                             // open Project 360 pages reload
-  audit_([['Admin', 'ตั้งค่า Process บนไทม์ไลน์ Project 360', '', list.length ? list.join(', ') : 'ทั้งหมด']]);
+  audit_([['Admin', 'ตั้งค่า Project 360', '', 'Process ' + (list.length ? list.join(', ') : 'ทั้งหมด') + ' · หน่วยที่สั่ง (ตำแหน่ง 11) ' + (dept || 'ทั้งหมด') + ' · ' + names]]);
   return getP360Cfg(token);
 }
 function wsToday_() { var d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); }
@@ -306,9 +316,33 @@ function wsProjects_() {
 function getProject360(token, base) {
   var t0 = Date.now(), B = bomKey_(base);
   if (!B) throw new Error('ไม่ระบุโปรเจกต์');
-  var out = wsCached_('p360', ['bom', 'sched', 'ord', 'iss'], B + '|' + (schedProp_('P360_CFG') || ''), function () { return wsProject360_(B); });
+  var out = wsCached_('p360', ['bom', 'sched', 'ord', 'iss', 'po'], B + '|' + (schedProp_('P360_CFG') || ''), function () { return wsProject360_(B); });
   out.admin = isAdmin_(token);
   perf_('getProject360', t0);
+  return out;
+}
+function wsProjOrders_(B) {
+  var core = (/^[A-Z]+\d+/.exec(B) || [B])[0], cfg = wsP360Cfg_(), out = { core: core, dept: cfg.dept, names: wsDeptNames_(cfg.deptNames), depts: {}, list: [], lines: 0 };
+  if (core.length < 4) return out;
+  var by = {}, at = 4 + core.length, cancel = /cancel|ยกเลิก/i;
+  wsPendingRows_(function (k) { return k.length > at && k.substr(4, core.length) === core; }).forEach(function (f) {
+    var k = ordCodeKey_(f[0]), dp = k.charAt(at), pr = String(f[1] || '').trim(), key = dp + '|' + (pr || '-');
+    out.lines++; out.depts[dp] = (out.depts[dp] || 0) + 1;
+    var g = by[key] || (by[key] = { pr: pr, dept: dp, spec: String(f[3] || '').trim(), by: f[12] || '', req: f[6] || '', items: [], open: 0, po: 0, done: 0, cancel: 0, due: null, due0: null, pos: [] });
+    var st = String(f[4] || ''), isC = cancel.test(st), isD = !isC && ORD_PO_DONE.test(st), due = bomDate_(f[9]) || bomDate_(f[7]);
+    if (isC) g.cancel++; else if (isD) g.done++; else { g.open++; if (String(f[2] || '').trim()) g.po++; if (due != null && (g.due == null || due > g.due)) g.due = due; if (due != null && (g.due0 == null || due < g.due0)) g.due0 = due; }
+    if (f[2] && g.pos.indexOf(f[2]) < 0) g.pos.push(f[2]);
+    if (bomDate_(f[6]) != null && (bomDate_(g.req) == null || bomDate_(f[6]) < bomDate_(g.req))) g.req = f[6];
+    if (g.items.length < 40) g.items.push({ code: f[0], name: f[5], qty: Number(f[13]) || 0, unit: f[14] || '', po: f[2] || '', status: st, due: f[9] || f[7] || '', st: isC ? 'cancel' : isD ? 'done' : f[2] ? 'po' : 'pr' });
+  });
+  var today = wsToday_();
+  out.list = Object.keys(by).map(function (k) {
+    var g = by[k], live = g.open + g.done;
+    g.state = !live ? 'cancel' : !g.open ? 'done' : g.done ? 'part' : g.po === g.open ? 'po' : 'pr';
+    g.late = g.open && g.due0 != null && g.due0 < today ? Math.round((today - g.due0) / 864e5) : 0;   // any open line past its due date
+    g.due = bomFmt_(g.due); delete g.due0; g.n = g.open + g.done + g.cancel;
+    return g;
+  }).sort(function (a, b) { return (a.state === 'done' || a.state === 'cancel' ? 1 : 0) - (b.state === 'done' || b.state === 'cancel' ? 1 : 0) || (bomDate_(b.req) || 0) - (bomDate_(a.req) || 0); }).slice(0, 80);
   return out;
 }
 function wsProject360_(B) {
@@ -360,6 +394,8 @@ function wsProject360_(B) {
     });
     out.orders.reverse();
   } catch (e) {}
+  // Order Project = Pending Order lines whose CODE carries the project number: XXXX + PP1043 + unit letter (position 11) + XXXXX
+  try { out.projOrd = wsProjOrders_(B); } catch (e) { console.warn('wsProjOrders_', e); out.projOrd = null; }
   // cases that mention the project
   try {
     wsIssues_().forEach(function (x) { if (bomKey_(x.project + ' ' + x.desc).indexOf(B) >= 0) out.issues.push({ id: x.id, project: x.project, desc: String(x.desc).substring(0, 120), status: x.status, date: x.date }); });
