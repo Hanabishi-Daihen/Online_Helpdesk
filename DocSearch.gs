@@ -7,8 +7,8 @@
  *                    → the browser keeps it (IndexedDB) and searches it instantly.
  *  • docLookup(q)    PO / CODE / item name → RQN + DS1 numbers from Pending Order and Order Item,
  *                    so a document can be found by PO or CODE although the file name has neither.
- *  A web page cannot open \\server paths itself: the page copies the path (Win+R → paste → Enter),
- *  or opens it through the optional Windows helper (protocol daihendoc:) installed on that PC.
+ *  A web page cannot open \\server paths itself: the page copies the file / folder path
+ *  (Win+R → paste → Enter, or the File Explorer address bar).
  *  ต้องมี Code.gs (shareCandidates_, fetchWithCookies_, csvLine_, stockSS_), Workspace.gs, OrderService.gs
  * ═════════════════════════════════════════════════════════════════════
  */

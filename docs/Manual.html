@@ -247,10 +247,11 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
   </table>
   <p>ผลลัพธ์เรียงไฟล์ที่เลขตรงก่อน แล้วใหม่สุดก่อน · ป้ายบอก RQN, DS1, โปรเจกต์, Rev และ <span class="pill p-b">ยกเลิก</span> (ซ่อนไฟล์ที่ยกเลิกไว้เป็นค่าเริ่มต้น) · กรองได้ ทั้งหมด / โปรเจกต์ / STOCK</p>
   <h3>เปิดไฟล์</h3>
-  <div class="note warn"><b>หน้าเว็บเปิดไฟล์ใน File server เองไม่ได้</b>เบราว์เซอร์ไม่อนุญาตให้เว็บเปิดไฟล์ในเครือข่ายภายใน (\\192.168.0.26) โดยตรง จึงมี 2 วิธี</div>
+  <div class="note warn"><b>หน้าเว็บเปิดไฟล์ใน File server เองไม่ได้</b>เบราว์เซอร์ไม่อนุญาตให้เว็บเปิดไฟล์ในเครือข่ายภายใน (\\192.168.0.26) โดยตรง จึงใช้วิธีคัดลอกที่อยู่ไฟล์</div>
   <ol class="steps">
-    <li><div><b>คัดลอกที่อยู่ (ไม่ต้องติดตั้ง)</b> กด <span class="ui">📋 คัดลอกที่อยู่ไฟล์</span> → กด <kbd>Win</kbd>+<kbd>R</kbd> → <kbd>Ctrl</kbd>+<kbd>V</kbd> → <kbd>Enter</kbd> ไฟล์ PDF จะเปิดขึ้น · ปุ่ม <span class="ui">📂 คัดลอกโฟลเดอร์</span> ใช้เปิดโฟลเดอร์แบบเดียวกัน</div></li>
-    <li><div><b>ตัวช่วยเปิดไฟล์ (Windows, ติดตั้งครั้งเดียวต่อเครื่อง)</b> กด <span class="ui">❔ วิธีเปิดไฟล์</span> → <span class="ui">⬇ ดาวน์โหลดตัวช่วยเปิดไฟล์ (.cmd)</span> → ดับเบิลคลิกไฟล์ที่ได้ (ไม่ต้องใช้สิทธิ์ Admin) → ติ๊ก <span class="ui">เครื่องนี้ติดตั้งตัวช่วยแล้ว</span> ปุ่ม <span class="ui">▶ เปิดไฟล์</span> / <span class="ui">📂 เปิดโฟลเดอร์</span> จะขึ้นแทน · ครั้งแรกเบราว์เซอร์ถามว่าจะเปิดแอปหรือไม่ ให้ติ๊กอนุญาตเสมอ · ตัวช่วยเปิดได้เฉพาะไฟล์ .pdf และโฟลเดอร์ใต้ <code>\\192.168.0.26\electrical-ds\1 ELECTRICAL DESIGN SHEET\</code> · ถอนการติดตั้ง: <code>reg delete HKCU\Software\Classes\daihendoc /f</code> และลบโฟลเดอร์ <code>%LOCALAPPDATA%\DaihenDocOpener</code></div></li>
+    <li><div>กด <span class="ui">📋 คัดลอกที่อยู่ไฟล์</span> ที่ไฟล์ที่ต้องการ</div></li>
+    <li><div>กด <kbd>Win</kbd>+<kbd>R</kbd> (หน้าต่าง Run) → <kbd>Ctrl</kbd>+<kbd>V</kbd> → <kbd>Enter</kbd> ไฟล์ PDF จะเปิดขึ้น · หรือวางในช่องที่อยู่ของ File Explorer</div></li>
+    <li><div>ต้องการดูไฟล์อื่นในโฟลเดอร์เดียวกัน กด <span class="ui">📂 คัดลอกโฟลเดอร์</span> แล้วทำแบบเดียวกัน</div></li>
   </ol>
   <p><span class="role r-a">ADMIN</span> รายการไฟล์ซิงค์จาก OneDrive ที่ <span class="ui">ตั้งค่าระบบ</span> → <span class="ui">☁ ซิงค์รายการเอกสาร (FileList)</span> (ไฟล์ .csv หรือ .xlsx หัวคอลัมน์ ID, AddressLink, FileName) เก็บในแท็บ FileList ของ Helpdesk_ItemStock</p>
 </section>
@@ -535,7 +536,7 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
     <thead><tr><th>อาการ</th><th>สาเหตุ / วิธีแก้</th></tr></thead>
     <tbody>
       <tr><td>"ฝั่งเซิร์ฟเวอร์ยังเป็นเวอร์ชันเก่า" หรือ "… is not defined"</td><td>ยังไม่ได้เพิ่มไฟล์ .gs ใหม่ หรือยังไม่ได้ Deploy New version</td></tr>
-      <tr><td>ค้นหาเอกสาร: กด ▶ เปิดไฟล์ แล้วไม่มีอะไรเกิดขึ้น</td><td>เครื่องนี้ยังไม่ได้ติดตั้งตัวช่วย หรือบริษัทปิดการรัน PowerShell ให้ใช้ 📋 คัดลอกที่อยู่ไฟล์ → Win+R → Ctrl+V → Enter แทน และเอาติ๊ก "เครื่องนี้ติดตั้งตัวช่วยแล้ว" ออก</td></tr>
+      <tr><td>ค้นหาเอกสาร: วางที่อยู่ใน Win+R แล้วเปิดไม่ได้</td><td>เครื่องต้องอยู่ในเครือข่ายบริษัทและมีสิทธิ์เข้าโฟลเดอร์ \\192.168.0.26\electrical-ds (ลองเปิดโฟลเดอร์นี้ใน File Explorer ก่อน) · ใช้นอกบริษัทหรือบนมือถือเปิดไม่ได้</td></tr>
       <tr><td>ค้นหาเอกสาร: หาเลข RQN / DS1 ไม่เจอ</td><td>ชื่อไฟล์อาจพิมพ์เลขผิดรูปแบบ (เช่น RQB, RWN) ลองค้นด้วยเลขอย่างเดียว เช่น 03032 หรือชื่อรายการ</td></tr>
       <tr><td>"สิทธิ์ Admin หมดอายุ"</td><td>ล็อคแล้วปลดล็อค Admin ใหม่</td></tr>
       <tr><td>ข้อมูล Stock ไม่อัปเดต</td><td>ตรวจลิงก์ OneDrive ยังแชร์แบบ Anyone with the link และดูเวลาซิงค์ล่าสุดในตั้งค่า กด ซิงค์ตอนนี้</td></tr>
