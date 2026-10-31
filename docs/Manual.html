@@ -96,7 +96,7 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
   <b>คลังและจัดซื้อ</b>
   <a href="#stock"><span>07</span>Item stock</a>
   <a href="#pending"><span>08</span>Pending Order</a>
-  <a href="#docs"><span>08.1</span>ค้นหาเอกสาร</a>
+  <a href="#docs"><span>08.1</span>เอกสาร Spec (ใน Pending Order)</a>
   <a href="#order"><span>09</span>Order Item (ใบสั่ง)</a>
   <a href="#approval"><span>10</span>การอนุมัติใบสั่ง</a>
   <a href="#ordtrack"><span>10.1</span>ติดตามใบสั่ง และแจ้งเตือนของเข้า</a>
@@ -226,15 +226,19 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
   <h2><span class="no">08</span>Pending Order <span class="role r-u">ทุกคน</span></h2>
   <p class="lead">ติดตาม PR / PO ที่ยังค้างรับ ดูเลข PR, PO, Spec, สถานะ, วันที่กำหนดส่ง, ผู้สั่ง, จำนวน</p>
   <ul>
-    <li>ค้นหาด้วย CODE, เลข PR/PO หรือ Spec</li>
+    <li>ค้นหาด้วย CODE, เลข PR/PO หรือ Spec · กดแถวเพื่อดูรายละเอียดและเอกสาร Spec (หัวข้อ 08.1)</li>
     <li>รายการที่ปิดแล้ว (รับครบ/ยกเลิก) ไม่นับเป็น "กำลังเข้า" ใน Stock Alert และ Booking BOM</li>
     <li>ข้อมูลซิงค์จาก OneDrive ตามเวลาที่ Admin ตั้งไว้ (ดูหัวข้อ 15)</li>
   </ul>
 </section>
 
 <section id="docs">
-  <h2><span class="no">08.1</span>ค้นหาเอกสาร (Spec sheet) <span class="role r-u">ทุกคน</span></h2>
-  <p class="lead">ค้นไฟล์ Specification sheet (PDF) บน File server <code>\\192.168.0.26\electrical-ds\...</code> จากเมนู <span class="ui">ค้นหาเอกสาร</span> (กลุ่มคลังและจัดซื้อ)</p>
+  <h2><span class="no">08.1</span>เอกสาร Spec ใน Pending Order <span class="role r-u">ทุกคน</span></h2>
+  <p class="lead">ค้นไฟล์ Specification sheet (PDF) บน File server <code>\\192.168.0.26\electrical-ds\...</code> ได้ 2 ทางในเมนู <span class="ui">Pending Order</span></p>
+  <ul>
+    <li><b>กดแถว PR / PO</b> ในแท็บ <span class="ui">📋 รายการ PR / PO</span> รายละเอียดที่ขยายออกมาจะแสดง <span class="ui">📄 เอกสาร Spec</span> ของ PR / Spec นั้นทันที พร้อมปุ่มคัดลอกที่อยู่ไฟล์ · กด <span class="ui">ค้นหาเอกสารเพิ่ม ›</span> เพื่อไปแท็บค้นหาพร้อมเลขนั้น</li>
+    <li><b>แท็บ <span class="ui">📄 ค้นหาเอกสาร Spec</span></b> ค้นไฟล์ได้อิสระตามตารางด้านล่าง</li>
+  </ul>
   <table>
     <thead><tr><th>พิมพ์</th><th>ตัวอย่าง</th><th>ระบบหาอย่างไร</th></tr></thead>
     <tbody>
