@@ -1,7 +1,7 @@
 /**
  * Online Helpdesk & Schedule Portal — Google Apps Script backend
  * Deploy: Web app → Execute as: Me → Who has access: Anyone
- * Set the admin passcode in Project Settings → Script properties: ADMIN_PASSCODE
+ * Script properties (Project Settings): ADMIN_PASSCODE = รหัส Admin · STOCK_COST_CODE = รหัสดูราคา Item stock (ไม่มีค่าเริ่มต้นในโค้ด)
  */
 var CONFIG = {
   SPREADSHEET_ID: '1zJwAM1Cpfpz8-vaMBkjxEhkr2cu2gW6XzpD-en7Kqns',
@@ -437,7 +437,8 @@ function diagnoseRun_() {
 
 // ── admin ───────────────────────────────────────────────────────────
 function adminLogin(pass) {
-  var real = PropertiesService.getScriptProperties().getProperty('ADMIN_PASSCODE') || 'control';
+  var real = String(PropertiesService.getScriptProperties().getProperty('ADMIN_PASSCODE') || '');
+  if (!real) throw new Error('ยังไม่ได้ตั้งรหัส Admin — เพิ่ม ADMIN_PASSCODE ใน Project Settings → Script properties');
   if (String(pass) !== real) { Utilities.sleep(800); return ''; }
   var token = Utilities.getUuid();
   CacheService.getScriptCache().put('adm_' + token, '1', 21600);
@@ -1323,7 +1324,6 @@ var STOCK_HEADER = ['ITEMNO', 'DESC', 'COMMENT1', 'QTYONHAND', 'STOCKUNIT', 'LOC
   'LastOfRequest_By', 'LASTCOST', 'LastOfRequisition_No', '_packed'];
 var STOCK_NCOL = 10, STOCK_W = 11;                 // 10 data columns + hidden packed search column
 var STOCK_COST_COL = 8, STOCK_REQ_COL = 9;         // LASTCOST (admin / cost code) · Requisition No (admin only)
-var STOCK_COST_CODE_DEFAULT = 'Daihencost';
 var STOCK_ALL_MAX = 1500;                          // ≤ this many matches → return all rows at once
 var STOCK_CHUNK = 15000;
 
@@ -1561,8 +1561,9 @@ function getStockMeta() {
 }
 
 // public search. q: words (all must match), field: all|code|desc, loc: LOCATION filter ('' = all)
-function stockCostCode_() { return schedProp_('STOCK_COST_CODE') || STOCK_COST_CODE_DEFAULT; }
-function stockCostOk_(code) { var c = String(code || ''); return !!c && c === stockCostCode_(); }
+// the code lives only in Script Properties (STOCK_COST_CODE) — not set = nobody but Admin sees cost
+function stockCostCode_() { return String(schedProp_('STOCK_COST_CODE') || ''); }
+function stockCostOk_(code) { var c = String(code || ''), real = stockCostCode_(); return !!c && !!real && c === real; }
 // public: user enters the cost code to reveal LASTCOST (case-sensitive)
 function verifyStockCostCode(code) {
   var ok = stockCostOk_(code);
