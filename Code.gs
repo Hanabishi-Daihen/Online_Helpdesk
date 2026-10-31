@@ -197,12 +197,13 @@ function verConflict_(kind, base, who) {
 //   po    Pending Order    rt     lead time (StockRT)      sa     Stock Alert settings
 //   bom   Booking BOM      rs     Stock ช่วยใช้             ord    Order Item list
 //   oa    order approvals  odb    DatabaseItemOrder        ntf    notifications (Tracking.gs)
+//   doc   FileList (DocSearch.gs)
 function dataBump_(key) { PropertiesService.getScriptProperties().setProperty(key, String(Date.now())); }
 function getPulse() {
   var P = PropertiesService.getScriptProperties().getProperties(), g = function (k) { return String(P[k] || ''); };
   return { iss: issVer_(), sched: g('SCHED_VER'), stock: g('STOCK_HASH').substring(0, 16), po: g('PO_HASH').substring(0, 16),
     rt: g('RT_HASH').substring(0, 16), sa: g('SA_VER') + '|' + g('SA_CFG').length, bom: g('BOM_VER') + '|' + g('BOM_EXP_VER'),
-    rs: g('RS_VER'), ord: g('ORD_VER'), oa: g('ORD_AP_VER'), odb: g('ORD_DB_VER'), ntf: g('NTF_VER') };
+    rs: g('RS_VER'), ord: g('ORD_VER'), oa: g('ORD_AP_VER'), odb: g('ORD_DB_VER'), ntf: g('NTF_VER'), doc: g('DOC_HASH').substring(0, 16) };
 }
 // browser records these when it loads Issues / Schedules
 function getDataVers() {

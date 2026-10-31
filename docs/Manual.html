@@ -96,6 +96,7 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
   <b>คลังและจัดซื้อ</b>
   <a href="#stock"><span>07</span>Item stock</a>
   <a href="#pending"><span>08</span>Pending Order</a>
+  <a href="#docs"><span>08.1</span>ค้นหาเอกสาร</a>
   <a href="#order"><span>09</span>Order Item (ใบสั่ง)</a>
   <a href="#approval"><span>10</span>การอนุมัติใบสั่ง</a>
   <a href="#ordtrack"><span>10.1</span>ติดตามใบสั่ง และแจ้งเตือนของเข้า</a>
@@ -229,6 +230,29 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
     <li>รายการที่ปิดแล้ว (รับครบ/ยกเลิก) ไม่นับเป็น "กำลังเข้า" ใน Stock Alert และ Booking BOM</li>
     <li>ข้อมูลซิงค์จาก OneDrive ตามเวลาที่ Admin ตั้งไว้ (ดูหัวข้อ 15)</li>
   </ul>
+</section>
+
+<section id="docs">
+  <h2><span class="no">08.1</span>ค้นหาเอกสาร (Spec sheet) <span class="role r-u">ทุกคน</span></h2>
+  <p class="lead">ค้นไฟล์ Specification sheet (PDF) บน File server <code>\\192.168.0.26\electrical-ds\...</code> จากเมนู <span class="ui">ค้นหาเอกสาร</span> (กลุ่มคลังและจัดซื้อ)</p>
+  <table>
+    <thead><tr><th>พิมพ์</th><th>ตัวอย่าง</th><th>ระบบหาอย่างไร</th></tr></thead>
+    <tbody>
+      <tr><td>PR (RQN)</td><td><code>RQN26-03780</code>, <code>rqn26-3780</code>, <code>26-3780</code></td><td>เลข RQN ในชื่อไฟล์ (เลข 0 ข้างหน้าไม่ต้องพิมพ์)</td></tr>
+      <tr><td>DS1 (Spec)</td><td><code>DS1C26-1161</code></td><td>เลข DS1 ในชื่อไฟล์ รวมไฟล์ที่มีหลายเลข เช่น <code>DS1C20-0756 0757 0758</code> หรือ <code>0798,0799</code></td></tr>
+      <tr><td>เลขอย่างเดียว</td><td><code>1161</code></td><td>RQN หรือ DS1 ที่ลงท้ายด้วยเลขนี้ ทุกปี</td></tr>
+      <tr><td>PO / CODE</td><td>เลข PO, CODE 8 หลัก</td><td>ชื่อไฟล์ไม่มี PO และ CODE ระบบจึงหาใน Pending Order และ Order Item ว่า PO / CODE นั้นเป็น RQN / DS1 อะไร แล้วแสดงไฟล์ในกล่อง <span class="ui">พบจาก PO / CODE</span></td></tr>
+      <tr><td>โปรเจกต์ / ชื่อรายการ</td><td><code>PP1049</code>, <code>Thermostat</code>, ภาษาไทย</td><td>คำในชื่อไฟล์หรือโฟลเดอร์ พิมพ์หลายคำได้ (ต้องมีครบทุกคำ)</td></tr>
+    </tbody>
+  </table>
+  <p>ผลลัพธ์เรียงไฟล์ที่เลขตรงก่อน แล้วใหม่สุดก่อน · ป้ายบอก RQN, DS1, โปรเจกต์, Rev และ <span class="pill p-b">ยกเลิก</span> (ซ่อนไฟล์ที่ยกเลิกไว้เป็นค่าเริ่มต้น) · กรองได้ ทั้งหมด / โปรเจกต์ / STOCK</p>
+  <h3>เปิดไฟล์</h3>
+  <div class="note warn"><b>หน้าเว็บเปิดไฟล์ใน File server เองไม่ได้</b>เบราว์เซอร์ไม่อนุญาตให้เว็บเปิดไฟล์ในเครือข่ายภายใน (\\192.168.0.26) โดยตรง จึงมี 2 วิธี</div>
+  <ol class="steps">
+    <li><div><b>คัดลอกที่อยู่ (ไม่ต้องติดตั้ง)</b> กด <span class="ui">📋 คัดลอกที่อยู่ไฟล์</span> → กด <kbd>Win</kbd>+<kbd>R</kbd> → <kbd>Ctrl</kbd>+<kbd>V</kbd> → <kbd>Enter</kbd> ไฟล์ PDF จะเปิดขึ้น · ปุ่ม <span class="ui">📂 คัดลอกโฟลเดอร์</span> ใช้เปิดโฟลเดอร์แบบเดียวกัน</div></li>
+    <li><div><b>ตัวช่วยเปิดไฟล์ (Windows, ติดตั้งครั้งเดียวต่อเครื่อง)</b> กด <span class="ui">❔ วิธีเปิดไฟล์</span> → <span class="ui">⬇ ดาวน์โหลดตัวช่วยเปิดไฟล์ (.cmd)</span> → ดับเบิลคลิกไฟล์ที่ได้ (ไม่ต้องใช้สิทธิ์ Admin) → ติ๊ก <span class="ui">เครื่องนี้ติดตั้งตัวช่วยแล้ว</span> ปุ่ม <span class="ui">▶ เปิดไฟล์</span> / <span class="ui">📂 เปิดโฟลเดอร์</span> จะขึ้นแทน · ครั้งแรกเบราว์เซอร์ถามว่าจะเปิดแอปหรือไม่ ให้ติ๊กอนุญาตเสมอ · ตัวช่วยเปิดได้เฉพาะไฟล์ .pdf และโฟลเดอร์ใต้ <code>\\192.168.0.26\electrical-ds\1 ELECTRICAL DESIGN SHEET\</code> · ถอนการติดตั้ง: <code>reg delete HKCU\Software\Classes\daihendoc /f</code> และลบโฟลเดอร์ <code>%LOCALAPPDATA%\DaihenDocOpener</code></div></li>
+  </ol>
+  <p><span class="role r-a">ADMIN</span> รายการไฟล์ซิงค์จาก OneDrive ที่ <span class="ui">ตั้งค่าระบบ</span> → <span class="ui">☁ ซิงค์รายการเอกสาร (FileList)</span> (ไฟล์ .csv หรือ .xlsx หัวคอลัมน์ ID, AddressLink, FileName) เก็บในแท็บ FileList ของ Helpdesk_ItemStock</p>
 </section>
 
 <section id="order">
@@ -435,7 +459,7 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
   <p class="lead">เมนู <span class="ui">ตั้งค่าระบบ</span> → ส่วน <span class="ui">☁ แหล่งข้อมูล OneDrive (ซิงค์ข้อมูล)</span></p>
   <ol class="steps">
     <li><div>ในไฟล์ OneDrive กดแชร์แบบ "Anyone with the link" แล้วคัดลอกลิงก์</div></li>
-    <li><div>วางลิงก์ในช่องของแหล่งข้อมูลนั้น: Item stock, Pending Order, ตารางงาน, Readtime (StockRT)</div></li>
+    <li><div>วางลิงก์ในช่องของแหล่งข้อมูลนั้น: Item stock, Pending Order, ตารางงาน, Readtime (StockRT), รายการเอกสาร (FileList)</div></li>
     <li><div>เลือกความถี่ซิงค์อัตโนมัติ: ปิด / ทุก 1, 2, 4, 6, 8, 12 ชั่วโมง / วันละครั้งตามเวลา (00:00–23:00)</div></li>
     <li><div>กด <span class="ui">ซิงค์ตอนนี้</span> เพื่อทดสอบ ตรวจเวลาและจำนวนแถวที่ซิงค์ล่าสุด</div></li>
   </ol>
@@ -482,6 +506,7 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
       <tr><td><code>BomBooking.gs</code>, <code>BomExport.gs</code>, <code>BomTemplate.gs</code></td><td>Booking BOM, ใบเบิก, รายงานรายการที่ขาด, แม่แบบใบเบิก</td></tr>
       <tr><td><code>Workspace.gs</code></td><td>งานของฉัน, แผงข้อมูล CODE, Project 360</td></tr>
       <tr><td><code>Tracking.gs</code></td><td>พยากรณ์ของขาด, ติดตามใบสั่ง, แจ้งเตือนของเข้า</td></tr>
+      <tr><td><code>DocSearch.gs</code></td><td>ค้นหาเอกสาร: ซิงค์ FileList, อ่านเลข RQN / DS1 จากชื่อไฟล์, ค้นจาก PO / CODE</td></tr>
       <tr><td><code>Insights.gs</code></td><td>สถิติการใช้งาน และข้อเสนอแนะจากผู้ใช้</td></tr>
       <tr><td><code>index.html</code></td><td>หน้าเว็บทั้งหมด</td></tr>
       <tr><td><code>appsscript.json</code></td><td>สิทธิ์และ Drive API (เปิด Services → Drive API)</td></tr>
@@ -510,6 +535,8 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
     <thead><tr><th>อาการ</th><th>สาเหตุ / วิธีแก้</th></tr></thead>
     <tbody>
       <tr><td>"ฝั่งเซิร์ฟเวอร์ยังเป็นเวอร์ชันเก่า" หรือ "… is not defined"</td><td>ยังไม่ได้เพิ่มไฟล์ .gs ใหม่ หรือยังไม่ได้ Deploy New version</td></tr>
+      <tr><td>ค้นหาเอกสาร: กด ▶ เปิดไฟล์ แล้วไม่มีอะไรเกิดขึ้น</td><td>เครื่องนี้ยังไม่ได้ติดตั้งตัวช่วย หรือบริษัทปิดการรัน PowerShell ให้ใช้ 📋 คัดลอกที่อยู่ไฟล์ → Win+R → Ctrl+V → Enter แทน และเอาติ๊ก "เครื่องนี้ติดตั้งตัวช่วยแล้ว" ออก</td></tr>
+      <tr><td>ค้นหาเอกสาร: หาเลข RQN / DS1 ไม่เจอ</td><td>ชื่อไฟล์อาจพิมพ์เลขผิดรูปแบบ (เช่น RQB, RWN) ลองค้นด้วยเลขอย่างเดียว เช่น 03032 หรือชื่อรายการ</td></tr>
       <tr><td>"สิทธิ์ Admin หมดอายุ"</td><td>ล็อคแล้วปลดล็อค Admin ใหม่</td></tr>
       <tr><td>ข้อมูล Stock ไม่อัปเดต</td><td>ตรวจลิงก์ OneDrive ยังแชร์แบบ Anyone with the link และดูเวลาซิงค์ล่าสุดในตั้งค่า กด ซิงค์ตอนนี้</td></tr>
       <tr><td>ส่งออก PDF แล้วขึ้น "Google ปฏิเสธการส่งออกชั่วคราว"</td><td>ส่งออกถี่เกินไป รอ 1–2 นาทีแล้วลองใหม่</td></tr>
