@@ -141,7 +141,52 @@ function docIndex_(rebuild) {
   return out;
 }
 // public: the list (anyone can search; it holds file names and paths only)
-function getDocIndex() { return docIndex_(false); }
+function getDocIndex() { var x = docIndex_(false), o = docOd_(); if (o) { x = JSON.parse(JSON.stringify(x)); x.od = o; } return x; }
+
+// ── OneDrive copy of the file server folder → "open in OneDrive" per file ──
+// The folder is stored as its server-relative path (e.g. /personal/premwit_daihen_co_th/Documents/1 ELECTRICAL DESIGN SHEET).
+// A file \\server\...\1 ELECTRICAL DESIGN SHEET\PP\x.pdf opens as <host>/<site>/_layouts/15/onedrive.aspx?id=<folder>/PP/x.pdf
+function docOd_() { try { return JSON.parse(schedProp_('DOC_OD') || 'null'); } catch (e) { return null; } }
+function docOdPath_(u) {
+  u = String(u || '').trim();
+  var host = (/^https:\/\/([^\/?#]+)/i.exec(u) || [])[1] || '', m = /[?&]id=([^&#]+)/.exec(u), path = '';
+  if (m) path = decodeURIComponent(m[1].replace(/\+/g, ' '));
+  else if ((m = /^https:\/\/[^\/]+(\/(?:personal|sites|teams)\/[^?#]+)/i.exec(u)) && !/\/_layouts\//i.test(m[1]) && !/^\/[:][a-z]:\//i.test(m[1])) path = decodeURIComponent(m[1]);
+  return host && path ? { host: host, path: path.replace(/\/+$/, '') } : null;
+}
+// a sharing link (…/:f:/g/personal/…) → follow its redirects to the folder's address (works for "Anyone with the link")
+function docOdResolve_(link) {
+  var url = link, jar = {};
+  for (var hop = 0; hop < 8; hop++) {
+    var ck = Object.keys(jar).map(function (k) { return k + '=' + jar[k]; }).join('; '), hd = { 'User-Agent': 'Mozilla/5.0 (HelpdeskSync)' }; if (ck) hd.Cookie = ck;
+    var res = UrlFetchApp.fetch(url, { followRedirects: false, muteHttpExceptions: true, headers: hd }), h = res.getAllHeaders ? res.getAllHeaders() : res.getHeaders();
+    [].concat(h['Set-Cookie'] || h['set-cookie'] || []).forEach(function (c) { var p = String(c).split(';')[0], i = p.indexOf('='); if (i > 0) jar[p.substring(0, i).trim()] = p.substring(i + 1).trim(); });
+    var loc = [].concat(h.Location || h.location || [])[0];
+    if (loc) { if (/^\//.test(loc)) loc = url.match(/^https:\/\/[^\/]+/)[0] + loc; var r = docOdPath_(loc); if (r) return r; url = loc; continue; }
+    var body = res.getContentText().replace(/\\u002f/gi, '/'), m = /"(\/(?:personal|sites|teams)\/[^"?&]+?\/(?:Documents|Shared Documents)\/[^"?&]+)"/.exec(body);
+    if (m) return { host: url.match(/^https:\/\/([^\/]+)/)[1], path: m[1].replace(/\/+$/, '') };
+    break;
+  }
+  return null;
+}
+// Admin: link = the folder's sharing link, or its URL from the browser address bar (…onedrive.aspx?id=/personal/…/Documents/…)
+// match = the file-server folder this OneDrive folder copies (default: a folder with the same name)
+function setDocOneDrive(token, link, match) {
+  requireAdmin_(token);
+  link = String(link || '').trim();
+  if (!link) { schedProp_('DOC_OD', null); dataBump_('DOC_OD_VER'); return null; }
+  if (!/^https:\/\/[^\s]+$/i.test(link)) throw new Error('ลิงก์ต้องขึ้นต้นด้วย https://');
+  var r = docOdPath_(link);
+  if (!r) { try { r = docOdResolve_(link); } catch (e) {} }
+  if (!r) throw new Error('อ่านตำแหน่งโฟลเดอร์จากลิงก์แชร์ไม่ได้ — เปิดลิงก์นี้ในเบราว์เซอร์ แล้วคัดลอก URL จากแถบที่อยู่ (มี onedrive.aspx?id=…) มาวางแทน');
+  var site = (/^\/(?:personal|sites|teams)\/[^\/]+/.exec(r.path) || [''])[0];
+  if (!site) throw new Error('ตำแหน่งโฟลเดอร์ไม่ถูกต้อง: ' + r.path);
+  match = String(match || '').trim().replace(/^[\\\/]+|[\\\/]+$/g, '').split(/[\\\/]+/).pop() || '';
+  var od = { host: r.host, path: r.path, site: site, name: match || r.path.split('/').pop(), link: link, at: nowStr_() };
+  schedProp_('DOC_OD', JSON.stringify(od)); dataBump_('DOC_OD_VER');
+  audit_([['Admin', 'ตั้งโฟลเดอร์ OneDrive ของเอกสาร Spec', '', od.path]]);
+  return od;
+}
 
 // public: PO / CODE / name → the RQN and DS1 numbers of those purchases (Pending Order + Order Item)
 function docLookup(q) {
@@ -188,7 +233,7 @@ function getDocSource(token) {
   requireAdmin_(token);
   var hrs = 0; ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'docAutoSync') hrs = Number(schedProp_('DOC_SYNC_HOURS') || 24); });
   var id = schedProp_('STOCK_SS_ID');
-  return { url: schedProp_('DOC_SRC_URL') || '', hours: hrs, last: docInfo_(), sheetUrl: id ? 'https://docs.google.com/spreadsheets/d/' + id + '/edit' : '' };
+  return { url: schedProp_('DOC_SRC_URL') || '', hours: hrs, last: docInfo_(), od: docOd_(), sheetUrl: id ? 'https://docs.google.com/spreadsheets/d/' + id + '/edit' : '' };
 }
 function setDocSource(token, url, hours) {
   requireAdmin_(token);
