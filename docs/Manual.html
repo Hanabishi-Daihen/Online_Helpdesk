@@ -217,7 +217,7 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
   <p class="lead">ค้นหาสินค้าคงคลังทุกคลัง ข้อมูลมาจากไฟล์ Q_ItemOnhand (ITEMNO, DESC, COMMENT1, QTYONHAND, STOCKUNIT, LOCATION, PICKINGSEQ, LastOfRequest_By, LASTCOST, LastOfRequisition_No)</p>
   <ol class="steps">
     <li><div>พิมพ์ CODE หรือคำในชื่อ เช่น <code>42050002</code>, <code>BREAKER</code> หรือคำบางส่วนใน CODE อย่าง <code>PP1024C</code></div></li>
-    <li><div>เลือกขอบเขตการค้นหา: <span class="ui">ทั้งหมด</span> / <span class="ui">CODE</span> / <span class="ui">Desc</span> และกรองคลัง (LOCATION) หรือผู้สั่งล่าสุดได้</div></li>
+    <li><div>พิมพ์ CODE หรือคำในรายละเอียด ระบบค้นทั้งสองช่องพร้อมกันเสมอ · กรองผู้สั่งล่าสุดได้ (ตัวกรองคลัง LOCATION เอาออกแล้ว — ดูคลังได้จากคอลัมน์คลังในผลลัพธ์)</div></li>
     <li><div>กดหัวคอลัมน์เพื่อเรียง (คงเหลือ ราคา ฯลฯ) ป้าย ♻ ข้าง CODE แปลว่าอยู่ในรายการ Stock ช่วยใช้</div></li>
   </ol>
   <div class="note"><b>ค้นหาในเครื่อง</b>เมื่อเห็นป้าย "⚡ ค้นหาในเครื่อง" แปลว่าค้นจากข้อมูลที่โหลดไว้แล้ว ผลจึงขึ้นทันที เวลาที่ซิงค์ล่าสุดแสดงไว้ในหน้า</div>
@@ -307,6 +307,7 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
 <section id="ordtrack">
   <h2><span class="no">10.1</span>ติดตามใบสั่ง และแจ้งเตือนของเข้า</h2>
   <p>เมนู <span class="ui">ติดตามใบสั่ง</span> (กลุ่มคลังและจัดซื้อ) แสดงทุกใบสั่งเป็นขั้นตอนต่อเนื่อง ไม่ต้องโทรถามว่าของถึงไหน · ตัวเลขข้างเมนู = ใบสั่งที่ยังไม่ถึง "ของเข้าครบ" (สีแดง = มีใบที่ต้องตาม · น้ำเงิน = กำลังดำเนินการตามปกติ) ชี้ที่ตัวเลขเพื่อดูแยกตามขั้นตอน</p>
+  <div class="note"><b>รายการแบบกะทัดรัด (รองรับใบสั่งจำนวนมาก)</b>แต่ละใบสั่งเป็น 1 แถว: เลขใบสั่ง · Spec, ผู้สั่ง · วันที่ · จำนวนรายการ, จุด 6 ขั้นตอน (จุดสีเข้ม = ผ่านแล้ว, วงรอบ = ขั้นปัจจุบัน) และป้ายสถานะ · จัดกลุ่มตามเดือนที่ออกใบสั่ง (ใหม่สุดก่อน) พร้อมจำนวนที่ต้องตามของเดือนนั้น · <b>กดแถวเพื่อเปิดรายละเอียด</b> (ขั้นตอนและรายการ CODE) · กรองช่วงวันที่ ทั้งหมด / 30 / 90 / 180 วัน ร่วมกับชิปสถานะและคำค้น · ครั้งละ 50 ใบ กด แสดงเพิ่ม · ระบบเก็บใบที่ครบ / ยกเลิกไว้ 180 วัน ใบที่เก่ากว่าดูที่ Order Item → ประวัติใบสั่ง</div>
   <div class="flow"><span>บันทึก</span><i>→</i><span>ส่งขออนุมัติ</span><i>→</i><span>อนุมัติ</span><i>→</i><span>พบใน Pending (PR)</span><i>→</i><span>ออก PO</span><i>→</i><span>ของเข้าครบ</span></div>
   <ol class="steps">
     <li><div>ระบบจับคู่ใบสั่งกับ Pending Order ด้วย <b>เลข RQN หรือ Spec No</b> ที่เขียนในใบสั่ง (ต้องตรงกับ Requisition_No / Specification_No) แล้วดูสถานะราย CODE · ถ้าเลขในใบสั่งยังไม่ครบ (เช่น <code>RQN26-</code> / <code>DS1C26-</code>) ระบบจะ <b>🔗 จับคู่อัตโนมัติจาก CODE + วันที่ขอซื้อ</b> (PR ของ CODE เดียวกันที่ขอซื้อ 3 วันก่อน ถึง 90 วันหลังวันออกใบสั่ง และยังไม่ถูกใบอื่นจับคู่ จำนวนเท่ากันได้ก่อน) พร้อมกรอบสีฟ้าบอกเลข PR ที่จับได้</div></li>
@@ -342,10 +343,11 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
   <div class="tw"><table>
     <thead><tr><th>ระดับ</th><th>ความหมาย</th></tr></thead>
     <tbody>
-      <tr><td><span class="pill p-b">สูงสุด</span></td><td>ต่ำกว่า Min และ Lead time นาน หรือของหมด ต้องสั่งด่วน</td></tr>
+      <tr><td><span class="pill p-b">สูงสุด</span></td><td>ต่ำกว่า Min, <b>ยังไม่มีค้างรับ</b> และ Lead time นาน หรือของหมด ต้องสั่งด่วน (สูงสุด / กลาง / ต่ำ = ยังไม่ได้สั่งเลย)</td></tr>
       <tr><td><span class="pill p-w">กลาง</span></td><td>ต่ำกว่า Min</td></tr>
       <tr><td><span class="pill p-w">ต่ำ</span></td><td>ต่ำกว่า Min แต่ Lead time สั้น</td></tr>
-      <tr><td><span class="pill p-i">รอของเข้า</span></td><td>ต่ำกว่า Min แต่สั่งไว้แล้วพอ</td></tr>
+      <tr><td><span class="pill" style="background:#e0e7ff;color:#3730a3">ค้างรับยังไม่พอ</span></td><td>สั่งไว้แล้ว แต่ Onhand − จอง BOM + ค้างรับ ยังต่ำกว่า Min → สั่งเพิ่มตามช่อง "แนะนำสั่ง" (ไม่ใช่สีแดง เพราะมีของกำลังเข้า)</td></tr>
+      <tr><td><span class="pill p-i">รอของเข้า</span></td><td>ต่ำกว่า Min แต่ Onhand − จอง BOM + ค้างรับ ≥ Min (สั่งไว้แล้วพอ)</td></tr>
       <tr><td><span class="pill p-i">เกิน Max</span></td><td>คงเหลือมากกว่า Max</td></tr>
       <tr><td><span class="pill p-ok">ปกติ</span></td><td>อยู่ระหว่าง Min–Max</td></tr>
       <tr><td>ยังไม่ตั้ง Min / เลิกใช้</td><td>ยังไม่เตือน / ปิดการเตือน</td></tr>
@@ -385,6 +387,7 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
 <section id="bom">
   <h2><span class="no">13</span>Booking BOM</h2>
   <div class="note"><b>ตัวเลขสีแดงข้างเมนู Booking BOM</b>= จำนวน CODE ที่ "ไม่พอ" (Onhand + กำลังเข้า น้อยกว่ายอดจองรวมทุกโปรเจกต์) ตรงกับตัวกรอง ❌ ไม่พอ ในแท็บ ตาม CODE · อัปเดตเองทุกครั้งที่คำนวณการจองใหม่</div>
+  <div class="note"><b>หน้าจอแบบรายการ + รายละเอียด</b>ด้านซ้ายเป็นรายการโปรเจกต์ (ด่วนสุดก่อน) แสดงวันที่ต้องใช้, แถบความพร้อม, จำนวนขาด / เข้าไม่ทัน และ 📦 Order Project ที่ยังค้างรับ · กดโปรเจกต์ ด้านขวาจะแสดงหัวโปรเจกต์ ปุ่ม Export, Order Project และตารางรายการ BOM · บนมือถือ รายการขึ้นก่อน กดแล้วเปิดโปรเจกต์ มีปุ่ม ← รายการโปรเจกต์ · ระบบจำโปรเจกต์ที่เปิดล่าสุด</div>
   <p class="lead">จอง Item ตาม BOM ของโปรเจกต์ที่จะผลิต เพื่อเช็คล่วงหน้าว่า Onhand + ของที่กำลังเข้า พอหรือไม่</p>
   <h3>Import BOM <span class="role r-a">ADMIN</span></h3>
   <ol class="steps">
