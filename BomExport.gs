@@ -29,9 +29,10 @@ var BOM_KIND = {
 // ── helpers ─────────────────────────────────────────────────────────
 function bomKind_(k) { return BOM_KIND[k] ? k : 'stock'; }
 function bomIs8_(k) { return /^\d{8}$/.test(String(k || '')); }
-// PP1024D01 → PP1024C · PP1024D → PP1024C
+// project CODEs carry the project number + the ordering unit letter C (DS13), whatever the project's letter:
+// PP1024D01 → PP1024C · PP1043A01 → PP1043C · PP1024D → PP1024C
 function bomProjPrefix_(project) {
-  var k = bomKey_(project), m = /^([A-Z]+\d+)D/.exec(k);
+  var k = bomKey_(project), m = /^([A-Z]+\d+)[A-Z]/.exec(k);
   return m ? m[1] + 'C' : k;
 }
 // stock rows → { KEY: { code, desc, unit, cost, onhand, locs: [{ loc, pk, qty }] } } (locations sorted by qty desc)

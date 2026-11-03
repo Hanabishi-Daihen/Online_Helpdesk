@@ -1181,7 +1181,7 @@ zqKeep=(k,v0,ov)=>{const K="zqK:"+k,[v,setV]=Q.useState(()=>{let o=null;try{o=ov
 const set=Q.useCallback(n=>setV(p=>{const x=typeof n==="function"?n(p):n;try{sessionStorage.setItem(K,JSON.stringify(x))}catch(e){}return x}),[K]);return[v,set]},
 /* Booking BOM card → Order Project: Pending Order lines of the By Project CODEs (PP1024D01 → PP1024C) ordered by the BOM unit (DS13) */
 zqBomPO=({p,onExport})=>{const[d,setD]=Q.useState(null),[err,setErr]=Q.useState(""),[show,setShow]=zqKeep("bomPO.show."+p.project,!1),[all,setAll]=Q.useState(!1);
-Q.useEffect(()=>{const ld=m=>zqSwr("getBomProjOrders",[p.project],r=>{setD(r);setErr("")},{noCache:m!==1}).catch(e=>setErr(zqTh(e&&e.message||e)));ld(1);return zqOnPulse(["po","stock"],ld)},[p.project]);
+Q.useEffect(()=>{const ld=m=>zqSwr("getBomProjOrders",[p.project,"v2"],r=>{setD(r);setErr("")},{noCache:m!==1}).catch(e=>setErr(zqTh(e&&e.message||e)));ld(1);return zqOnPulse(["po","stock"],ld)},[p.project]);
 const n=d&&d.n||{},open=(n.pr||0)+(n.po||0),L=d?d.lines.filter(l=>all||l.st==="pr"||l.st==="po"||l.onhand>0):[],pill=(t,c,b)=>zqE("i",{className:"zq-bm-pill",style:{color:c,background:b}},t);
 return zqE("div",{style:{borderTop:"1px solid #f0ebe3",padding:".6rem 1rem",display:"grid",gap:".5rem",background:"#fcfbf8"}},
 zqE("div",{style:{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}},zqE("b",{style:{fontSize:".85rem"}},"📦 Order Project"),zqE("small",{className:"zq-muted"},"Pending Order · CODE มี "+(d?d.prefix:"…")+" · สั่งโดย "+(d?d.by:"…")),

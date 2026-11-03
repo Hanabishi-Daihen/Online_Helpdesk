@@ -408,7 +408,7 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
       <tr><td>วันที่ต้องใช้ / ปิด / เปิด / ลบ <span class="role r-a">ADMIN</span></td><td>กำหนดวันเอง ปิดโปรเจกต์เพื่อปลดยอดจอง เปิดใหม่ หรือลบ</td></tr>
     </tbody>
   </table></div>
-  <div class="note"><b>📦 Order Project ในการ์ดโปรเจกต์</b>นอกจากของ Stock (CODE 8 หลัก) การ์ดแสดงของเฉพาะงานที่สั่งผ่าน Pending Order ด้วย: บรรทัดที่ CODE มีคำค้นเดียวกับ <span class="ui">Export ใบเบิก By Project</span> (เช่น PP1024D01 → <code>PP1024C</code>) และ<b>หน่วยงานที่สั่ง = DS13</b> (ตามช่อง "สร้างใบสั่งเฉพาะผู้สั่ง" ในตั้งค่า Booking BOM) · ป้ายสรุป: รอออก PO / ออก PO แล้ว / เลยกำหนด / รับแล้ว / ยกเลิก / มีใน Stock · กด <span class="ui">ดูรายการ</span> เพื่อดู CODE, จำนวน, PR, PO, กำหนดเข้า, สถานะ และ Onhand ปัจจุบัน (ค่าเริ่มต้นแสดงเฉพาะที่ยังค้างหรือมีใน Stock) · ของที่เข้าแล้วกด <span class="ui">📤 เบิกของที่เข้าแล้ว (By Project)</span> เพื่อทำใบเบิกต่อได้ทันที · อัปเดตเองเมื่อซิงค์ Pending Order / Stock</div>
+  <div class="note"><b>📦 Order Project ในการ์ดโปรเจกต์</b>นอกจากของ Stock (CODE 8 หลัก) การ์ดแสดงของเฉพาะงานที่สั่งผ่าน Pending Order ด้วย: บรรทัดที่ CODE มีคำค้นเดียวกับ <span class="ui">Export ใบเบิก By Project</span> (เลขโปรเจกต์ + C เช่น PP1024D01 → <code>PP1024C</code>, PP1043A01 → <code>PP1043C</code>) และ<b>หน่วยงานที่สั่ง = DS13</b> (ตามช่อง "สร้างใบสั่งเฉพาะผู้สั่ง" ในตั้งค่า Booking BOM) · ป้ายสรุป: รอออก PO / ออก PO แล้ว / เลยกำหนด / รับแล้ว / ยกเลิก / มีใน Stock · กด <span class="ui">ดูรายการ</span> เพื่อดู CODE, จำนวน, PR, PO, กำหนดเข้า, สถานะ และ Onhand ปัจจุบัน (ค่าเริ่มต้นแสดงเฉพาะที่ยังค้างหรือมีใน Stock) · ของที่เข้าแล้วกด <span class="ui">📤 เบิกของที่เข้าแล้ว (By Project)</span> เพื่อทำใบเบิกต่อได้ทันที · อัปเดตเองเมื่อซิงค์ Pending Order / Stock</div>
   <p>แท็บ <span class="ui">🔢 ตาม CODE</span> รวมทุกโปรเจกต์: Onhand, กำลังเข้า, จองรวม, คงเหลือหลังจอง, Max และกรอง ❌ ไม่พอ / ⚠ เสี่ยง Overstock</p>
   <p><span class="role r-a">ADMIN</span> ตั้งค่า (ท้ายแท็บ Import): ปิดโปรเจกต์อัตโนมัติเมื่อเลยวันที่ต้องใช้ N วัน, รหัสฟอร์มท้ายกระดาษใบเบิก, Rev มุมขวาบน</p>
 </section>
@@ -439,7 +439,7 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
   <div class="tw"><table>
     <thead><tr><th></th><th>By Stock (MF253A)</th><th>By Project (MF253P)</th></tr></thead>
     <tbody>
-      <tr><td>รายการ</td><td>CODE 8 หลักใน BOM ของโปรเจกต์</td><td>CODE ของงานใน Item stock ที่มีคำค้นอยู่ใน CODE (โปรเจกต์ D → C) เช่น PP1024D01 → <code>3694PP1024C00403</code></td></tr>
+      <tr><td>รายการ</td><td>CODE 8 หลักใน BOM ของโปรเจกต์</td><td>CODE ของงานใน Item stock ที่มีคำค้นอยู่ใน CODE = เลขโปรเจกต์ + <b>C</b> (หน่วยงาน DS13) ไม่ว่าโปรเจกต์จะเป็น A / B / D เช่น PP1024D01 → <code>PP1024C</code> (<code>3694PP1024C00403</code>), PP1043A01 → <code>PP1043C</code></td></tr>
       <tr><td>จำนวนเริ่มต้น</td><td>ตาม BOM</td><td>Onhand รายคลัง</td></tr>
       <tr><td>คลัง</td><td>คลังที่มีของมากที่สุด (เลือกเปลี่ยนได้)</td><td>แยกแถวรายคลัง</td></tr>
     </tbody>

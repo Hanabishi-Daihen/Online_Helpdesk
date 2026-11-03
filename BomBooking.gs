@@ -364,7 +364,7 @@ function getBom(token) {
 // Each line shows its PR / PO state and how much of that CODE is in Item stock now (ready to issue By Project).
 function getBomProjOrders(project) {
   var key = bomKey_(project), pre = bomProjPrefix_(key), by = String(bomCfg_().orderBy || BOM_DEF.orderBy).trim().toUpperCase();
-  return wsCached_('bomord', ['po', 'stock'], key + '|' + by, function () {
+  return wsCached_('bomord', ['po', 'stock'], key + '|' + pre + '|' + by, function () {
     var out = { project: key, prefix: pre, by: by, lines: [], other: 0, n: { pr: 0, po: 0, late: 0, done: 0, cancel: 0, inStock: 0 } };
     if (pre.length < 4) return out;
     var today = wsToday_(), cancel = /cancel|ยกเลิก/i, want = {};
