@@ -129,7 +129,7 @@ function rtMap_(want) {
 }
 
 // ── Alert computation ───────────────────────────────────────────────
-var SA_LV_ORDER = { high: 0, mid: 1, low: 2, wait: 3, nomin: 4, over: 5, ok: 6, off: 7 };
+var SA_LV_ORDER = { high: 0, mid: 1, low: 2, part: 3, wait: 4, nomin: 5, over: 6, ok: 7, off: 8 };
 function saCompute_() {
   var cfg = saCfg_(), isBy = saByMatch_(cfg.by), set = saSettings_(), items = {}, want = {};
   var rows = []; try { rows = stockData_(); } catch (e) {}
@@ -169,7 +169,7 @@ function saCompute_() {
     Object.keys(pend).forEach(function (k3) { pend[k3].list.sort(function (x, y) { return x.dist - y.dist; }); pend[k3].list = pend[k3].list.slice(0, 5); });
   } catch (e) {}
   var bk = {}; try { bk = bomBooked_(); } catch (e) {}              // Booking BOM: stock already reserved for projects
-  var out = [], cnt = { high: 0, mid: 0, low: 0, wait: 0, nomin: 0, over: 0, ok: 0, off: 0, out: 0 };
+  var out = [], cnt = { high: 0, mid: 0, low: 0, part: 0, wait: 0, nomin: 0, over: 0, ok: 0, off: 0, out: 0 };
   Object.keys(items).forEach(function (k) {
     var it = items[k], s = set[k] || {}, P = pend[k] || { qty: 0, list: [], stale: 0 };
     it.qty = Math.round(it.qty * 1000) / 1000;
@@ -183,7 +183,8 @@ function saCompute_() {
     if (it.notUse) lv = 'off';
     else if (it.min == null) lv = 'nomin';                    // ยังไม่ตั้ง Min → ไม่แจ้งเตือน (แสดงป้าย "หมด" ถ้าคงเหลือ ≤ 0)
     else if (eff < it.min) {
-      if (avail >= it.min) lv = 'wait';
+      if (avail >= it.min) lv = 'wait';                       // on order and enough once it arrives
+      else if (it.pend > 0) lv = 'part';                      // on order, but Onhand − Booking + ค้างรับ is still below Min → order more
       else {
         lv = it.lt == null ? 'mid' : it.lt > cfg.ltHigh ? 'high' : it.lt <= cfg.ltLow ? 'low' : 'mid';
         if (eff <= 0) lv = lv === 'low' ? 'mid' : 'high';
@@ -193,7 +194,7 @@ function saCompute_() {
     else lv = 'ok';
     it.level = lv;
     var target = it.max != null ? it.max : it.min;
-    it.suggest = target != null && (lv === 'high' || lv === 'mid' || lv === 'low') ? Math.max(0, Math.ceil(target - avail)) : 0;
+    it.suggest = target != null && (lv === 'high' || lv === 'mid' || lv === 'low' || lv === 'part') ? Math.max(0, Math.ceil(target - avail)) : 0;
     cnt[lv]++; if (it.isOut && !it.notUse) cnt.out++;
     out.push(it);
   });
@@ -203,7 +204,7 @@ function saCompute_() {
     src: { stock: si && si.time || '', pending: pi && pi.ok ? pi.time : '', rt: ri && ri.ok ? ri.time : '', rtRows: ri && ri.rows || 0 } };
 }
 function saKey_() {
-  var raw = ['nosv', schedProp_('STOCK_HASH') || '', schedProp_('PO_HASH') || '', schedProp_('RT_HASH') || '', saVer_(), schedProp_('SA_CFG') || '', ordToday_()].join('|');
+  var raw = ['nosv|part', schedProp_('STOCK_HASH') || '', schedProp_('PO_HASH') || '', schedProp_('RT_HASH') || '', saVer_(), schedProp_('SA_CFG') || '', ordToday_()].join('|');
   return 'sa_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, raw)).replace(/=+$/, '');
 }
 function saData_(force) {
@@ -321,17 +322,17 @@ function saMailItems_(d, opt) {
   if (opt.scope === 'selected') { want = {}; (opt.codes || []).forEach(function (c) { want[ordCodeKey_(c)] = 1; }); }
   return d.items.filter(function (x) {
     if (want) return !!want[ordCodeKey_(x.code)];
-    return x.level === 'high' || x.level === 'mid' || x.level === 'low' || (opt.wait && x.level === 'wait');
+    return x.level === 'high' || x.level === 'mid' || x.level === 'low' || x.level === 'part' || (opt.wait && x.level === 'wait');
   });
 }
-var SA_MAIL_LV = { high: ['สูงสุด', '#be123c', '#ffe4e6'], mid: ['กลาง', '#c2410c', '#ffedd5'], low: ['ต่ำ', '#854d0e', '#fef9c3'], wait: ['รอของเข้า', '#1d4ed8', '#dbeafe'],
+var SA_MAIL_LV = { high: ['สูงสุด', '#be123c', '#ffe4e6'], mid: ['กลาง', '#c2410c', '#ffedd5'], low: ['ต่ำ', '#854d0e', '#fef9c3'], part: ['ค้างรับยังไม่พอ', '#3730a3', '#e0e7ff'], wait: ['รอของเข้า', '#1d4ed8', '#dbeafe'],
   nomin: ['ยังไม่ตั้ง Min', '#57534e', '#f5f5f4'], over: ['เกิน Max', '#6d28d9', '#ede9fe'], ok: ['ปกติ', '#047857', '#d1fae5'], off: ['เลิกใช้', '#78716c', '#f5f5f4'] };
 function saFmt_(n) { if (n === '' || n == null) return '-'; var x = Number(n); return isNaN(x) ? String(n) : x.toLocaleString('en-US', { maximumFractionDigits: 3 }); }
 function saMailBuild_(opt) {
   opt = opt || {};
   var d = saData_(false), cfg = d.cfg, list = saMailItems_(d, opt), C = EMAIL_CFG;
   applyBrand_();
-  var cnt = { high: 0, mid: 0, low: 0, wait: 0 }; list.forEach(function (x) { if (cnt[x.level] != null) cnt[x.level]++; });
+  var cnt = { high: 0, mid: 0, low: 0, part: 0, wait: 0 }; list.forEach(function (x) { if (cnt[x.level] != null) cnt[x.level]++; });
   var by = cfg.by || 'DS13', today = ordToday_();
   var subject = ordStr_(opt.subject, 200) || ('[Stock Alert ' + by + '] สินค้าที่ควรพิจารณาสั่ง ' + list.length + ' รายการ' +
     (cnt.high ? ' · ด่วนสูงสุด ' + cnt.high : '') + ' — ' + today);
@@ -339,7 +340,7 @@ function saMailBuild_(opt) {
   var intro = 'เรียน ทีม ' + by + '\n\nระบบ Stock Alert ตรวจพบสินค้าของแผนก ' + by + ' ที่ควรพิจารณาสั่งเพิ่มจำนวน ' + list.length + ' รายการ (ข้อมูล ณ ' + d.time + ') ' +
     'รบกวนทุกท่านช่วยกันพิจารณาว่ารายการใดควรเริ่มออก Order' + (due ? ' และแจ้งความเห็นภายในวันที่ ' + due : '') + ' ขอบคุณครับ';
   var pill = function (lv, n) { var L = SA_MAIL_LV[lv]; return '<td style="padding:4px 6px 4px 0;"><span style="display:inline-block;padding:6px 12px;border-radius:10px;background:' + L[2] + ';color:' + L[1] + ';font-size:12pt;font-weight:700;">' + esc_(L[0]) + ' ' + n + '</span></td>'; };
-  var sum = '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0 4px;"><tr>' + pill('high', cnt.high) + pill('mid', cnt.mid) + pill('low', cnt.low) + (opt.wait || cnt.wait ? pill('wait', cnt.wait) : '') + '</tr></table>' +
+  var sum = '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0 4px;"><tr>' + pill('high', cnt.high) + pill('mid', cnt.mid) + pill('low', cnt.low) + (cnt.part ? pill('part', cnt.part) : '') + (opt.wait || cnt.wait ? pill('wait', cnt.wait) : '') + '</tr></table>' +
     '<div style="font-size:10.5pt;color:' + C.muted + ';line-height:1.6;">เกณฑ์: คงเหลือต่ำกว่า Min · LT ≤ ' + cfg.ltLow + ' วัน = ต่ำ · ' + (cfg.ltLow + 1) + '–' + cfg.ltHigh + ' วัน = กลาง · มากกว่า ' + cfg.ltHigh + ' วัน = สูงสุด · ของหมดยกระดับขึ้น 1 ขั้น · แนะนำสั่ง = Max − (คงเหลือ + ค้างรับ)</div>';
   var th = function (t, al) { return '<th style="padding:8px 6px;font-size:10pt;color:' + C.muted + ';text-align:' + (al || 'left') + ';border-bottom:2px solid ' + C.line + ';white-space:nowrap;">' + t + '</th>'; };
   var rows = list.slice(0, SA_MAIL_MAX_ROWS).map(function (x, i) {
