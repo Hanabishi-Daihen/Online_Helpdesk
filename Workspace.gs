@@ -60,7 +60,8 @@ function wsWarm_(why) {
   var t0 = Date.now(), done = [];
   [['myday U', function () { return wsMyDayC_(false); }], ['myday A', function () { return wsMyDayC_(true); }], ['projects', wsProjectsC_],
    ['stock alert', function () { return saData_(false); }], ['forecast', function () { return typeof fcCached_ === 'function' ? fcCached_() : null; }],
-   ['order track', function () { return typeof trkCached_ === 'function' ? trkCached_() : null; }]].forEach(function (w) {
+   ['order track', function () { return typeof trkCached_ === 'function' ? trkCached_() : null; }],
+   ['bom orders', function () { return typeof bomOrdersAllC_ === 'function' ? bomOrdersAllC_() : null; }]].forEach(function (w) {
     if (Date.now() - t0 > 90000) return;                               // stay well inside the 6-min execution limit
     try { w[1](); done.push(w[0]); } catch (e) { console.warn('wsWarm_ ' + w[0], e); }
   });

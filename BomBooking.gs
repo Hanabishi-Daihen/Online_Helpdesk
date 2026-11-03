@@ -358,34 +358,58 @@ function getBom(token) {
   return out;
 }
 
-// ── public: Order Project of one BOM project ────────────────────────
-// Pending Order lines whose CODE carries the By Project prefix (PP1024D01 → PP1024C, the same CODEs
-// "Export ใบเบิก By Project" takes) and that were requested by the Booking BOM unit (orderBy, default DS13).
-// Each line shows its PR / PO state and how much of that CODE is in Item stock now (ready to issue By Project).
-function getBomProjOrders(project) {
-  var key = bomKey_(project), pre = bomProjPrefix_(key), by = String(bomCfg_().orderBy || BOM_DEF.orderBy).trim().toUpperCase();
-  return wsCached_('bomord', ['po', 'stock'], key + '|' + pre + '|' + by, function () {
-    var out = { project: key, prefix: pre, by: by, lines: [], other: 0, n: { pr: 0, po: 0, late: 0, done: 0, cancel: 0, inStock: 0 } };
-    if (pre.length < 4) return out;
-    var today = wsToday_(), cancel = /cancel|ยกเลิก/i, want = {};
-    wsPendingRows_(function (k) { return k.indexOf(pre) >= 0; }).forEach(function (f) {
-      if (String(f[12] || '').trim().toUpperCase() !== by) { out.other++; return; }
-      var k = ordCodeKey_(f[0]), st0 = String(f[4] || ''), isC = cancel.test(st0), isD = !isC && ORD_PO_DONE.test(st0);
-      var st = isC ? 'cancel' : isD ? 'done' : String(f[2] || '').trim() ? 'po' : 'pr', due = bomDate_(f[9]) || bomDate_(f[7]);
-      want[k] = 1;
-      out.lines.push({ code: f[0], key: k, name: f[5] || '', qty: Number(f[13]) || 0, unit: f[14] || '', pr: f[1] || '', po: f[2] || '', spec: f[3] || '',
-        status: st0, st: st, due: f[9] || f[7] || '', req: f[6] || '', late: (st === 'pr' || st === 'po') && due != null && due < today ? Math.round((today - due) / 864e5) : 0 });
+// ── public: Order Project of BOM projects ───────────────────────────
+// Pending Order lines whose CODE carries the By Project prefix (project number + C: PP1024D01 → PP1024C,
+// PP1043A01 → PP1043C — the same CODEs "Export ใบเบิก By Project" takes) and that were requested by the
+// Booking BOM unit (orderBy, default DS13). Each line shows its PR / PO state and how much of that CODE is
+// in Item stock now (ready to issue By Project). One pass over Pending Order serves many projects.
+function bomOrdersFor_(keys) {
+  var by = String(bomCfg_().orderBy || BOM_DEF.orderBy).trim().toUpperCase(), out = {}, P = {};
+  keys.forEach(function (key) {
+    var pre = bomProjPrefix_(key);
+    out[key] = { project: key, prefix: pre, by: by, lines: [], other: 0, n: { pr: 0, po: 0, late: 0, done: 0, cancel: 0, inStock: 0 } };
+    if (pre.length >= 4) (P[pre] = P[pre] || []).push(key);
+  });
+  var pres = Object.keys(P);
+  if (!pres.length) return out;
+  var today = wsToday_(), cancel = /cancel|ยกเลิก/i, all = [], want = {};
+  wsPendingRows_(function (k) { for (var i = 0; i < pres.length; i++) if (k.indexOf(pres[i]) >= 0) return true; return false; }).forEach(function (f) {
+    var k = ordCodeKey_(f[0]), mine = String(f[12] || '').trim().toUpperCase() === by, line = null;
+    pres.forEach(function (pre) {
+      if (k.indexOf(pre) < 0) return;
+      P[pre].forEach(function (key) {
+        if (!mine) { out[key].other++; return; }
+        if (!line) {
+          var st0 = String(f[4] || ''), isC = cancel.test(st0), isD = !isC && ORD_PO_DONE.test(st0);
+          var st = isC ? 'cancel' : isD ? 'done' : String(f[2] || '').trim() ? 'po' : 'pr', due = bomDate_(f[9]) || bomDate_(f[7]);
+          line = { code: f[0], key: k, name: f[5] || '', qty: Number(f[13]) || 0, unit: f[14] || '', pr: f[1] || '', po: f[2] || '', spec: f[3] || '',
+            st: st, due: f[9] || f[7] || '', late: (st === 'pr' || st === 'po') && due != null && due < today ? Math.round((today - due) / 864e5) : 0 };
+          all.push(line); want[k] = 1;
+        }
+        out[key].lines.push(line);
+      });
     });
-    var stk = bomStockIdx_(function (k) { return want[k]; }), seen = {};
-    out.lines.forEach(function (l) {
-      var s = stk[l.key]; l.onhand = s ? s.onhand : 0; l.loc = s && s.locs[0] ? s.locs[0].loc : '';
-      out.n[l.st]++; if (l.late) out.n.late++;
-      if (l.onhand > 0 && !seen[l.key]) { seen[l.key] = 1; out.n.inStock++; }
-      delete l.key;
-    });
-    var rank = { pr: 0, po: 0, done: 1, cancel: 2 };
-    out.lines.sort(function (a, b) { return rank[a.st] - rank[b.st] || b.late - a.late || String(a.code).localeCompare(String(b.code)); });
-    out.total = out.lines.length; out.lines = out.lines.slice(0, 300);
-    return out;
+  });
+  var stk = bomStockIdx_(function (k) { return want[k]; }), rank = { pr: 0, po: 0, done: 1, cancel: 2 };
+  all.forEach(function (l) { var s = stk[l.key]; l.onhand = s ? s.onhand : 0; l.loc = s && s.locs[0] ? s.locs[0].loc : ''; });
+  keys.forEach(function (key) {
+    var o = out[key], seen = {};
+    o.lines.forEach(function (l) { o.n[l.st]++; if (l.late) o.n.late++; if (l.onhand > 0 && !seen[l.key]) { seen[l.key] = 1; o.n.inStock++; } });
+    o.lines.sort(function (a, b) { return rank[a.st] - rank[b.st] || b.late - a.late || String(a.code).localeCompare(String(b.code)); });
+    o.total = o.lines.length; o.lines = o.lines.slice(0, 300);
+  });
+  all.forEach(function (l) { delete l.key; });
+  return out;
+}
+// one project (e.g. a closed one) · token first, like every cached page call
+function getBomProjOrders(token, project) {
+  var key = bomKey_(project);
+  return wsCached_('bomord', ['po', 'stock'], key + '|' + bomProjPrefix_(key) + '|' + bomCfg_().orderBy, function () { return bomOrdersFor_([key])[key]; });
+}
+// every active project at once — the Booking BOM page loads this in the background so a card opens instantly
+function getBomOrdersAll(token) { return bomOrdersAllC_(); }
+function bomOrdersAllC_() {
+  return wsCached_('bomordall', ['po', 'stock', 'bom'], String(bomCfg_().orderBy), function () {
+    return bomOrdersFor_(bomProjects_().filter(function (p) { return p.status === 'active'; }).map(function (p) { return p.project; }));
   });
 }
