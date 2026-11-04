@@ -288,10 +288,11 @@ function bomFetchExport_(ssId, fmt) {
 function exportBomShortReport(token, opt) {
   var t0 = Date.now(); opt = opt || {};
   var admin = isAdmin_(token), snap = bomSnapGet_() || bomSnapBuild_(), want = opt.project ? bomKey_(opt.project) : '';
-  var withLate = opt.late !== false;
+  var withLate = opt.late !== false, unit = String(opt.by || '').trim().toUpperCase();          // unit '' = every orderer · '-' = not stated
+  var byOf = function (x) { return String(x.by || '').trim().toUpperCase() || '-'; };
   var projs = (snap.projects || []).filter(function (p) { return p.status === 'active' && (!want || p.project === want); });
   if (want && !projs.length) throw new Error('ไม่พบโปรเจกต์ที่จองอยู่: ' + want);
-  var bad = function (x) { return x.st === 'short' || (withLate && x.st === 'late'); };
+  var bad = function (x) { return (x.st === 'short' || (withLate && x.st === 'late')) && (!unit || byOf(x) === unit); };
   var codeSet = {};
   projs.forEach(function (p) { p.items.forEach(function (x) { if (bad(x)) codeSet[ordCodeKey_(x.code)] = 1; }); });
   var codes = Object.keys(codeSet), st = bomStockIdx_(function (k) { return codeSet[k]; });
@@ -319,7 +320,7 @@ function exportBomShortReport(token, opt) {
   });
   var h = [];
   h.push('<html><head><meta charset="utf-8"><style>body{font-family:Sarabun,Tahoma,Arial,sans-serif;color:#141413;font-size:9pt;}h1{font-size:17pt;margin:0;}h2{font-size:12pt;margin:16px 0 6px;border-bottom:2px solid ' + A + ';padding-bottom:3px;}table{border-collapse:collapse;width:100%;}</style></head><body>');
-  h.push('<table><tr><td style="background:' + A + ';color:#fff;padding:10px 12px;"><h1>📋 รายงานรายการที่ขาด — Booking BOM</h1><div style="font-size:9pt;">DAIHEN ELECTRIC CO., LTD. · ' + (want ? 'โปรเจกต์ ' + esc_(want) : 'ทุกโปรเจกต์ที่จองอยู่') + '</div></td></tr></table>');
+  h.push('<table><tr><td style="background:' + A + ';color:#fff;padding:10px 12px;"><h1>📋 รายงานรายการที่ขาด — Booking BOM</h1><div style="font-size:9pt;">DAIHEN ELECTRIC CO., LTD. · ' + (want ? 'โปรเจกต์ ' + esc_(want) : 'ทุกโปรเจกต์ที่จองอยู่') + ' · ' + (unit ? 'ผู้สั่ง ' + esc_(unit === '-' ? 'ไม่ระบุ' : unit) : 'ผู้สั่งทุกหน่วยงาน') + '</div></td></tr></table>');
   h.push('<p style="font-size:8.5pt;color:' + M + ';margin:6px 0;">ออกรายงาน ' + esc_(nowStr_()) + ' · คำนวณการจอง ' + esc_(snap.built || '-') + ' · Stock ' + esc_(snap.stockTime || '-') + ' · Pending Order ' + esc_(snap.poTime || '-') + ' · ตารางงาน ' + esc_(snap.schedTime || '-') + (withLate ? ' · รวม "ของเข้าไม่ทัน"' : ' · เฉพาะ "ขาด"') + '</p>');
   // 1) summary
   h.push('<h2>1. สรุปภาพรวม</h2><table><tr>' + kpi(fmt(projs.length), 'โปรเจกต์') + kpi(fmt(projRows.filter(function (r) { return r.items.length; }).length), 'โปรเจกต์ที่มีปัญหา', '#92400e') +
@@ -372,4 +373,74 @@ function exportBomShortReport(token, opt) {
   var pdf = Utilities.newBlob(h.join(''), 'text/html', 'r.html').getAs('application/pdf').setName(name);
   perf_('exportBomShortReport', t0);
   return { name: name, mime: 'application/pdf', b64: Utilities.base64Encode(pdf.getBytes()), short: nShort, late: nLate };
+}
+
+// ── Booking BOM "ไม่พอ": e-mail one ordering unit its short CODEs (Admin — sends from the owner's Google account) ──
+var BOM_MAIL_LAST = 'BOM_SHORT_MAIL';
+function bomShortFor_(unit) {
+  var snap = bomSnapGet_() || bomSnapBuild_(), need = {}, out = [];
+  (snap.projects || []).forEach(function (p) { if (p.status === 'active') need[p.project] = p.needDate || ''; });
+  unit = String(unit || '').trim().toUpperCase();
+  (snap.codes || []).forEach(function (c) {
+    if (!c.short) return;
+    var by = String(c.by || '').trim().toUpperCase() || '-';
+    if (unit && by !== unit) return;
+    var first = null;
+    (c.projects || []).forEach(function (p) { var d = bomDate_(need[p[0]]); if (d != null && (!first || d < first.t)) first = { t: d, p: p[0], d: need[p[0]] }; });
+    out.push({ code: c.code, desc: c.desc || '', unit: c.unit || '', by: by, onhand: c.onhand, incoming: c.incoming, booked: c.booked, short: Math.round(-c.balance * 1000) / 1000,
+      first: first ? first.p + ' · ' + first.d : '', t: first ? first.t : 9e15, projects: (c.projects || []).map(function (p) { return p[0] + ' × ' + p[1]; }).join(', '),
+      po: (c.po || []).slice(0, 3).map(function (x) { return (x.po || x.pr || '-') + ' ×' + x.qty + (x.due ? ' (' + x.due + ')' : ''); }).join(', ') });
+  });
+  out.sort(function (a, b) { return a.t - b.t || String(a.code).localeCompare(String(b.code)); });
+  return { list: out, built: snap.built || '', stock: snap.stockTime || '', po: snap.poTime || '' };
+}
+function bomShortMail_(opt) {
+  opt = opt || {};
+  var unit = String(opt.by || '').trim().toUpperCase(), d = bomShortFor_(unit), L = d.list, name = unit && unit !== '-' ? unit : 'ไม่ระบุผู้สั่ง';
+  var f = function (n) { return n == null || n === '' ? '-' : Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 }); };
+  var th = function (t, r) { return '<th style="background:#f5f0e8;border:1px solid #e6dfd8;padding:6px 8px;font-size:12px;text-align:' + (r ? 'right' : 'left') + ';">' + esc_(t) + '</th>'; };
+  var td = function (t, r, st) { return '<td style="border:1px solid #e6dfd8;padding:6px 8px;font-size:12px;vertical-align:top;text-align:' + (r ? 'right' : 'left') + ';' + (st || '') + '">' + t + '</td>'; };
+  var subject = (opt.subject ? ordStr_(opt.subject, 150) : '[Booking BOM] รายการที่ไม่พอสำหรับโปรเจกต์ — ผู้สั่ง ' + name + ' (' + L.length + ' รายการ)');
+  var h = ['<div style="font-family:Tahoma,Arial,sans-serif;color:#141413;">',
+    '<div style="background:#cc785c;color:#fff;padding:12px 16px;border-radius:8px 8px 0 0;"><b style="font-size:16px;">📋 Booking BOM — รายการที่ไม่พอ</b><div style="font-size:12px;">ผู้สั่ง ' + esc_(name) + ' · ' + L.length + ' รายการ · DAIHEN ELECTRIC CO., LTD.</div></div>',
+    '<div style="border:1px solid #e6dfd8;border-top:0;padding:14px 16px;border-radius:0 0 8px 8px;">',
+    opt.note ? '<p style="font-size:13px;white-space:pre-line;margin:0 0 12px;">' + esc_(ordStr_(opt.note, 2000)) + '</p>' : '',
+    '<p style="font-size:12px;color:#6c6a64;margin:0 0 10px;">ยอดจองรวมของโปรเจกต์มากกว่า Onhand + ของที่กำลังเข้า · เรียงตามวันที่ต้องใช้เร็วสุด · คำนวณ ' + esc_(d.built || '-') + ' · Stock ' + esc_(d.stock || '-') + ' · Pending Order ' + esc_(d.po || '-') + '</p>',
+    '<table style="border-collapse:collapse;width:100%;"><tr>' + th('CODE') + th('รายการ') + th('Onhand', 1) + th('กำลังเข้า', 1) + th('จองรวม', 1) + th('ขาด', 1) + th('ต้องใช้เร็วสุด') + th('โปรเจกต์ที่จอง') + th('PR / PO ที่มี') + '</tr>'];
+  L.forEach(function (x) {
+    h.push('<tr>' + td('<b>' + esc_(x.code) + '</b>') + td(esc_(x.desc || '-')) + td(f(x.onhand) + ' ' + esc_(x.unit), 1) + td(f(x.incoming), 1) + td(f(x.booked), 1) + td('<b>' + f(x.short) + '</b>', 1, 'color:#9f1239;') +
+      td(esc_(x.first || '-')) + td(esc_(x.projects)) + td(esc_(x.po || '-')) + '</tr>');
+  });
+  h.push('</table>', opt.sender ? '<p style="font-size:12px;margin:14px 0 0;">ผู้แจ้ง: ' + esc_(ordStr_(opt.sender, 60)) + '</p>' : '',
+    '<p style="font-size:11px;color:#6c6a64;margin:14px 0 0;">ส่งจากระบบ Report &amp; Schedule (Booking BOM) · กรุณาสั่งหรือแจ้งกำหนดของเข้า</p></div></div>');
+  var text = [subject, opt.note || ''].concat(L.map(function (x) { return x.code + ' ' + x.desc + ' | ขาด ' + f(x.short) + ' | ต้องใช้ ' + (x.first || '-') + ' | ' + x.projects; })).join('\n');
+  return { subject: subject, html: h.join(''), text: text, list: L };
+}
+// public: units that have short CODEs (+ the addresses used last time for each)
+function getBomShortMailCfg(token) {
+  var d = bomShortFor_(''), units = {}, last = {};
+  d.list.forEach(function (x) { units[x.by] = (units[x.by] || 0) + 1; });
+  try { last = JSON.parse(schedProp_(BOM_MAIL_LAST) || '{}') || {}; } catch (e) {}
+  var q = null; try { q = MailApp.getRemainingDailyQuota(); } catch (e) {}
+  return { units: Object.keys(units).sort().map(function (k) { return [k, units[k]]; }), last: isAdmin_(token) ? last : {}, quota: q, admin: isAdmin_(token) };
+}
+function previewBomShortMail(token, opt) { var m = bomShortMail_(opt); return { subject: m.subject, html: m.html, n: m.list.length }; }
+function sendBomShortMail(token, opt) {
+  requireAdmin_(token);
+  opt = opt || {};
+  var to = uniq_(emailList_(opt.to)), cc = uniq_(emailList_(opt.cc)).filter(function (x) { return to.map(function (y) { return y.toLowerCase(); }).indexOf(x.toLowerCase()) < 0; });
+  if (!to.length) throw new Error('กรุณาระบุอีเมลผู้รับ (To) อย่างน้อย 1 อีเมล');
+  if (to.length + cc.length > 50) throw new Error('ผู้รับรวมต้องไม่เกิน 50 อีเมล');
+  var m = bomShortMail_(opt);
+  if (!m.list.length) throw new Error('หน่วยงานนี้ไม่มีรายการที่ไม่พอ');
+  if (MailApp.getRemainingDailyQuota() < to.length + cc.length) throw new Error('โควตาอีเมลวันนี้ไม่พอ (เหลือ ' + MailApp.getRemainingDailyQuota() + ')');
+  var mo = { to: to.join(','), cc: cc.join(','), subject: m.subject, htmlBody: m.html, body: m.text, name: 'Booking BOM' };
+  var rp = emailList_(opt.replyTo)[0]; if (rp) mo.replyTo = rp;
+  MailApp.sendEmail(mo);
+  var unit = String(opt.by || '').trim().toUpperCase() || '*', last = {};
+  try { last = JSON.parse(schedProp_(BOM_MAIL_LAST) || '{}') || {}; } catch (e) {}
+  last[unit] = { to: to.join(', '), cc: cc.join(', '), at: nowStr_() }; schedProp_(BOM_MAIL_LAST, JSON.stringify(last));
+  logMail_('bom_short', unit, to.join(','), m.subject, 'ส่งแล้ว (' + m.list.length + ' รายการ)', cc.join(','));
+  audit_([['Admin', 'ส่งอีเมลรายการไม่พอ (Booking BOM)', unit, m.list.length + ' รายการ → ' + to.concat(cc).length + ' ผู้รับ']]);
+  return { ok: true, n: m.list.length, to: to, cc: cc, subject: m.subject, quota: MailApp.getRemainingDailyQuota() };
 }
