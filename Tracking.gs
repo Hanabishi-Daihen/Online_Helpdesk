@@ -160,7 +160,7 @@ function trkOrder_(o, idx, prev, today, opt, auto) {
   var apDays = appr && hi === 0 && apAt ? Math.round((today - (bomDate_(apAt) || today)) / 864e5) : 0;
   return { id: o.id, spec: o.spec, rqn: o.rqn, des: o.des, chk: o.chk, app: o.app, date: o.issueDate, remark: o.remark || '', state: st.key, stateTh: st.label,
     auto: auto ? auto.map(function (r) { return r.pr; }).filter(function (v, i, A) { return v && A.indexOf(v) === i; }) : null, refMissing: !trkRefOk_(o.rqn) && !trkRefOk_(o.spec),
-    fill: auto ? trkFill_(o, auto) : null,
+    fill: auto ? trkFill_(o, auto, opt.specAs) : !trkRefOk_(o.spec) && opt.specAs && opt.specAs[o.id] ? { rqn: '', spec: opt.specAs[o.id], sure: true } : null,
     stage: stage, steps: steps, items: items, late: items.reduce(function (m, i) { return Math.max(m, i.late); }, 0), noPr: apDays, waitDays: st.key === 'chk' || st.key === 'app' ? oaWorkDays_(oaSince_(a)) : null };
 }
 // a Pending Order file much smaller than last time (partial export) must not turn every listed order into "received"
@@ -189,17 +189,43 @@ function trkAuto_(orders, P) {
 // numbers to write back into an order matched by CODE + date (only the parts that are still a bare prefix)
 // sure = one PR of the order's year for every CODE, same quantities → filled automatically at the next scan;
 // otherwise the tracking card offers a button (trackFillRef)
-function trkFill_(o, rows) {
+// specAs = Spec numbers handed out across orders by trkSpecAssign_ ({ ORD26-0006: 'DS1C26-1346' })
+function trkFill_(o, rows, specAs) {
   var uq = function (a) { return a.filter(function (v, i) { return v && a.indexOf(v) === i; }); };
   var yy = ordYY_(o.issueDate), its = (o.items || []).filter(function (i) { return ordCodeKey_(i.code); });
   var prs = uq(rows.map(function (r) { return String(r.pr || '').trim(); })), sps = uq(rows.map(function (r) { return String(r.spec || '').trim(); }));
   var f = { rqn: '', spec: '', sure: false };
   if (!trkRefOk_(o.rqn) && prs.length === 1 && new RegExp('^RQN' + yy + '-\\d+$', 'i').test(prs[0])) f.rqn = prs[0].toUpperCase();
-  var sm = sps.length === 1 ? new RegExp('^DS1C' + yy + '-(\\d{3,4})$', 'i').exec(sps[0]) : null;   // Spec No 3–4 digits
-  if (!trkRefOk_(o.spec) && sm) f.spec = 'DS1C' + yy + '-' + sm[1];
+  if (!trkRefOk_(o.spec) && specAs && specAs[o.id]) f.spec = specAs[o.id];
   if (!f.rqn && !f.spec) return null;
   f.sure = !!f.rqn && rows.length === its.length && its.every(function (i) { var r = rows.filter(function (x) { return x.code === ordCodeKey_(i.code); })[0]; return r && Number(i.qty) === r.qty; });
   return f;
+}
+// Spec No for orders still showing "DS1C26-": Pending Order lists the PR's Spec numbers ("DS1C26-1345,1346").
+// Numbers already written in any order are taken; the rest go to the orders on that PR whose Spec is still blank,
+// in ORD order (ORD numbers follow the order Specs are issued) — only when the counts match exactly.
+function trkSpecAssign_(orders, P, auto) {
+  var used = {}, groups = {}, out = {};
+  orders.forEach(function (o) { var m = /^DS1C(\d{2})-(\d{3,4})$/i.exec(String(o.spec || '').trim()); if (m) used[m[1] + '-' + parseInt(m[2], 10)] = 1; });
+  orders.forEach(function (o) {
+    if (trkRefOk_(o.spec) || wsOrderState_(o).key === 'rejected') return;
+    var mine = {}; (o.items || []).forEach(function (it) { mine[ordCodeKey_(it.code)] = 1; });
+    var rows = (auto[o.id] || trkRows_(o, P.idx)).filter(function (r) { return mine[r.code]; }), yy = ordYY_(o.issueDate), nums = [];
+    rows.forEach(function (r) {
+      var m = /^DS1C(\d{2})-(.+)$/i.exec(String(r.spec || '').trim()); if (!m || m[1] !== yy) return;
+      m[2].split(/[,\s\/]+/).forEach(function (n) { if (/^\d{3,4}$/.test(n) && nums.indexOf(n) < 0) nums.push(n); });
+    });
+    if (!nums.length) return;
+    nums.sort(function (a, b) { return parseInt(a, 10) - parseInt(b, 10); });
+    var key = yy + ':' + nums.join(',');
+    (groups[key] = groups[key] || { yy: yy, nums: nums, ids: [] }).ids.push(o.id);
+  });
+  Object.keys(groups).forEach(function (k) {
+    var g = groups[k], free = g.nums.filter(function (n) { return !used[g.yy + '-' + parseInt(n, 10)]; });
+    if (free.length !== g.ids.length) return;                           // not one number per order → leave it to a person
+    g.ids.sort().forEach(function (id, i) { out[id] = 'DS1C' + g.yy + '-' + free[i]; });
+  });
+  return out;
 }
 // write the numbers into the order (caller holds the script lock)
 function trkFillApply_(id, f, why) {
@@ -228,6 +254,7 @@ function trkAll_(prevState) {
   var P = trkPendIdx_(), today = wsToday_(), prev = (prevState && prevState.o) || {}, out = [];
   var opt = { gone: !!(P.n && (!prevState || !prevState.pn || P.n >= prevState.pn * 0.5)) };
   var orders = ordAll_().filter(function (o) { return ordAgeDays_(o.issueDate) <= 365; }), auto = trkAuto_(orders, P);
+  opt.specAs = trkSpecAssign_(orders, P, auto);
   orders.forEach(function (o) { out.push(trkOrder_(o, P.idx, prev[o.id], today, opt, auto[o.id])); });
   out = out.reverse(); out.pn = P.n; out.gone = opt.gone;
   return out;
