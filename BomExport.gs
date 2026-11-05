@@ -198,16 +198,21 @@ function bomRowH_(o, r) {
 }
 function bomQtyTxt_(q) { return String(Math.round(q * 1000) / 1000); }
 function bomFormW_() { return BOM_FORM_W.reduce(function (s, w) { return s + w; }, 0); }
-// split the rows into A4 pages: every page = heading + items + signatures + footer, sized to the A4 aspect ratio
-function bomPages_(o, fixedPx) {
-  var budget = Math.round(bomFormW_() * BOM_FORM.RATIO) - fixedPx, pages = [], cur = [], used = 0;
+// split the rows into A4 pages: every page = heading + items + footer, sized to the A4 aspect ratio;
+// the signature block (sigPx) is printed on the last page only, so earlier pages hold more items
+function bomPages_(o, fixedPx, sigPx) {
+  var full = Math.round(bomFormW_() * BOM_FORM.RATIO) - fixedPx, last = full - (sigPx || 0), pages = [], cur = [], used = 0;
   o.rows.forEach(function (r) {
     var h = bomRowH_(o, r);
-    if (cur.length && used + h > budget) { pages.push(cur); cur = []; used = 0; }
+    if (cur.length && used + h > full) { pages.push(cur); cur = []; used = 0; }
     cur.push(r); used += h;
   });
   if (cur.length || !pages.length) pages.push(cur);
-  return { pages: pages, budget: budget };
+  // the last page also needs room for the signatures: move its last rows onto a new final page until it fits
+  var hOf = function (L) { return L.reduce(function (t, r) { return t + bomRowH_(o, r); }, 0); }, tail = [];
+  while (pages[pages.length - 1].length > 1 && hOf(pages[pages.length - 1]) > last) tail.unshift(pages[pages.length - 1].pop());
+  if (tail.length) pages.push(tail);
+  return { pages: pages, budget: full, budgetLast: last };
 }
 // base = converted template sheet → one sheet per page ("Page 1", "Page 2", …), base removed
 function bomFormBuild_(ss, base, o, cfg) {
@@ -221,16 +226,16 @@ function bomFormBuild_(ss, base, o, cfg) {
   ordSet_(base, 'D5', 'เบอร์งาน__' + o.job + '__');
   var hs = function (a, b) { var s = 0; for (var r = a; r <= b; r++) s += base.getRowHeight(r); return s; };
   var tail = F.ROW0 + F.TPL_ROWS;                                    // gap row (31) + 5 signature rows (32–36)
-  var P = bomPages_(o, hs(1, F.ROW0 - 1) + hs(tail, tail + 5) + F.FOOT_H), no = 0;
+  var P = bomPages_(o, hs(1, F.ROW0 - 1) + F.FOOT_H, hs(tail, tail + 5)), no = 0;
   P.pages.forEach(function (rows, pi) {
-    var sh = base.copyTo(ss).setName('Page ' + (pi + 1));
-    bomPageFill_(sh, o, rows, no, pi, P.pages.length, P.budget, cfg);
+    var sh = base.copyTo(ss).setName('Page ' + (pi + 1)), isLast = pi === P.pages.length - 1;
+    bomPageFill_(sh, o, rows, no, pi, P.pages.length, isLast ? P.budgetLast : P.budget, cfg, isLast);
     no += rows.length;
   });
   ss.deleteSheet(base);
   return P.pages.length;
 }
-function bomPageFill_(sh, o, rows, no, pi, n, budget, cfg) {
+function bomPageFill_(sh, o, rows, no, pi, n, budget, cfg, isLast) {
   var F = BOM_FORM, r0 = F.ROW0, used = 0;
   rows.forEach(function (r) { used += bomRowH_(o, r); });
   var blanks = Math.max(0, Math.floor((budget - used) / BOM_FORM_H.min)), R = Math.max(1, rows.length + blanks);
@@ -256,8 +261,10 @@ function bomPageFill_(sh, o, rows, no, pi, n, budget, cfg) {
     if (len > 90) sh.getRange(r0 + j, 3).setFontSize(13); else if (len > 70) sh.getRange(r0 + j, 3).setFontSize(14);
     if (it && String(it.code).length > 16) sh.getRange(r0 + j, 2).setFontSize(14);
   }
+  // signatures (gap row + 5 rows under the items) on the last page only
+  if (isLast === false) sh.deleteRows(r0 + R, 6);
   // spacer (pushes the footer to the bottom of the page) + footer
-  var sp = r0 + R + 6, ft = sp + 1, mr = sh.getMaxRows();
+  var sp = r0 + R + (isLast === false ? 0 : 6), ft = sp + 1, mr = sh.getMaxRows();
   if (mr < ft) sh.insertRowsAfter(mr, ft - mr);
   else if (mr > ft) sh.deleteRows(ft + 1, mr - ft);
   sh.setRowHeight(sp, spacer); sh.setRowHeight(ft, F.FOOT_H);
