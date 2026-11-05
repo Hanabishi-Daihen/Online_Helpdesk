@@ -169,7 +169,8 @@ function trkOrder_(o, idx, prev, today, opt, auto) {
 // other order (exact matches first, then older orders first), nearest date first, same quantity preferred.
 function trkAuto_(orders, P) {
   var used = {}, out = {};
-  orders.forEach(function (o) { trkRows_(o, P.idx).forEach(function (r) { used[r.id] = 1; }); });
+  // a PR line counts as taken only for a CODE that order really has: another CODE on the same PR can belong to another order
+  orders.forEach(function (o) { var mine = {}; (o.items || []).forEach(function (it) { mine[ordCodeKey_(it.code)] = 1; }); trkRows_(o, P.idx).forEach(function (r) { if (mine[r.code]) used[r.id] = 1; }); });
   orders.forEach(function (o) {
     if (trkRefOk_(o.rqn) || trkRefOk_(o.spec) || wsOrderState_(o).key === 'rejected') return;
     var t0 = bomDate_(o.issueDate), rs = []; if (t0 == null) return;
