@@ -188,6 +188,14 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
   <h3>สถานะของเคส</h3>
   <div class="flow"><span class="pill p-i">New</span><i>→</i><span class="pill p-w">In Progress</span><i>→</i><span class="pill p-w">Waiting</span><i>→</i><span class="pill p-ok">Resolved</span><i>→</i><span class="pill p-ok">Closed</span></div>
   <p><b>Waiting</b> = รอข้อมูลหรือรออะไหล่ · <b>Resolved</b> = แก้แล้ว รอยืนยัน · <b>Closed</b> = ปิดเคส</p>
+  <h3>ลบเคส <span class="role r-a">ADMIN</span></h3>
+  <p>ใช้กับเคสที่ไม่ใช่ปัญหาจริง เช่น เคสทดลอง พิมพ์เล่น หรือพิมพ์ผิด · ลบได้ 2 ทาง: ติ๊กเลือกในตารางเคส (เลือกได้หลายรายการ) แล้วกด <span class="ui">🗑 ลบถาวร</span> ในแถบด้านล่าง หรือเปิดเคสแล้วกด <span class="ui">🗑 ลบเคส</span> มุมขวาบน · ระบบถามยืนยันก่อนทุกครั้ง</p>
+  <ul>
+    <li>เคสหายจากระบบของทุกคน (เครื่องที่เปิดค้างไว้จะหายเองภายในไม่กี่วินาที) และ<b>ไม่ถูกบันทึกกลับขึ้นมาใหม่</b>แม้มีเครื่องที่ยังเห็นเคสนั้นอยู่</li>
+    <li>เลขเคสที่ลบแล้วจะไม่ถูกนำมาใช้ซ้ำ</li>
+    <li>สำเนาของเคสที่ลบเก็บไว้ในชีต <code>DeletedIssues</code> (เวลาที่ลบ + ผู้ลบ + ข้อมูลเคสครบทุกคอลัมน์) ถ้าลบผิด คัดลอกแถวนั้น (ตั้งแต่คอลัมน์ C) กลับไปวางท้ายชีต Issues ได้ · ประวัติการลบอยู่ใน Audit log · ไฟล์แนบยังอยู่ใน Google Drive</li>
+    <li>ถ้าแค่ไม่อยากเห็นเคสที่จบแล้ว ให้ใช้ <span class="ui">ย้ายเข้า Archive</span> แทน (นำกลับได้จากหน้าแดชบอร์ด)</li>
+  </ul>
 </section>
 
 <section id="ticket">

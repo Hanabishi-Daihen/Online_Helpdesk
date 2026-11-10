@@ -286,6 +286,7 @@ function nextId_(sh) {
     var id = String(r[0]);
     if (id.indexOf('ISS-' + year) === 0) max = Math.max(max, parseInt(id.substring(8), 10) || 0);
   });
+  issDeleted_().forEach(function (id) { if (id.indexOf('ISS-' + year) === 0) max = Math.max(max, parseInt(id.substring(8), 10) || 0); });   // never reuse a deleted number
   return 'ISS-' + year + ('00' + (max + 1)).slice(-3);
 }
 
@@ -303,7 +304,7 @@ function createIssue(issue) {
     ensureIssueCols_(sh);
     var last = sh.getLastRow();
     var ids = last > 1 ? sh.getRange(2, 1, last - 1, 1).getValues().map(function (r) { return String(r[0]).trim(); }) : [];
-    if (!oldId || ids.indexOf(oldId) >= 0) issue.id = nextId_(sh);
+    if (!oldId || ids.indexOf(oldId) >= 0 || issDeleted_().indexOf(oldId) >= 0) issue.id = nextId_(sh);
     writeText_(sh, Math.max(last, 1) + 1, 1, issueToRow_(issue));
     issBump_(verWho_(isAdmin_(tk) ? tk : ''));
     return { oldId: oldId, issue: issue };
@@ -395,9 +396,10 @@ function upsertIssues(list, token) {
     ensureIssueCols_(sh);
     var last = sh.getLastRow();
     var all = last > 1 ? sh.getRange(2, 1, last - 1, NCOLS).getDisplayValues() : [];
-    var idx = {};
+    var idx = {}, dead = issDeleted_();
     all.forEach(function (r, i) { idx[String(r[0]).trim()] = i; });
     list.forEach(function (inc) {
+      if (!(String(inc.id).trim() in idx) && dead.indexOf(String(inc.id).trim()) >= 0) return;   // deleted by Admin → skip
       clean_(inc);
       if (!admin) { inc.archived = false; }           // only admin can archive / restore / assign / link
       var key = String(inc.id).trim();
@@ -441,6 +443,45 @@ function upsertIssues(list, token) {
     try { notifyChange_(p[0], p[1]); } catch (e) { console.warn(e); }
   });
   perf_('upsertIssues', t0);
+  return out;
+}
+
+// ── Admin: delete cases for good (test / prank / mistyped reports) ─────────────
+// The rows move to sheet DeletedIssues (recycle bin: time, Admin, then the 17 case columns — copy a row back to
+// Issues to restore it). Their IDs are remembered (ISS_DELETED, newest 500) so a browser that still shows them
+// cannot write them back, and the ID number is never handed out again. Attached files stay in Drive.
+var ISS_DEL_MAX = 500, ISS_BIN = 'DeletedIssues';
+function issDeleted_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('ISS_DELETED') || '[]') || []; } catch (e) { return []; } }
+function deleteIssues(token, ids) {
+  requireAdmin_(token);
+  var want = {};
+  (Array.isArray(ids) ? ids : [ids]).slice(0, 200).forEach(function (x) { var k = String(x == null ? '' : x).trim(); if (k) want[k] = 1; });
+  if (!Object.keys(want).length) throw new Error('ไม่ได้เลือกเคสที่จะลบ');
+  var t0 = Date.now();
+  var out = withLock_(function () {
+    var sh = sheet_(CONFIG.ISSUES, ISSUE_HEADER); ensureIssueCols_(sh);
+    var last = sh.getLastRow(), all = last > 1 ? sh.getRange(2, 1, last - 1, NCOLS).getDisplayValues() : [];
+    var hit = [];
+    all.forEach(function (r, i) { if (want[String(r[0]).trim()]) hit.push(i); });
+    if (!hit.length) return { deleted: [] };
+    var bin = sheet_(ISS_BIN, ['Deleted At', 'Deleted By'].concat(ISSUE_HEADER)), stamp = nowStr_(), who = verWho_(token);
+    var binRows = hit.map(function (i) { return [stamp, who].concat(all[i]); });
+    var at = Math.max(bin.getLastRow(), 1) + 1, rg = bin.getRange(at, 1, binRows.length, binRows[0].length);
+    fmtText_(rg); rg.setValues(binRows);                                     // keep a copy first, then remove
+    for (var k = hit.length - 1; k >= 0;) {                                  // bottom-up, contiguous runs in one call
+      var end = hit[k], start = end; while (k > 0 && hit[k - 1] === start - 1) { k--; start--; } k--;
+      sh.deleteRows(start + 2, end - start + 1);
+    }
+    var gone = hit.map(function (i) { return String(all[i][0]).trim(); });
+    var dead = issDeleted_().filter(function (x) { return gone.indexOf(x) < 0; }).concat(gone);
+    PropertiesService.getScriptProperties().setProperty('ISS_DELETED', JSON.stringify(dead.slice(-ISS_DEL_MAX)));
+    audit_(hit.map(function (i) {
+      var r = all[i]; return ['Admin', 'ลบเคสถาวร', String(r[0]).trim(), (r[1] || '-') + ' · ' + String(r[2] || '').substring(0, 120) + ' · ผู้แจ้ง ' + (r[3] || '-') + ' (สำเนาอยู่ในชีต ' + ISS_BIN + ')'];
+    }));
+    issBump_(who);
+    return { deleted: gone };
+  });
+  perf_('deleteIssues ' + out.deleted.length, t0);
   return out;
 }
 
@@ -488,7 +529,8 @@ function saveAllIssues(token, issues, baseVer) {
   try { backupRun_('ก่อนเขียนทับ Issues'); } catch (e) { console.warn(e); }
   audit_([['Admin', 'เขียนทับ Issues ทั้งชีต', '', (issues || []).length + ' รายการ']]);
   return withLock_(function () {
-    var sh = sheet_(CONFIG.ISSUES, ISSUE_HEADER);
+    var sh = sheet_(CONFIG.ISSUES, ISSUE_HEADER), dead = issDeleted_();
+    issues = (issues || []).filter(function (i) { return dead.indexOf(String(i && i.id || '').trim()) < 0; });   // deleted cases stay deleted
     var rows = issues.map(function (i) {
       i.files = persistFiles_(i.files);
       (i.chat || []).forEach(function (m) { if (m.files) m.files = persistFiles_(m.files); });
