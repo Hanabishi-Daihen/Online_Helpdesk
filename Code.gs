@@ -34,7 +34,9 @@ function doGet(e) {
   // so the page answers these first calls locally instead (see bootCall in index.html).
   var t0 = Date.now(), boot = {}, vers = null;
   try { vers = getDataVers(); } catch (e) {}                      // read before the data → conflict checks stay safe
-  [['getAppUrl', getAppUrl], ['getSettings', getSettings], ['getSchedules', getSchedules], ['getPublicTemplates', getPublicTemplates]]
+  // cached copies (bootCfg_ / schedCached_) → usually no spreadsheet is opened here; getPulse lets the first page loads keep their cache
+  [['getAppUrl', getAppUrl], ['getSettings', function () { return bootCfg_().settings; }], ['getSchedules', schedCached_],
+   ['getPublicTemplates', function () { return bootCfg_().templates; }], ['getPulse', getPulse]]
     .forEach(function (f) { try { boot[f[0]] = f[1](); } catch (e) { console.warn(f[0], e); } });
   out.append('<script>window.__ZQ_BOOT__=' + JSON.stringify({ t: Date.now(), r: boot, v: vers }).replace(/</g, '\\u003c') + ';</script>');
   perf_('doGet boot', t0);
@@ -197,11 +199,12 @@ function verConflict_(kind, base, who) {
 //   po    Pending Order    rt     lead time (StockRT)      sa     Stock Alert settings
 //   bom   Booking BOM      rs     Stock ช่วยใช้             ord    Order Item list
 //   oa    order approvals  odb    DatabaseItemOrder        ntf    notifications (Tracking.gs)
-//   doc   FileList (DocSearch.gs)
+//   doc   FileList (DocSearch.gs)  isb  5-minute bucket: the case list re-reads the sheet to catch edits made by hand
 function dataBump_(key) { PropertiesService.getScriptProperties().setProperty(key, String(Date.now())); }
 function getPulse() {
   var P = PropertiesService.getScriptProperties().getProperties(), g = function (k) { return String(P[k] || ''); };
-  return { iss: issVer_(), sched: g('SCHED_VER'), stock: g('STOCK_HASH').substring(0, 16), po: g('PO_HASH').substring(0, 16),
+  var iv = issVer_().split(':');                                   // iss = real version · isb = 5-minute bucket (only the case list uses it)
+  return { iss: iv[0], isb: iv[1] || '', sched: g('SCHED_VER'), stock: g('STOCK_HASH').substring(0, 16), po: g('PO_HASH').substring(0, 16),
     rt: g('RT_HASH').substring(0, 16), sa: g('SA_VER') + '|' + g('SA_CFG').length, bom: g('BOM_VER') + '|' + g('BOM_EXP_VER'),
     rs: g('RS_VER'), ord: g('ORD_VER'), oa: g('ORD_AP_VER'), odb: g('ORD_DB_VER'), ntf: g('NTF_VER'), doc: g('DOC_HASH').substring(0, 16) + '|' + g('DOC_OD_VER') };
 }
@@ -220,21 +223,55 @@ function checkDataVers(token, vers) {
   return out;
 }
 function getIssuesVer() { return issVer_(); }
+// several small reads in one round trip (each google.script.run call costs ~0.5–1 s before any work starts).
+// calls = [[name, args]] run in order → [{ v } | { e }]. Only the read functions below; each keeps its own checks.
+var MANY_OK = ['getPulse', 'getDataVers', 'getIssuesVer', 'getIssues', 'getSchedules', 'getBomSummary', 'getStockAlertSummary',
+  'getOrderAgeSummary', 'getOrderTrackSummary', 'getNotify', 'getRemainFlags', 'getStockMeta', 'getPendingMeta', 'getOrderApprovalPulse'];
+function getMany(calls) {
+  var t0 = Date.now(), G = globalThis;
+  var out = (Array.isArray(calls) ? calls : []).slice(0, 20).map(function (c) {
+    var n = String(c && c[0] || '');
+    if (MANY_OK.indexOf(n) < 0 || typeof G[n] !== 'function') return { e: 'not allowed: ' + n };
+    try { return { v: G[n].apply(null, Array.isArray(c[1]) ? c[1] : []) }; } catch (e) { return { e: String(e && e.message || e) }; }
+  });
+  perf_('getMany ' + out.length, t0);
+  return out;
+}
+// Every open browser re-reads the cases when the version or its 5-minute bucket changes (issVer_), so the rows are
+// cached under that same stamp: browsers in one 5-minute window share one sheet read. Writes bump the version → new key.
 function getIssues(token) {
-  var t0 = Date.now();
+  var t0 = Date.now(), admin = isAdmin_(token), key = 'issrows_' + (admin ? 'A' : 'U') + issVer_().replace(/[^\w]/g, '_');
+  var hit = ordCacheGet_(key); if (hit) { perf_('getIssues (cache)', t0); return hit; }
   var s = ss_().getSheetByName(CONFIG.ISSUES);
   if (!s || s.getLastRow() < 2) return [];
   ensureIssueCols_(s);
   var rows = s.getRange(2, 1, s.getLastRow() - 1, NCOLS).getDisplayValues();
-  if (!isAdmin_(token)) rows.forEach(function (r) { r[12] = ''; });   // reporter email: admin only
+  if (!admin) rows.forEach(function (r) { r[12] = ''; });   // reporter email: admin only
+  ordCachePut_(key, rows, 600);
   perf_('getIssues', t0);
   return rows;
 }
 function getSchedules() {
   var s = ss_().getSheetByName(CONFIG.SCHEDULES);
-  if (!s || s.getLastRow() < 2) return [];
-  return s.getRange(2, 1, s.getLastRow() - 1, 11).getDisplayValues();
+  var rows = !s || s.getLastRow() < 2 ? [] : s.getRange(2, 1, s.getLastRow() - 1, 11).getDisplayValues();
+  ordCachePut_(schedCacheKey_(), rows, 600);
+  return rows;
 }
+// page-load copy of the schedule: keyed by SCHED_VER (every save / import / sync bumps it), kept 10 min so
+// edits typed straight into the sheet still show within 10 min. The page's reload button reads the sheet.
+function schedCacheKey_() { return 'schedrows_' + (PropertiesService.getScriptProperties().getProperty('SCHED_VER') || '0'); }
+function schedCached_() { return ordCacheGet_(schedCacheKey_()) || getSchedules(); }
+// settings + public templates for doGet (Settings A1, C1, D1, E1): one range read, cached 30 min, cleared on every save
+function bootCfg_() {
+  var c = CacheService.getScriptCache(), hit = c.get('boot_cfg');
+  if (hit) { try { return JSON.parse(hit); } catch (e) {} }
+  var sh = ss_().getSheetByName(CONFIG.SETTINGS), v = sh ? sh.getRange('A1:E1').getValues()[0] : ['', '', '', '', ''];
+  var j = function (x) { try { return x ? JSON.parse(String(x)) : null; } catch (e) { return null; } };
+  var out = { settings: j(v[0]) || {}, templates: { issue: j(v[2]), report: j(v[3]), categories: j(v[4]) } };
+  try { var js = JSON.stringify(out); if (js.length < 95000) c.put('boot_cfg', js, 1800); } catch (e) {}
+  return out;
+}
+function bootCfgClear_() { try { CacheService.getScriptCache().remove('boot_cfg'); } catch (e) {} }
 function getSettings() {
   var s = ss_().getSheetByName(CONFIG.SETTINGS);
   if (!s) return {};
@@ -498,6 +535,7 @@ function saveSettings(token, patch) {
     var js = JSON.stringify(cur);
     if (js.length > 49000 && cur.ui && cur.ui.logoDataUrl) { delete cur.ui.logoDataUrl; js = JSON.stringify(cur); }
     sheet_(CONFIG.SETTINGS).getRange('A1').setNumberFormat('@').setValue(js);
+    bootCfgClear_();
     return js.length <= 49000;
   });
 }
@@ -960,6 +998,7 @@ function writeJsonCell_(a1, obj) {
   var js = JSON.stringify(obj);
   if (js.length > 45000) throw new Error('ข้อมูลยาวเกินไป (' + js.length + ' ตัวอักษร)');
   sheet_(CONFIG.SETTINGS).getRange(a1).setNumberFormat('@').setValue(js);
+  bootCfgClear_();
 }
 function cleanIssueTpls_(list) {
   var P = { Low: 1, Medium: 1, High: 1, Urgent: 1 }, L = function (v, n) { return String(v == null ? '' : v).substring(0, n); };
