@@ -592,6 +592,25 @@ function adminLogin(user, pass, newPass) {
   audit_([['Admin', 'เข้าสู่ระบบ Admin', '', first ? 'ตั้งรหัสผ่านส่วนตัวครั้งแรก' : '']]);
   return out;
 }
+// Run ONCE from the Apps Script editor (select setupAdminFromProperty → Run): sets one Admin's password from the
+// Script property SETUP_ADMIN = "user:password", then deletes that property, so the password never sits in the code.
+// The editor is the script owner, so the web page's 8-character rule does not apply here.
+function setupAdminFromProperty() {
+  var P = PropertiesService.getScriptProperties(), raw = String(P.getProperty('SETUP_ADMIN') || ''), i = raw.indexOf(':');
+  if (i < 1) throw new Error('เพิ่ม Script property SETUP_ADMIN = user:password ก่อน เช่น premwit:รหัสผ่าน');
+  var u = admKey_(raw.substring(0, i)), pw = raw.substring(i + 1);
+  if (!pw) throw new Error('SETUP_ADMIN ไม่มีรหัสผ่านหลังเครื่องหมาย :');
+  var name = withLock_(function () {
+    var list = admUsers_(), a = list.filter(function (x) { return x.u === u; })[0];
+    if (!a) throw new Error('ไม่พบบัญชี ' + u + ' (มี: ' + list.map(function (x) { return x.u; }).join(', ') + ')');
+    admSetPass_(a, pw); admSave_(list); return a.n;
+  });
+  P.deleteProperty('SETUP_ADMIN');
+  admTokens_(u); try { CacheService.getScriptCache().remove('admfail_' + u); } catch (e) {}
+  audit_([['System', 'ตั้งรหัสผ่าน Admin จาก Apps Script editor', '', u + ' (' + name + ')']]);
+  console.log('ตั้งรหัสผ่านของ ' + u + ' (' + name + ') แล้ว · ลบ SETUP_ADMIN ออกจาก Script properties ให้แล้ว');
+  return u;
+}
 function admMe_(token) { try { return JSON.parse(CacheService.getScriptCache().get('adm_' + token) || '{}') || {}; } catch (e) { return {}; } }
 // Admin: account list (never the password) · add / rename · remove · reset password · change own password
 function getAdminUsers(token) {
