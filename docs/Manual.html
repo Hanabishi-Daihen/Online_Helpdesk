@@ -125,7 +125,7 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
     <li><div>ดูเมนูด้านซ้าย (บนมือถือกดปุ่มเมนูมุมบน) เลือกงานที่ต้องการ เช่น <span class="ui">แจ้งปัญหาใหม่</span> หรือ <span class="ui">Item stock</span></div></li>
     <li><div>ต้องการค้นหาอะไรด่วน ใช้ช่อง <span class="ui">ค้นหา</span> ด้านบน หรือกด <kbd>Ctrl</kbd>+<kbd>K</kbd> (Mac: <kbd>⌘</kbd>+<kbd>K</kbd>)</div></li>
     <li><div>ขณะระบบโหลดหรือบันทึก จะมีแถบแสดงสถานะ "กำลังโหลด… / กำลังบันทึก…" รอจนหายไปก่อนกดซ้ำ</div></li>
-    <li><div>ถ้าเป็นผู้ดูแล กด <span class="ui">ปลดล็อค</span> ที่กล่อง <span class="ui">Admin: Locked</span> มุมล่างซ้าย แล้วใส่รหัส Admin</div></li>
+    <li><div>ถ้าเป็นผู้ดูแล กด <span class="ui">ปลดล็อค</span> ที่กล่อง <span class="ui">Admin: Locked</span> มุมล่างซ้าย แล้วเข้าสู่ระบบด้วยชื่อผู้ใช้และรหัสผ่านของตัวเอง</div></li>
   </ol>
   <div class="note"><b>เคล็ดลับ</b>ข้อมูลที่เปิดบ่อย (รายการเคส, Item stock) ถูกเก็บสำรองไว้ในเครื่อง หน้าจอจึงแสดงผลได้ทันทีแล้วค่อยอัปเดตเป็นข้อมูลล่าสุดตามมา</div>
 </section>
@@ -146,13 +146,29 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
       <tr><td>ตั้งค่าระบบ / แม่แบบ / สุขภาพระบบ</td><td>ไม่เห็นเมนู</td><td>ใช้ได้ทั้งหมด</td></tr>
     </tbody>
   </table></div>
-  <h3>ปลดล็อคและล็อค Admin</h3>
+  <h3>เข้าสู่ระบบ Admin (User + Password)</h3>
   <ol class="steps">
     <li><div>กด <span class="ui">ปลดล็อค</span> ที่กล่อง <span class="ui">Admin: Locked</span> มุมล่างซ้าย</div></li>
-    <li><div>ใส่รหัส Admin แล้วกดยืนยัน ป้ายมุมบนจะเปลี่ยนจาก <span class="ui">USER</span> เป็น Admin และมีเมนูดูแลระบบเพิ่มขึ้น</div></li>
-    <li><div>ใช้เสร็จ กดล็อคกลับ หรือปุ่ม <span class="ui">User Mode</span> ด้านบนเพื่อดูหน้าจอแบบผู้ใช้ทั่วไป</div></li>
+    <li><div>ใส่<b>ชื่อผู้ใช้</b>และ<b>รหัสผ่าน</b>ของตัวเอง แล้วกด <span class="ui">เข้าสู่ระบบ</span> ป้ายมุมบนจะเปลี่ยนจาก <span class="ui">USER</span> เป็น Admin กล่องมุมล่างซ้ายแสดงชื่อ เช่น <span class="ui">Admin: C.Premwit</span></div></li>
+    <li><div><b>เข้าใช้ครั้งแรก</b> ใส่ชื่อผู้ใช้ + <b>รหัสเริ่มต้น</b>ที่ได้รับ ระบบจะให้ตั้งรหัสผ่านส่วนตัวทันที (8 ตัวอักษรขึ้นไป) ครั้งต่อไปใช้รหัสส่วนตัวเท่านั้น รหัสเริ่มต้นใช้กับบัญชีนั้นไม่ได้อีก</div></li>
+    <li><div>ใช้เสร็จ กด <span class="ui">ออก</span> หรือปุ่ม <span class="ui">User Mode</span> ด้านบนเพื่อดูหน้าจอแบบผู้ใช้ทั่วไป</div></li>
   </ol>
-  <div class="note warn"><b>ความปลอดภัย</b>รหัส Admin ตั้งที่ Apps Script → Project Settings → Script properties ชื่อ <code>ADMIN_PASSCODE</code> ถ้ายังไม่ได้ตั้ง ระบบจะใช้รหัสเริ่มต้น ควรตั้งรหัสใหม่ทันที สิทธิ์ Admin หมดอายุเองเมื่อไม่ได้ใช้นาน ถ้าขึ้นข้อความ "สิทธิ์ Admin หมดอายุ" ให้ปลดล็อคใหม่</div>
+  <table>
+    <thead><tr><th>ชื่อผู้ใช้ (User)</th><th>ชื่อที่แสดง</th></tr></thead>
+    <tbody>
+      <tr><td><code>premwit</code></td><td>C.Premwit</td></tr>
+      <tr><td><code>panudech</code></td><td>J.Panudech</td></tr>
+      <tr><td><code>thutchanon</code></td><td>S.Thutchanon</td></tr>
+      <tr><td><code>nuttapol</code></td><td>P.Nuttapol</td></tr>
+      <tr><td><code>panuwat</code></td><td>P.Panuwat</td></tr>
+    </tbody>
+  </table>
+  <ul>
+    <li><b>ชื่อที่แสดง</b>ใช้ทั้งระบบ: ผู้รับผิดชอบเคส (ปุ่ม <span class="ui">รับเรื่องเอง</span> ใส่ชื่อให้เอง และรายชื่อ Admin ขึ้นให้เลือกตอนมอบหมาย) · ข้อความตอบกลับและการเปลี่ยนสถานะในแชทของเคส · Audit log (เช่น "Admin · C.Premwit") · ผู้ลบในชีต <code>DeletedIssues</code></li>
+    <li>ใส่รหัสผิด 5 ครั้ง ชื่อผู้ใช้นั้นจะเข้าไม่ได้ 15 นาที</li>
+    <li><b>จัดการบัญชี</b> ที่ <span class="ui">ตั้งค่าระบบ</span> → กล่อง <span class="ui">👤 บัญชี Admin</span>: เพิ่มบัญชี · แก้ชื่อที่แสดง · รีเซ็ตรหัส (บัญชีนั้นถูกออกจากระบบ และต้องเข้าใหม่ด้วยรหัสเริ่มต้นแล้วตั้งรหัสใหม่) · ลบบัญชี · เปลี่ยนรหัสผ่านของตัวเอง</li>
+  </ul>
+  <div class="note warn"><b>ความปลอดภัย</b><b>รหัสเริ่มต้น</b>ตั้งที่ Apps Script → Project Settings → Script properties ชื่อ <code>ADMIN_PASSCODE</code> ใช้ได้เฉพาะกับบัญชีที่ยังไม่ได้ตั้งรหัสส่วนตัว ใครรู้รหัสนี้และชื่อผู้ใช้ของบัญชีที่ยังไม่ตั้งรหัส จะเข้าเป็น Admin คนนั้นได้ จึงควรตั้งให้เดายาก ให้ทุกคนเข้าใช้ครั้งแรกโดยเร็ว และลบบัญชีที่ไม่ใช้ · ระบบเก็บรหัสผ่านแบบเข้ารหัสทางเดียว ไม่มีใครดูรหัสของคนอื่นได้ · สิทธิ์ Admin หมดอายุเองเมื่อไม่ได้ใช้นาน ถ้าขึ้นข้อความ "สิทธิ์ Admin หมดอายุ" ให้ปลดล็อคใหม่</div>
 </section>
 
 <section id="screen">

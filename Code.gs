@@ -1,7 +1,7 @@
 /**
  * Online Helpdesk & Schedule Portal — Google Apps Script backend
  * Deploy: Web app → Execute as: Me → Who has access: Anyone
- * Script properties (Project Settings): ADMIN_PASSCODE = รหัส Admin · STOCK_COST_CODE = รหัสดูราคา Item stock (ไม่มีค่าเริ่มต้นในโค้ด)
+ * Script properties (Project Settings): ADMIN_PASSCODE = รหัสเริ่มต้นสำหรับตั้งรหัสผ่านส่วนตัวของ Admin ครั้งแรก · STOCK_COST_CODE = รหัสดูราคา Item stock (ไม่มีค่าเริ่มต้นในโค้ด)
  */
 var CONFIG = {
   SPREADSHEET_ID: '1zJwAM1Cpfpz8-vaMBkjxEhkr2cu2gW6XzpD-en7Kqns',
@@ -71,7 +71,14 @@ function withLock_(fn) {
   if (typeof ordMemoReset_ === 'function') ordMemoReset_();
   try { return fn(); } finally { lock.releaseLock(); }
 }
-function isAdmin_(token) { return !!token && !!CacheService.getScriptCache().get('adm_' + token); }
+// the token of a signed-in Admin maps to { u: user, n: display name } for 6 h; __admName = who is acting in this call
+var __admName = '';
+function isAdmin_(token) {
+  if (!token) return false;
+  var v = CacheService.getScriptCache().get('adm_' + token); if (!v) return false;
+  try { var o = JSON.parse(v); if (o && o.n) __admName = String(o.n); } catch (e) {}
+  return true;
+}
 function requireAdmin_(token) { if (!isAdmin_(token)) throw new Error('Admin only: สิทธิ์ Admin หมดอายุหรือยังไม่ได้ปลดล็อค'); }
 function esc_(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 // Plain-text format. Google Sheets "Tables" refuse a multi-column format change
@@ -321,7 +328,11 @@ function mergeChat_(oldChat, newChat) {
   newChat.forEach(function (m) {
     var k = key(m);
     if (k in map) { if (m.read) out[map[k]].read = true; }
-    else { m.message = String(m.message || '').substring(0, 2000); if (m.files) m.files = persistFiles_(m.files); map[k] = out.length; out.push(m); }
+    else {
+      m.message = String(m.message || '').substring(0, 2000); if (m.files) m.files = persistFiles_(m.files);
+      if (__admName && (m.sender === 'Admin' || m.sender === 'System')) m.by = __admName; else delete m.by;   // who in the team (set here, never by the browser)
+      map[k] = out.length; out.push(m);
+    }
   });
   return out;
 }
@@ -465,7 +476,7 @@ function deleteIssues(token, ids) {
     all.forEach(function (r, i) { if (want[String(r[0]).trim()]) hit.push(i); });
     if (!hit.length) return { deleted: [] };
     var bin = sheet_(ISS_BIN, ['Deleted At', 'Deleted By'].concat(ISSUE_HEADER)), stamp = nowStr_(), who = verWho_(token);
-    var binRows = hit.map(function (i) { return [stamp, who].concat(all[i]); });
+    var binRows = hit.map(function (i) { return [stamp, __admName || who].concat(all[i]); });
     var at = Math.max(bin.getLastRow(), 1) + 1, rg = bin.getRange(at, 1, binRows.length, binRows[0].length);
     fmtText_(rg); rg.setValues(binRows);                                     // keep a copy first, then remove
     for (var k = hit.length - 1; k >= 0;) {                                  // bottom-up, contiguous runs in one call
@@ -514,13 +525,126 @@ function diagnoseRun_() {
 }
 
 // ── admin ───────────────────────────────────────────────────────────
-function adminLogin(pass) {
-  var real = String(PropertiesService.getScriptProperties().getProperty('ADMIN_PASSCODE') || '');
-  if (!real) throw new Error('ยังไม่ได้ตั้งรหัส Admin — เพิ่ม ADMIN_PASSCODE ใน Project Settings → Script properties');
-  if (String(pass) !== real) { Utilities.sleep(800); return ''; }
-  var token = Utilities.getUuid();
-  CacheService.getScriptCache().put('adm_' + token, '1', 21600);
-  return token;
+// Admin accounts: user + own password + display name (the name shown as assignee, in chat and in the audit log).
+// Stored in Script Properties ADMIN_USERS = [{ u, n, s: salt, h: password hash, t: last login }] — never the password itself.
+// A new account (or one whose password was reset) has no password yet: the first sign-in uses the shared
+// ADMIN_PASSCODE once and must set a personal password in the same step. After that ADMIN_PASSCODE no longer opens it.
+var ADMIN_SEED = [['premwit', 'C.Premwit'], ['panudech', 'J.Panudech'], ['thutchanon', 'S.Thutchanon'], ['nuttapol', 'P.Nuttapol'], ['panuwat', 'P.Panuwat']];
+var ADM_FAIL_MAX = 5, ADM_FAIL_SEC = 900, ADM_PASS_MIN = 8;
+function admKey_(u) { return String(u == null ? '' : u).trim().toLowerCase().replace(/[^a-z0-9._-]/g, '').substring(0, 30); }
+function admUsers_() {
+  var raw = PropertiesService.getScriptProperties().getProperty('ADMIN_USERS'), list = null;
+  if (raw) { try { list = JSON.parse(raw); } catch (e) {} }
+  if (!Array.isArray(list) || !list.length) list = ADMIN_SEED.map(function (x) { return { u: x[0], n: x[1], s: '', h: '', t: '' }; });
+  return list;
+}
+function admSave_(list) { PropertiesService.getScriptProperties().setProperty('ADMIN_USERS', JSON.stringify(list)); }
+function admHash_(salt, pass) {
+  var h = salt + '|' + String(pass);
+  for (var i = 0; i < 300; i++) h = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, salt + h, Utilities.Charset.UTF_8));
+  return h;
+}
+function admPassCheck_(pw, a) {
+  pw = String(pw == null ? '' : pw);
+  if (pw.length < ADM_PASS_MIN || pw.length > 64) throw new Error('รหัสผ่านต้องยาว ' + ADM_PASS_MIN + '–64 ตัวอักษร');
+  if (pw === String(PropertiesService.getScriptProperties().getProperty('ADMIN_PASSCODE') || '')) throw new Error('รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสเริ่มต้น');
+  if (pw.toLowerCase() === a.u || pw.toLowerCase() === String(a.n).toLowerCase()) throw new Error('รหัสผ่านต้องไม่ซ้ำกับชื่อผู้ใช้');
+  return pw;
+}
+function admSetPass_(a, pw) { a.s = Utilities.getUuid().replace(/-/g, ''); a.h = admHash_(a.s, pw); }
+function admTokens_(u, add) {                          // tokens of one account, so removing it / resetting its password signs it out
+  var c = CacheService.getScriptCache(), k = 'admtok_' + u, list = [];
+  try { list = JSON.parse(c.get(k) || '[]') || []; } catch (e) {}
+  if (add) { list.push(add); c.put(k, JSON.stringify(list.slice(-20)), 21600); return; }
+  if (list.length) c.removeAll(list.map(function (t) { return 'adm_' + t; }));
+  c.remove(k);
+}
+// → { token, user, name, names } · { first: true, name } (must send newPass too) · { err }
+function adminLogin(user, pass, newPass) {
+  if (pass === undefined) return '';                  // page from before accounts existed → ask to reload
+  var u = admKey_(user), c = CacheService.getScriptCache(), fk = 'admfail_' + u;
+  if (!u || pass == null || pass === '') return { err: 'กรอกชื่อผู้ใช้และรหัสผ่าน' };
+  if (Number(c.get(fk) || 0) >= ADM_FAIL_MAX) return { err: 'ใส่รหัสผิดเกิน ' + ADM_FAIL_MAX + ' ครั้ง — พักการเข้าสู่ระบบของชื่อนี้ 15 นาที' };
+  var fail = function () { c.put(fk, String(Number(c.get(fk) || 0) + 1), ADM_FAIL_SEC); Utilities.sleep(800); return { err: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' }; };
+  var probe = admUsers_().filter(function (x) { return x.u === u; })[0];
+  if (!probe) return fail();
+  var first = !probe.h;
+  if (first) {
+    var real = String(PropertiesService.getScriptProperties().getProperty('ADMIN_PASSCODE') || '');
+    if (!real) throw new Error('ยังไม่ได้ตั้งรหัสเริ่มต้น — เพิ่ม ADMIN_PASSCODE ใน Project Settings → Script properties');
+    if (String(pass) !== real) return fail();
+    if (newPass == null || newPass === '') return { first: true, name: probe.n };
+    try { admPassCheck_(newPass, probe); } catch (e) { return { first: true, name: probe.n, err: e.message }; }
+  } else if (admHash_(probe.s, pass) !== probe.h) return fail();
+  var out = withLock_(function () {
+    var list = admUsers_(), a = list.filter(function (x) { return x.u === u; })[0];
+    if (!a) return null;
+    if (first) { if (a.h) return null; admSetPass_(a, String(newPass)); }
+    a.t = nowStr_(); admSave_(list);
+    return { user: a.u, name: a.n, names: list.map(function (x) { return x.n; }) };
+  });
+  if (!out) return fail();
+  c.remove(fk);
+  out.token = Utilities.getUuid();
+  c.put('adm_' + out.token, JSON.stringify({ u: out.user, n: out.name }), 21600);
+  admTokens_(out.user, out.token);
+  __admName = out.name;
+  audit_([['Admin', 'เข้าสู่ระบบ Admin', '', first ? 'ตั้งรหัสผ่านส่วนตัวครั้งแรก' : '']]);
+  return out;
+}
+function admMe_(token) { try { return JSON.parse(CacheService.getScriptCache().get('adm_' + token) || '{}') || {}; } catch (e) { return {}; } }
+// Admin: account list (never the password) · add / rename · remove · reset password · change own password
+function getAdminUsers(token) {
+  requireAdmin_(token);
+  return { me: admMe_(token).u || '', min: ADM_PASS_MIN, users: admUsers_().map(function (a) { return { user: a.u, name: a.n, hasPass: !!a.h, last: a.t || '' }; }) };
+}
+function saveAdminUser(token, user, name) {
+  requireAdmin_(token);
+  var u = admKey_(user), n = String(name == null ? '' : name).replace(/[\r\n<>"]/g, ' ').trim().substring(0, 40);
+  if (u.length < 3) throw new Error('ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัว (a–z, 0–9, จุด, ขีด)');
+  if (!n) throw new Error('กรอกชื่อที่แสดง เช่น C.Premwit');
+  withLock_(function () {
+    var list = admUsers_(), a = list.filter(function (x) { return x.u === u; })[0];
+    if (list.some(function (x) { return x.u !== u && String(x.n).toLowerCase() === n.toLowerCase(); })) throw new Error('ชื่อที่แสดง "' + n + '" มีอยู่แล้ว');
+    if (a) { audit_([['Admin', 'แก้ชื่อบัญชี Admin', '', a.u + ': ' + a.n + ' → ' + n]]); a.n = n; }
+    else { if (list.length >= 30) throw new Error('มีบัญชี Admin ได้สูงสุด 30 บัญชี'); list.push({ u: u, n: n, s: '', h: '', t: '' }); audit_([['Admin', 'เพิ่มบัญชี Admin', '', u + ' (' + n + ')']]); }
+    admSave_(list);
+  });
+  return getAdminUsers(token);
+}
+function removeAdminUser(token, user) {
+  requireAdmin_(token);
+  var u = admKey_(user); if (u === admMe_(token).u) throw new Error('ลบบัญชีที่กำลังใช้อยู่ไม่ได้');
+  withLock_(function () {
+    var list = admUsers_(), keep = list.filter(function (x) { return x.u !== u; });
+    if (keep.length === list.length) throw new Error('ไม่พบบัญชี ' + u);
+    if (!keep.length) throw new Error('ต้องเหลือบัญชี Admin อย่างน้อย 1 บัญชี');
+    admSave_(keep); audit_([['Admin', 'ลบบัญชี Admin', '', u]]);
+  });
+  admTokens_(u);
+  return getAdminUsers(token);
+}
+function resetAdminPassword(token, user) {
+  requireAdmin_(token);
+  var u = admKey_(user); if (u === admMe_(token).u) throw new Error('บัญชีของตัวเองให้ใช้ "เปลี่ยนรหัสผ่าน"');
+  withLock_(function () {
+    var list = admUsers_(), a = list.filter(function (x) { return x.u === u; })[0];
+    if (!a) throw new Error('ไม่พบบัญชี ' + u);
+    a.s = ''; a.h = ''; admSave_(list); audit_([['Admin', 'รีเซ็ตรหัสผ่าน Admin', '', u + ' (' + a.n + ')']]);
+  });
+  admTokens_(u); try { CacheService.getScriptCache().remove('admfail_' + u); } catch (e) {}
+  return getAdminUsers(token);
+}
+function changeAdminPassword(token, oldPass, newPass) {
+  requireAdmin_(token);
+  var u = admMe_(token).u; if (!u) throw new Error('กรุณาเข้าสู่ระบบใหม่');
+  withLock_(function () {
+    var list = admUsers_(), a = list.filter(function (x) { return x.u === u; })[0];
+    if (!a || !a.h || admHash_(a.s, oldPass) !== a.h) { Utilities.sleep(800); throw new Error('รหัสผ่านเดิมไม่ถูกต้อง'); }
+    admSetPass_(a, admPassCheck_(newPass, a)); admSave_(list);
+    audit_([['Admin', 'เปลี่ยนรหัสผ่านของตัวเอง', '', '']]);
+  });
+  return true;
 }
 
 function saveAllIssues(token, issues, baseVer) {
@@ -1081,7 +1205,7 @@ function audit_(rows) {
   if (!rows || !rows.length) return;
   try {
     var s = sheet_('AuditLog', ['Time', 'By', 'Action', 'Case', 'Detail']), t = nowStr_();
-    var data = rows.map(function (r) { return [t, r[0], r[1], r[2] || '', String(r[3] || '').substring(0, 500)]; });
+    var data = rows.map(function (r) { return [t, r[0] === 'Admin' && __admName ? 'Admin · ' + __admName : r[0], r[1], r[2] || '', String(r[3] || '').substring(0, 500)]; });
     var at = s.getLastRow() + 1; s.getRange(at, 1, data.length, 5).setNumberFormat('@').setValues(data);
     if (s.getLastRow() > 5000) s.deleteRows(2, 1000);
   } catch (e) { console.warn(e); }
