@@ -526,19 +526,36 @@ function diagnoseRun_() {
 
 // ── admin ───────────────────────────────────────────────────────────
 // Admin accounts: user + own password + display name (the name shown as assignee, in chat and in the audit log).
-// Stored in Script Properties ADMIN_USERS = [{ u, n, s: salt, h: password hash, t: last login }] — never the password itself.
-// A new account (or one whose password was reset) has no password yet: the first sign-in uses the shared
-// ADMIN_PASSCODE once and must set a personal password in the same step. After that ADMIN_PASSCODE no longer opens it.
+// Stored in sheet Settings from A13 (header) / A14 down: A User · B display name · C new password (typed by hand,
+// optional) · D salt · E password hash · F last sign-in. The password itself is never kept: a password typed in column C
+// works once, is turned into D/E at that sign-in and C is cleared. A row with nothing in C/E has no password yet: the
+// first sign-in uses the shared ADMIN_PASSCODE once and must set a personal password in the same step.
 var ADMIN_SEED = [['premwit', 'C.Premwit'], ['panudech', 'J.Panudech'], ['thutchanon', 'S.Thutchanon'], ['nuttapol', 'P.Nuttapol'], ['panuwat', 'P.Panuwat']];
 var ADM_FAIL_MAX = 5, ADM_FAIL_SEC = 900, ADM_PASS_MIN = 8;
 function admKey_(u) { return String(u == null ? '' : u).trim().toLowerCase().replace(/[^a-z0-9._-]/g, '').substring(0, 30); }
+var ADM_ROW = 13, ADM_MAX = 30, ADM_HEAD = ['User', 'ชื่อที่แสดง', 'รหัสผ่านใหม่ (พิมพ์ได้ — ระบบเข้ารหัสแล้วลบให้ตอนเข้าใช้)', 'Salt', 'Password hash (ห้ามแก้)', 'เข้าใช้ล่าสุด'];
 function admUsers_() {
-  var raw = PropertiesService.getScriptProperties().getProperty('ADMIN_USERS'), list = null;
-  if (raw) { try { list = JSON.parse(raw); } catch (e) {} }
-  if (!Array.isArray(list) || !list.length) list = ADMIN_SEED.map(function (x) { return { u: x[0], n: x[1], s: '', h: '', t: '' }; });
+  var sh = sheet_(CONFIG.SETTINGS), v = sh.getRange(ADM_ROW + 1, 1, ADM_MAX, 6).getDisplayValues(), list = [], seen = {};
+  v.forEach(function (r) {
+    var u = admKey_(r[0]); if (!u || seen[u]) return; seen[u] = 1;
+    list.push({ u: u, n: String(r[1] || '').trim() || u, p: String(r[2] || ''), s: String(r[3] || ''), h: String(r[4] || ''), t: String(r[5] || '') });
+  });
+  if (list.length) return list;
+  // first run: move accounts kept in Script Properties (earlier version) into the sheet, otherwise the 5 starting accounts
+  var P = PropertiesService.getScriptProperties(), old = null;
+  try { old = JSON.parse(P.getProperty('ADMIN_USERS') || 'null'); } catch (e) {}
+  list = Array.isArray(old) && old.length ? old.map(function (a) { return { u: a.u, n: a.n, p: '', s: a.s || '', h: a.h || '', t: a.t || '' }; })
+    : ADMIN_SEED.map(function (x) { return { u: x[0], n: x[1], p: '', s: '', h: '', t: '' }; });
+  admSave_(list);
+  if (old) P.deleteProperty('ADMIN_USERS');
   return list;
 }
-function admSave_(list) { PropertiesService.getScriptProperties().setProperty('ADMIN_USERS', JSON.stringify(list)); }
+function admSave_(list) {
+  var sh = sheet_(CONFIG.SETTINGS), rows = list.slice(0, ADM_MAX).map(function (a) { return [a.u, a.n, a.p || '', a.s || '', a.h || '', a.t || '']; });
+  while (rows.length < ADM_MAX) rows.push(['', '', '', '', '', '']);
+  var rg = sh.getRange(ADM_ROW, 1, ADM_MAX + 1, 6); fmtText_(rg); rg.setValues([ADM_HEAD].concat(rows));
+  try { sh.getRange(ADM_ROW, 1, 1, 6).setFontWeight('bold').setBackground('#efe9de'); } catch (e) {}
+}
 function admHash_(salt, pass) {
   var h = salt + '|' + String(pass);
   for (var i = 0; i < 300; i++) h = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, salt + h, Utilities.Charset.UTF_8));
@@ -551,7 +568,7 @@ function admPassCheck_(pw, a) {
   if (pw.toLowerCase() === a.u || pw.toLowerCase() === String(a.n).toLowerCase()) throw new Error('รหัสผ่านต้องไม่ซ้ำกับชื่อผู้ใช้');
   return pw;
 }
-function admSetPass_(a, pw) { a.s = Utilities.getUuid().replace(/-/g, ''); a.h = admHash_(a.s, pw); }
+function admSetPass_(a, pw) { a.s = Utilities.getUuid().replace(/-/g, ''); a.h = admHash_(a.s, pw); a.p = ''; }
 function admTokens_(u, add) {                          // tokens of one account, so removing it / resetting its password signs it out
   var c = CacheService.getScriptCache(), k = 'admtok_' + u, list = [];
   try { list = JSON.parse(c.get(k) || '[]') || []; } catch (e) {}
@@ -568,8 +585,9 @@ function adminLogin(user, pass, newPass) {
   var fail = function () { c.put(fk, String(Number(c.get(fk) || 0) + 1), ADM_FAIL_SEC); Utilities.sleep(800); return { err: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' }; };
   var probe = admUsers_().filter(function (x) { return x.u === u; })[0];
   if (!probe) return fail();
-  var first = !probe.h;
-  if (first) {
+  var typed = !!probe.p, first = !typed && !probe.h;
+  if (typed) { if (String(pass) !== probe.p) return fail(); }
+  else if (first) {
     var real = String(PropertiesService.getScriptProperties().getProperty('ADMIN_PASSCODE') || '');
     if (!real) throw new Error('ยังไม่ได้ตั้งรหัสเริ่มต้น — เพิ่ม ADMIN_PASSCODE ใน Project Settings → Script properties');
     if (String(pass) !== real) return fail();
@@ -579,7 +597,8 @@ function adminLogin(user, pass, newPass) {
   var out = withLock_(function () {
     var list = admUsers_(), a = list.filter(function (x) { return x.u === u; })[0];
     if (!a) return null;
-    if (first) { if (a.h) return null; admSetPass_(a, String(newPass)); }
+    if (typed) { if (a.p !== String(pass)) return null; admSetPass_(a, String(pass)); }
+    else if (first) { if (a.h || a.p) return null; admSetPass_(a, String(newPass)); }
     a.t = nowStr_(); admSave_(list);
     return { user: a.u, name: a.n, names: list.map(function (x) { return x.n; }) };
   });
@@ -589,11 +608,11 @@ function adminLogin(user, pass, newPass) {
   c.put('adm_' + out.token, JSON.stringify({ u: out.user, n: out.name }), 21600);
   admTokens_(out.user, out.token);
   __admName = out.name;
-  audit_([['Admin', 'เข้าสู่ระบบ Admin', '', first ? 'ตั้งรหัสผ่านส่วนตัวครั้งแรก' : '']]);
+  audit_([['Admin', 'เข้าสู่ระบบ Admin', '', first ? 'ตั้งรหัสผ่านส่วนตัวครั้งแรก' : typed ? 'ใช้รหัสที่พิมพ์ในชีต Settings (เข้ารหัสและลบออกจากชีตแล้ว)' : '']]);
   return out;
 }
 // ── set an Admin password from the Apps Script editor (the script owner; the web page's 8-character rule does not apply) ──
-// The Script properties page shows only the first 50 properties, so there are two ways:
+// Easiest: type the password in column C of the account row in sheet Settings (from A14). Or from the editor:
 //  A) temporary file in the editor:  function tmpSetAdmin() { setAdminPassword_('premwit', 'your password'); }
 //     → select tmpSetAdmin → Run ▶ → then DELETE that file (so the password does not stay in the project)
 //  B) Script property SETUP_ADMIN = "user:password" → run setupAdminFromProperty (the property is deleted afterwards)
@@ -626,7 +645,7 @@ function admMe_(token) { try { return JSON.parse(CacheService.getScriptCache().g
 // Admin: account list (never the password) · add / rename · remove · reset password · change own password
 function getAdminUsers(token) {
   requireAdmin_(token);
-  return { me: admMe_(token).u || '', min: ADM_PASS_MIN, users: admUsers_().map(function (a) { return { user: a.u, name: a.n, hasPass: !!a.h, last: a.t || '' }; }) };
+  return { me: admMe_(token).u || '', min: ADM_PASS_MIN, users: admUsers_().map(function (a) { return { user: a.u, name: a.n, hasPass: !!(a.h || a.p), last: a.t || '' }; }) };
 }
 function saveAdminUser(token, user, name) {
   requireAdmin_(token);
@@ -637,7 +656,7 @@ function saveAdminUser(token, user, name) {
     var list = admUsers_(), a = list.filter(function (x) { return x.u === u; })[0];
     if (list.some(function (x) { return x.u !== u && String(x.n).toLowerCase() === n.toLowerCase(); })) throw new Error('ชื่อที่แสดง "' + n + '" มีอยู่แล้ว');
     if (a) { audit_([['Admin', 'แก้ชื่อบัญชี Admin', '', a.u + ': ' + a.n + ' → ' + n]]); a.n = n; }
-    else { if (list.length >= 30) throw new Error('มีบัญชี Admin ได้สูงสุด 30 บัญชี'); list.push({ u: u, n: n, s: '', h: '', t: '' }); audit_([['Admin', 'เพิ่มบัญชี Admin', '', u + ' (' + n + ')']]); }
+    else { if (list.length >= ADM_MAX) throw new Error('มีบัญชี Admin ได้สูงสุด ' + ADM_MAX + ' บัญชี'); list.push({ u: u, n: n, p: '', s: '', h: '', t: '' }); audit_([['Admin', 'เพิ่มบัญชี Admin', '', u + ' (' + n + ')']]); }
     admSave_(list);
   });
   return getAdminUsers(token);
@@ -660,7 +679,7 @@ function resetAdminPassword(token, user) {
   withLock_(function () {
     var list = admUsers_(), a = list.filter(function (x) { return x.u === u; })[0];
     if (!a) throw new Error('ไม่พบบัญชี ' + u);
-    a.s = ''; a.h = ''; admSave_(list); audit_([['Admin', 'รีเซ็ตรหัสผ่าน Admin', '', u + ' (' + a.n + ')']]);
+    a.s = ''; a.h = ''; a.p = ''; admSave_(list); audit_([['Admin', 'รีเซ็ตรหัสผ่าน Admin', '', u + ' (' + a.n + ')']]);
   });
   admTokens_(u); try { CacheService.getScriptCache().remove('admfail_' + u); } catch (e) {}
   return getAdminUsers(token);
@@ -670,7 +689,7 @@ function changeAdminPassword(token, oldPass, newPass) {
   var u = admMe_(token).u; if (!u) throw new Error('กรุณาเข้าสู่ระบบใหม่');
   withLock_(function () {
     var list = admUsers_(), a = list.filter(function (x) { return x.u === u; })[0];
-    if (!a || !a.h || admHash_(a.s, oldPass) !== a.h) { Utilities.sleep(800); throw new Error('รหัสผ่านเดิมไม่ถูกต้อง'); }
+    if (!a || !(a.p ? a.p === String(oldPass) : a.h && admHash_(a.s, oldPass) === a.h)) { Utilities.sleep(800); throw new Error('รหัสผ่านเดิมไม่ถูกต้อง'); }
     admSetPass_(a, admPassCheck_(newPass, a)); admSave_(list);
     audit_([['Admin', 'เปลี่ยนรหัสผ่านของตัวเอง', '', '']]);
   });
