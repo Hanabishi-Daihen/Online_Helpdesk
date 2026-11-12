@@ -129,7 +129,25 @@ function rtMap_(want) {
 }
 
 // ── Alert computation ───────────────────────────────────────────────
-var SA_LV_ORDER = { high: 0, mid: 1, low: 2, part: 3, wait: 4, nomin: 5, over: 6, ok: 7, off: 8 };
+var SA_LV_ORDER = { high: 0, mid: 1, low: 2, part: 3, ord: 4, wait: 5, nomin: 6, over: 7, ok: 8, off: 9 };
+// open orders in Order Item per CODE (Tracking.gs): { CODE: { qty: not yet in Pending, list: [{ id, spec, stateTh, stage, st, qty, unit, date }] } }
+// qty counts only lines not found in Pending Order yet (st = none) — lines already in Pending are counted there.
+function saOrders_() {
+  var out = {};
+  if (typeof trkCached_ !== 'function') return out;            // Tracking.gs not added
+  try {
+    (trkCached_().orders || []).forEach(function (o) {
+      if (/^(done|rejected|cancel)$/.test(o.stage)) return;
+      (o.items || []).forEach(function (i) {
+        var k = ordCodeKey_(i.code); if (!k || /^(cancel|recv|gone)$/.test(i.st)) return;
+        var q = Number(String(i.qty || '').replace(/,/g, '')) || 0, O = out[k] || (out[k] = { qty: 0, list: [] });
+        if (i.st === 'none') O.qty += q;
+        O.list.push({ id: o.id, spec: o.spec || '', stateTh: o.stateTh || '', stage: o.stage, st: i.st, qty: q, unit: i.unit || '', date: o.date || '' });
+      });
+    });
+  } catch (e) { console.warn('saOrders_', e); }
+  return out;
+}
 function saCompute_() {
   var cfg = saCfg_(), isBy = saByMatch_(cfg.by), set = saSettings_(), items = {}, want = {};
   var rows = []; try { rows = stockData_(); } catch (e) {}
@@ -171,7 +189,8 @@ function saCompute_() {
     Object.keys(pend).forEach(function (k3) { pend[k3].list.sort(function (x, y) { return x.dist - y.dist; }); pend[k3].list = pend[k3].list.slice(0, 5); });
   } catch (e) {}
   var bk = {}; try { bk = bomBooked_(); } catch (e) {}              // Booking BOM: stock already reserved for projects
-  var out = [], cnt = { high: 0, mid: 0, low: 0, part: 0, wait: 0, nomin: 0, over: 0, ok: 0, off: 0, out: 0 };
+  var od = saOrders_();                                               // orders written in Order Item, not yet in Pending Order
+  var out = [], cnt = { high: 0, mid: 0, low: 0, part: 0, ord: 0, wait: 0, nomin: 0, over: 0, ok: 0, off: 0, out: 0 };
   Object.keys(items).forEach(function (k) {
     var it = items[k], s = set[k] || {}, P = pend[k] || { qty: 0, list: [], stale: 0 };
     it.qty = Math.round(it.qty * 1000) / 1000;
@@ -180,15 +199,16 @@ function saCompute_() {
     it.ltRt = rt[k] || null;
     it.pend = P.qty; it.pendList = P.list; it.pendStale = P.stale;
     var B = bk[k]; it.booked = B ? B.qty : 0; it.bookedBy = B ? B.projects : [];
+    var OD = od[k] || { qty: 0, list: [] }; it.ordQty = OD.qty; it.ordList = OD.list.slice(0, 5);
     it.isOut = it.qty <= 0;
     it.inactive = !!(it._off && !it._on); delete it._on; delete it._off;     // ACTIVE = 0 in the Official system
     it.lastUsed = stockLuDmy_(it.lastUsed || '');
-    var eff = it.qty - it.booked, avail = eff + it.pend, lv;          // eff = onhand left after BOM bookings
+    var eff = it.qty - it.booked, avail = eff + it.pend + it.ordQty, lv;   // eff = onhand left after BOM bookings · + ordered in Order Item
     if (it.notUse || it.inactive) lv = 'off';
     else if (it.min == null) lv = 'nomin';                    // ยังไม่ตั้ง Min → ไม่แจ้งเตือน (แสดงป้าย "หมด" ถ้าคงเหลือ ≤ 0)
     else if (eff < it.min) {
-      if (avail >= it.min) lv = 'wait';                       // on order and enough once it arrives
-      else if (it.pend > 0) lv = 'part';                      // on order, but Onhand − Booking + ค้างรับ is still below Min → order more
+      if (avail >= it.min) lv = eff + it.pend >= it.min ? 'wait' : 'ord';   // enough once it arrives · 'ord' = only thanks to an order not yet in Pending
+      else if (it.pend > 0 || it.ordQty > 0) lv = 'part';     // on order (Pending / Order Item), but Onhand − Booking + ค้างรับ + ใบสั่ง is still below Min → order more
       else {
         lv = it.lt == null ? 'mid' : it.lt > cfg.ltHigh ? 'high' : it.lt <= cfg.ltLow ? 'low' : 'mid';
         if (eff <= 0) lv = lv === 'low' ? 'mid' : 'high';
@@ -208,7 +228,7 @@ function saCompute_() {
     src: { stock: si && si.time || '', pending: pi && pi.ok ? pi.time : '', rt: ri && ri.ok ? ri.time : '', rtRows: ri && ri.rows || 0 } };
 }
 function saKey_() {
-  var raw = ['nosv|part', schedProp_('STOCK_HASH') || '', schedProp_('PO_HASH') || '', schedProp_('RT_HASH') || '', saVer_(), schedProp_('SA_CFG') || '', ordToday_()].join('|');
+  var raw = ['nosv|part|ord', schedProp_('ORD_VER') || '', schedProp_('ORD_AP_VER') || '', schedProp_('NTF_VER') || '', schedProp_('STOCK_HASH') || '', schedProp_('PO_HASH') || '', schedProp_('RT_HASH') || '', saVer_(), schedProp_('SA_CFG') || '', ordToday_()].join('|');
   return 'sa_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, raw)).replace(/=+$/, '');
 }
 function saData_(force) {

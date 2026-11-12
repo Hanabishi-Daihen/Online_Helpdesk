@@ -136,7 +136,8 @@ function trkOrder_(o, idx, prev, today, opt, auto) {
     if (s === 'none' && p && p[0] !== 'none') s = /^(pr|po|part)$/.test(p[0]) ? (opt.gone ? 'gone' : p[0]) : p[0];   // was in Pending, no longer listed → closed at the source
     var r0 = rs.filter(function (r) { return !TRK_CANCEL.test(r.status || ''); })[0] || rs[0] || {};
     var due = null; rs.forEach(function (r) { if (ORD_PO_DONE.test(r.status || '')) return; var d = bomDate_(r.due); if (d != null && (due == null || d > due)) due = d; });
-    return { code: it.code, material: it.material, qty: it.qty, unit: it.unit, st: s, pr: r0.pr || '', po: r0.po || '', status: r0.status || '', due: bomFmt_(due),
+    return { code: it.code, material: it.material, type: it.type || '', spec: it.spec || '', maker: it.manufac || '', qty: it.qty, unit: it.unit, st: s,
+      pname: r0.name || '', pqty: rs.reduce(function (n, r) { return TRK_CANCEL.test(r.status || '') ? n : n + (Number(r.qty) || 0); }, 0), punit: r0.unit || '', pr: r0.pr || '', po: r0.po || '', status: r0.status || '', due: bomFmt_(due),
       late: due != null && due < today && /^(pr|po|part)$/.test(s) ? Math.round((today - due) / 864e5) : 0, req: r0.req || '', poDate: r0.poDate || '',
       at: p && p[0] === s ? p[1] : '' };
   });
@@ -260,7 +261,7 @@ function trkAll_(prevState) {
   return out;
 }
 function trkCached_() {
-  return wsCached_('otrk', ['ord', 'oa', 'po', 'ntf'], '', function () {
+  return wsCached_('otrk2', ['ord', 'oa', 'po', 'ntf'], '', function () {
     var list = trkAll_(trkStateGet_()).filter(function (x) { return x.stage !== 'done' && x.stage !== 'cancel' || ordAgeDays_(x.date) <= 180; });
     return { orders: list.slice(0, 400), time: nowStr_(), po: (poInfo_() || {}).time || '', ageCfg: oaAgeCfg_() };
   });
