@@ -438,7 +438,7 @@ function exportRemainReport(token, opt) {
   var keyOf = function (x) { return group === 'prefix4' ? rsGroupLabel_(x.key.substring(0, 4), names) : group === 'length' ? (x.len === 8 ? 'CODE 8 หลัก' : x.len === 16 ? 'CODE 16 หลัก' : 'CODE ' + x.len + ' หลัก') : 'ทุกรายการ'; };
   var groups = {}, order = [];
   list.forEach(function (x) { var k = keyOf(x); if (!groups[k]) { groups[k] = { name: k, items: [], value: 0, qtyItems: 0, oldest: 0, claimed: 0 }; order.push(k); }
-    var g = groups[k]; g.items.push(x); g.value += x.value || 0; g.oldest = Math.max(g.oldest, x.still || 0); if (claims[x.key]) g.claimed++; });
+    var g = groups[k]; g.items.push(x); g.value += x.value || 0; g.oldest = Math.max(g.oldest, x.stillSrc === 'ship' ? x.still || 0 : 0); if (claims[x.key]) g.claimed++; });
   order.sort(function (a, b) { return admin ? groups[b].value - groups[a].value : String(a).localeCompare(String(b)); });
   var WHY = { still: 'ไม่เคลื่อนไหว', rqn: 'RQN เก่า', off: 'CODE เลิกใช้', last: 'ล็อตสุดท้าย', sub: 'ใช้แทนได้' };
   var fmt = function (n) { return n == null || n === '' ? '-' : Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 }); };
@@ -454,7 +454,7 @@ function exportRemainReport(token, opt) {
   var kpi = function (v, l, col) { return '<td style="border:1px solid ' + L + ';padding:8px;text-align:center;width:20%;"><div style="font-size:15pt;font-weight:bold;color:' + (col || '#141413') + ';">' + v + '</div><div style="font-size:8pt;color:' + M + ';">' + esc_(l) + '</div></td>'; };
   var top = list.slice().sort(function (a, b) { return admin ? b.value - a.value : (b.still || 0) - (a.still || 0); }).slice(0, 10);
   var h = [];
-  h.push('<html><head><meta charset="utf-8"><style>body{font-family:Sarabun,Tahoma,Arial,sans-serif;color:#141413;font-size:9pt;}h1{font-size:17pt;margin:0;}h2{font-size:12pt;margin:16px 0 6px;border-bottom:2px solid ' + C + ';padding-bottom:3px;}table{border-collapse:collapse;width:100%;}</style></head><body>');
+  h.push('<html><head><meta charset="utf-8"><style>body{font-family:Sarabun,Tahoma,Arial,sans-serif;color:#141413;font-size:9pt;}h1{font-size:17pt;margin:0;}h2{font-size:12pt;margin:16px 0 6px;border-bottom:2px solid ' + C + ';padding-bottom:3px;}table{border-collapse:collapse;width:100%;}table.dt{table-layout:fixed;}table.dt td,table.dt th{overflow-wrap:anywhere;word-break:break-word;}</style></head><body>');
   h.push('<table><tr><td style="background:' + C + ';color:#fff;padding:10px 12px;"><h1>♻ รายงาน Stock ช่วยใช้ (Remain stock)</h1><div style="font-size:9pt;">DAIHEN ELECTRIC CO., LTD. · ช่วยกันนำของค้างไปใช้ เพื่อลดการ Scrap</div></td></tr></table>');
   h.push('<p style="font-size:8.5pt;color:' + M + ';margin:6px 0;">ออกรายงาน ' + esc_(nowStr_()) + ' · ข้อมูล Stock ' + esc_(d.stockTime || '-') + ' · ผู้สั่ง ' + esc_(d.cfg.by) + ' · เกณฑ์: ไม่เคลื่อนไหว (เบิกใช้ล่าสุดตาม LASTSHIPDT) ≥ ' + d.cfg.days + ' วัน' + (d.cfg.rqnYears ? ', RQN เก่า ≥ ' + d.cfg.rqnYears + ' ปี' : '') + ' · ' + esc_(scopeTxt) + ' · ' + esc_(groupTxt) + (opt.why && opt.why !== 'all' ? ' · เฉพาะ "' + esc_(WHY[opt.why] || '') + '"' : '') + (opt.unclaimed ? ' · เฉพาะที่ยังไม่มีผู้จอง' : '') + (d.histStart ? ' · เริ่มเก็บประวัติ ' + esc_(d.histStart) : '') + '</p>');
   // 1) summary
@@ -471,28 +471,29 @@ function exportRemainReport(token, opt) {
   // 3) group summary
   if (group !== 'none') {
     h.push('<h2>3. สรุปตามหมวด (' + esc_(groupTxt) + ')</h2><table><tr>' + th(group === 'prefix4' ? 'หมวด (4 หลักแรก)' : 'หมวด') + th('จำนวนรายการ', 'right') + th('มีผู้จอง', 'right') + th('ไม่เคลื่อนไหวนานสุด', 'right') + (admin ? th('มูลค่ารวม', 'right') + th('สัดส่วน', 'right') : '') + '</tr>');
-    order.forEach(function (k) { var g = groups[k]; h.push('<tr>' + td('<b>' + esc_(g.name) + '</b>') + td(fmt(g.items.length), 'right') + td(fmt(g.claimed), 'right') + td(g.oldest ? g.oldest + ' วัน' : '-', 'right') + (admin ? td(money(g.value), 'right') + td(total ? (g.value / total * 100).toFixed(1) + '%' : '-', 'right') : '') + '</tr>'); });
+    order.forEach(function (k) { var g = groups[k]; h.push('<tr>' + td('<b>' + esc_(g.name) + '</b>') + td(fmt(g.items.length), 'right') + td(fmt(g.claimed), 'right') + td(g.oldest ? rsYmd_({ still: g.oldest, stillSrc: 'ship' }) : '-', 'right') + (admin ? td(money(g.value), 'right') + td(total ? (g.value / total * 100).toFixed(1) + '%' : '-', 'right') : '') + '</tr>'); });
     h.push('</table>');
   }
-  // 4) detail
+  // 4) detail — every group's table shares the same column widths (fixed layout), so the columns line up down the page
+  var cols = '<colgroup>' + (admin ? [11, 26, 7, 10, 10, 7, 11, 10, 8] : [11, 32, 7, 10, 10, 7, 12, 11]).map(function (w) { return '<col style="width:' + w + '%">'; }).join('') + '</colgroup>';
   h.push('<h2>' + (group !== 'none' ? '4' : '3') + '. รายละเอียด</h2>');
   order.forEach(function (k) {
     var g = groups[k];
     if (group !== 'none') h.push('<div style="margin:10px 0 4px;font-weight:bold;font-size:10pt;color:' + C + ';">หมวด ' + esc_(g.name) + ' · ' + g.items.length + ' รายการ' + (admin ? ' · ' + money(g.value) : '') + '</div>');
-    h.push('<table><tr>' + th('CODE') + th('รายการ / Spec') + th('คงเหลือ', 'right') + th('คลัง') + th('ไม่เคลื่อนไหว', 'right') + th('เหตุผล / ป้าย') + th('ผู้จอง') + (admin ? th('มูลค่า', 'right') : '') + '</tr>');
+    h.push('<table class="dt">' + cols + '<tr>' + th('CODE') + th('รายการ / Spec') + th('คงเหลือ', 'right') + th('คลัง') + th('ไม่เคลื่อนไหว', 'right') + th('RQN ล่าสุด', 'right') + th('เหตุผล / ป้าย') + th('ผู้จอง') + (admin ? th('มูลค่า', 'right') : '') + '</tr>');
     g.items.forEach(function (x) {
       var tg = x.tag ? [x.replaceBy ? 'ใช้แทน → ' + x.replaceBy : '', x.tag.useBefore ? 'ใช้ให้หมดก่อน ' + x.tag.useBefore : '', x.tag.note || ''].filter(String).map(esc_).join('<br>') : '';
       var cl = (claims[x.key] || []).map(function (c) { return esc_(c.name) + (c.qty ? ' (' + esc_(c.qty) + ')' : '') + ': ' + esc_(c.purpose); }).join('<br>');
       h.push('<tr>' + td('<b>' + esc_(x.code) + '</b>') + td(esc_(x.desc || '-') + (x.comment ? '<br><span style="color:' + M + ';">' + esc_(x.comment) + '</span>' : '')) +
         td(fmt(x.qty) + ' ' + esc_(x.unit || ''), 'right') + td(esc_((x.locs || []).map(function (l) { return l[0] + ' ' + fmt(l[1]); }).join(', '))) +
-        td(rsYmd_(x) + (x.rqnAge != null ? '<br><span style="color:' + M + ';">RQN ' + x.rqnAge + ' ปี</span>' : ''), 'right') +
+        td(rsYmd_(x), 'right') + td(x.rqnAge != null ? x.rqnAge + ' ปีก่อน' + (admin && x.rqn ? '<br><span style="color:' + M + ';">' + esc_(x.rqn) + '</span>' : '') : '-', 'right') +
         td(esc_((x.why || []).map(function (w) { return WHY[w] || w; }).join(', ')) + (tg ? '<br><span style="color:' + M + ';">' + tg + '</span>' : '')) +
         td(cl || '-') + (admin ? td(money(x.value), 'right') : '') + '</tr>');
     });
     h.push('</table>');
   });
   if (!list.length) h.push('<p>ไม่มีรายการตามเงื่อนไขที่เลือก</p>');
-  h.push('<p style="font-size:8pt;color:' + M + ';margin-top:14px;">หมายเหตุ: "ไม่เคลื่อนไหว" = จำนวนคงเหลือรวมทุกคลังไม่เปลี่ยนแปลง นับจากประวัติที่ระบบบันทึกทุกครั้งที่ซิงค์ Stock · "ถูกใช้" นับจากจำนวนที่ลดลงของรายการช่วยใช้' + (admin ? ' · มูลค่า = คงเหลือ × LASTCOST (เอกสารนี้มีข้อมูลราคา — ใช้ภายในเท่านั้น)' : '') + '</p></body></html>');
+  h.push('<p style="font-size:8pt;color:' + M + ';margin-top:14px;">หมายเหตุ: "ไม่เคลื่อนไหว" = ระยะเวลาจากวันที่เบิกใช้ล่าสุดในระบบ Official (LASTSHIPDT) ถึงวันที่ออกรายงาน · "ไม่พบประวัติการเบิก" = ไฟล์ไม่มีวันที่เบิก · "ถูกใช้" นับจากจำนวนที่ลดลงของรายการช่วยใช้' + (admin ? ' · มูลค่า = คงเหลือ × LASTCOST (เอกสารนี้มีข้อมูลราคา — ใช้ภายในเท่านั้น)' : '') + '</p></body></html>');
   var name = 'RemainStock_' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyyMMdd_HHmm') + '_' + group + (opt.scope && opt.scope !== 'all' ? '_' + opt.scope : '') + '.pdf';
   audit_([[admin ? 'Admin' : 'User', 'ออกรายงาน PDF Stock ช่วยใช้', '', groupTxt + ' · ' + scopeTxt + ' · ' + list.length + ' รายการ']]);
   if (opt.html) { perf_('exportRemainReport (html)', t0); return { name: name, html: h.join(''), count: list.length }; }   // browser print preview (zqPrintReport)
