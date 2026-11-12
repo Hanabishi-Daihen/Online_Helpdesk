@@ -1575,8 +1575,10 @@ function testScheduleSync() {
 // ══════════════════════════════════════════════════════════════════════
 var STOCK_SHEET = 'Stock';
 var STOCK_HEADER = ['ITEMNO', 'DESC', 'COMMENT1', 'QTYONHAND', 'STOCKUNIT', 'LOCATION', 'PICKINGSEQ',
-  'LastOfRequest_By', 'LASTCOST', 'LastOfRequisition_No', '_packed'];
-var STOCK_NCOL = 10, STOCK_W = 11;                 // 10 data columns + hidden packed search column
+  'LastOfRequest_By', 'LASTCOST', 'LastOfRequisition_No', '_packed', 'LASTUSED', 'ACTIVE'];
+// Sheet: A–J data, K hidden packed search column (kept at K so an older sheet still reads), L LASTUSED, M ACTIVE.
+// Packed row = 12 fields: the 10 data columns, then [10] LASTUSED (yyyymmdd or '') and [11] ACTIVE ('1' / '0' / '' = not in file)
+var STOCK_NCOL = 12, STOCK_W = 11, STOCK_WW = 13, STOCK_LU_COL = 10, STOCK_ACT_COL = 11, STOCK_FMT = 2;
 var STOCK_COST_COL = 8, STOCK_REQ_COL = 9;         // LASTCOST (admin / cost code) · Requisition No (admin only)
 var STOCK_ALL_MAX = 1500;                          // ≤ this many matches → return all rows at once
 var STOCK_CHUNK = 15000;
@@ -1617,11 +1619,21 @@ function stockNum_(v) {                             // "?4380750.07" → "438075
   var s = String(v || '').replace(/[^0-9.\-]/g, '');
   return s === '' || s === '-' || s === '.' ? '' : s;
 }
-function stockRow_(f) {
+// LASTUSED "20210331" → "20210331" (a real date) · "0" / blank / anything else → "" (never used / unknown)
+function stockLu_(v) {
+  var s = String(v == null ? '' : v).replace(/\D/g, ''); if (s.length !== 8) return '';
+  var y = +s.substring(0, 4), m = +s.substring(4, 6), d = +s.substring(6, 8);
+  return y >= 1990 && y <= 2100 && m >= 1 && m <= 12 && d >= 1 && d <= 31 ? s : '';
+}
+function stockAct_(v) { var s = String(v == null ? '' : v).trim(); return s === '' ? '' : /^(0|n|no|false|inactive)$/i.test(s) ? '0' : '1'; }
+function stockLuDmy_(s) { return s && s.length === 8 ? s.substring(6, 8) + '/' + s.substring(4, 6) + '/' + s.substring(0, 4) : ''; }
+// ix = { lu, act } column positions of LASTUSED / ACTIVE in the file (-1 = not there)
+function stockRow_(f, ix) {
   var r = [];
-  for (var c = 0; c < STOCK_NCOL; c++) r.push(String(f[c] == null ? '' : f[c]).replace(/[\t\r\n]+/g, ' ').trim());
+  for (var c = 0; c < 10; c++) r.push(String(f[c] == null ? '' : f[c]).replace(/[\t\r\n]+/g, ' ').trim());
   r[3] = stockNum_(r[3]); r[8] = stockNum_(r[8]);
-  r.push(r.join('\t'));
+  var lu = ix && ix.lu >= 0 ? stockLu_(f[ix.lu]) : '', act = ix && ix.act >= 0 ? stockAct_(f[ix.act]) : '';
+  r.push([r.join('\t'), lu, act].join('\t'), lu, act);   // K packed · L LASTUSED · M ACTIVE
   return r;
 }
 
@@ -1633,21 +1645,23 @@ function syncStockInner_(why, force) {
     var text = downloadShared_(url);
     var hash = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, text));
     var prev = stockInfo_();
-    if (!force && prev && prev.ok && prev.hash === hash) {
+    if (!force && prev && prev.ok && prev.hash === hash && prev.fmt === STOCK_FMT) {
       info.ok = true; info.unchanged = true; info.rows = prev.rows; info.hash = hash; info.msg = 'ไฟล์ไม่มีการเปลี่ยนแปลง';
       schedProp_('STOCK_SYNC_LAST', JSON.stringify(info)); return info;
     }
     var lines = text.split(/\r?\n/); text = null;
     var head = csvLine_(lines[0] || '').map(function (x) { return String(x).trim().toUpperCase(); });
-    if (head[0] !== 'ITEMNO' || head[3] !== 'QTYONHAND' || head[8] !== 'LASTCOST' || head.length < STOCK_NCOL)
-      throw new Error('หัวคอลัมน์ไม่ตรงรูปแบบ ต้องเป็น: ' + STOCK_HEADER.slice(0, STOCK_NCOL).join(', '));
+    if (head[0] !== 'ITEMNO' || head[3] !== 'QTYONHAND' || head[8] !== 'LASTCOST' || head.length < 10)
+      throw new Error('หัวคอลัมน์ไม่ตรงรูปแบบ ต้องเป็น: ' + STOCK_HEADER.slice(0, 10).join(', ') + ' (ต่อด้วย LASTUSED, ACTIVE ได้)');
+    var ix = { lu: head.indexOf('LASTUSED'), act: head.indexOf('ACTIVE') }, nOff = 0;
     var rows = [], locs = {}, codes = {}, bys = {};
     for (var i = 1, buf = ''; i < lines.length; i++) {
       buf = buf ? buf + ' ' + lines[i] : lines[i];
       if (!buf) continue;
       if ((buf.match(/"/g) || []).length % 2) continue;      // quoted field spans a line break → join next line
-      var r = stockRow_(csvLine_(buf)); buf = '';
+      var r = stockRow_(csvLine_(buf), ix); buf = '';
       if (!r[0]) continue;
+      if (r[12] === '0') nOff++;
       rows.push(r); codes[r[0]] = 1; if (r[5]) locs[r[5]] = (locs[r[5]] || 0) + 1; if (r[7]) bys[r[7]] = (bys[r[7]] || 0) + 1;
     }
     lines = null;
@@ -1659,13 +1673,13 @@ function syncStockInner_(why, force) {
     var left = ss.getSheetByName(STOCK_SHEET + '_new'); if (left) ss.deleteSheet(left);   // leftover of the old method
     var need = rows.length + 1;
     if (sh.getMaxRows() < need) sh.insertRowsAfter(sh.getMaxRows(), need - sh.getMaxRows());
-    if (sh.getMaxColumns() < STOCK_W) sh.insertColumnsAfter(sh.getMaxColumns(), STOCK_W - sh.getMaxColumns());
+    if (sh.getMaxColumns() < STOCK_WW) sh.insertColumnsAfter(sh.getMaxColumns(), STOCK_WW - sh.getMaxColumns());
     sh.clearContents();
-    sh.getRange(1, 1, need, STOCK_W).setNumberFormat('@');
-    sh.getRange(1, 1, 1, STOCK_W).setValues([STOCK_HEADER]).setFontWeight('bold');
+    sh.getRange(1, 1, need, STOCK_WW).setNumberFormat('@');
+    sh.getRange(1, 1, 1, STOCK_WW).setValues([STOCK_HEADER]).setFontWeight('bold');
     for (var s = 0; s < rows.length; s += STOCK_CHUNK) {
       var blk = rows.slice(s, s + STOCK_CHUNK);
-      sh.getRange(s + 2, 1, blk.length, STOCK_W).setValues(blk);
+      sh.getRange(s + 2, 1, blk.length, STOCK_WW).setValues(blk);
       SpreadsheetApp.flush();
     }
     var spare = sh.getMaxRows() - need; if (spare > 200) sh.deleteRows(need + 101, spare - 100);
@@ -1675,12 +1689,14 @@ function syncStockInner_(why, force) {
     schedProp_('STOCK_META', JSON.stringify({ rows: rows.length, items: Object.keys(codes).length, locations: locList, bys: stockUnitList_(bys), time: info.time }));
     schedProp_('STOCK_HASH', hash);
     try { rsTrack_(rows); CacheService.getScriptCache().remove('rs_flags'); } catch (e) { console.warn('rsTrack_', e); }   // Stock ช่วยใช้: quantity history
-    try { stockWarm_(rows.map(function (r) { return r[STOCK_NCOL]; }), hash); stockBundle_(); } catch (e) {}   // prime fast caches
+    try { stockWarm_(rows.map(function (r) { return r[STOCK_W - 1]; }), hash); stockBundle_(); } catch (e) {}   // prime fast caches
     try { bomRefresh_(); } catch (e) { console.warn('bomRefresh_', e); }   // Booking BOM: onhand changed
     if (typeof trkScanSafe_ === 'function') trkScanSafe_('Item stock');      // Tracking.gs: order status + "ของเข้าแล้ว" notifications
-    info.ok = true; info.rows = rows.length; info.items = Object.keys(codes).length; info.hash = hash;
+    info.ok = true; info.rows = rows.length; info.items = Object.keys(codes).length; info.hash = hash; info.fmt = STOCK_FMT;
+    info.cols = (ix.lu >= 0 ? 'LASTUSED ' : '') + (ix.act >= 0 ? 'ACTIVE' : ''); info.inactive = nOff;
     info.secs = Math.round((Date.now() - t0) / 1000);
-    info.msg = 'อัปเดต ' + rows.length.toLocaleString() + ' แถว (' + info.items.toLocaleString() + ' รายการ) ใช้เวลา ' + info.secs + ' วินาที';
+    info.msg = 'อัปเดต ' + rows.length.toLocaleString() + ' แถว (' + info.items.toLocaleString() + ' รายการ) ใช้เวลา ' + info.secs + ' วินาที' +
+      (ix.act >= 0 ? ' · เลิกใช้ (ACTIVE=0) ' + nOff.toLocaleString() + ' แถว' : '') + (ix.lu < 0 || ix.act < 0 ? ' · ไฟล์ไม่มีคอลัมน์ ' + [ix.lu < 0 ? 'LASTUSED' : '', ix.act < 0 ? 'ACTIVE' : ''].filter(String).join(', ') : '');
     audit_([['System', 'ซิงค์ Item stock จาก OneDrive', '', info.why + ' · ' + info.msg]]);
   } catch (e) {
     info.ok = false; info.msg = e.message || String(e);
@@ -1732,17 +1748,18 @@ function stockKeepWarm() { try { stockData_(); stockBundle_(); } catch (e) {} }
 
 // ── Browser-side search bundle ───────────────────────────────────────
 // Public columns only (0–7: CODE…LastOfRequest_By). LASTCOST / Requisition No never leave the server.
+// + [8] LASTUSED, [9] ACTIVE (public: when the code was last used / still open in the Official system)
 var STOCK_PUB_COLS = 8;
 function stockBundle_() {
-  var hash = schedProp_('STOCK_HASH') || '', cache = CacheService.getScriptCache(), pre = 'stkb_' + hash.substring(0, 10) + '_';
+  var hash = schedProp_('STOCK_HASH') || '', cache = CacheService.getScriptCache(), pre = 'stkb' + STOCK_FMT + '_' + hash.substring(0, 10) + '_';
   var n = Number(cache.get(pre + 'n') || 0);
   if (hash && n) {
     var keys = []; for (var i = 0; i < n; i++) keys.push(pre + i);
     var got = cache.getAll(keys), parts = [];
     for (var j = 0; j < n; j++) { if (got[keys[j]] == null) { parts = null; break; } parts.push(got[keys[j]]); }
-    if (parts) return { hash: hash, b64: parts.join('') };
+    if (parts) return { hash: hash, b64: parts.join(''), v: STOCK_FMT };
   }
-  var pub = stockData_().map(function (p) { return p.split('\t').slice(0, STOCK_PUB_COLS).join('\t'); });
+  var pub = stockData_().map(function (p) { var f = p.split('\t'); return f.slice(0, STOCK_PUB_COLS).concat([f[STOCK_LU_COL] || '', f[STOCK_ACT_COL] || '']).join('\t'); });
   var b64 = Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(pub.join('\n'), 'text/plain')).getBytes());
   try {
     var put = {}, m = Math.ceil(b64.length / STOCK_CHUNK_B64);
@@ -1751,7 +1768,7 @@ function stockBundle_() {
     for (var x = 0; x < ks.length; x += 30) { var part = {}; ks.slice(x, x + 30).forEach(function (y) { part[y] = put[y]; }); cache.putAll(part, STOCK_CACHE_TTL); }
     cache.put(pre + 'n', String(m), STOCK_CACHE_TTL);
   } catch (e) {}
-  return { hash: hash, b64: b64 };
+  return { hash: hash, b64: b64, v: STOCK_FMT };
 }
 // public: gzip+base64 of public columns; the page stores it in IndexedDB keyed by hash
 function getStockBundle() { return stockBundle_(); }
@@ -1834,14 +1851,16 @@ function setStockCostCode(token, code) {
   return { code: code };
 }
 
-function searchStock(token, q, field, loc, page, size, by, sort, costCode) {
+// act: '' = all · 'on' = hide codes closed in the Official system (ACTIVE=0) · 'off' = only those
+function searchStock(token, q, field, loc, page, size, by, sort, costCode, act) {
   var admin = isAdmin_(token), cost = admin || stockCostOk_(costCode);
   size = Math.min(Math.max(Number(size) || 50, 10), 100); page = Math.max(1, Number(page) || 1);
   q = String(q || '').toLowerCase().replace(/\s+/g, ' ').trim().substring(0, 80);
   field = { code: 'code', desc: 'desc' }[field] || 'all'; loc = String(loc || '').trim(); by = String(by || '').trim();
-  sort = /^(code|desc|qty|unit|loc|cost)_(asc|desc)$/.test(String(sort || '')) ? String(sort) : '';
+  sort = /^(code|desc|qty|unit|loc|cost|used)_(asc|desc)$/.test(String(sort || '')) ? String(sort) : '';
+  act = act === 'on' || act === 'off' ? act : '';
   var key = 'stk_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5,
-    [schedProp_('STOCK_HASH') || '', q, field, loc, page, size, admin ? 1 : 0, by, sort, cost ? 1 : 0].join('|')));
+    [schedProp_('STOCK_HASH') || '', q, field, loc, page, size, admin ? 1 : 0, by, sort, cost ? 1 : 0, act, STOCK_FMT].join('|')));
   var cache = CacheService.getScriptCache(), hit = cache.get(key);
   if (hit) return JSON.parse(hit);
 
@@ -1853,6 +1872,7 @@ function searchStock(token, q, field, loc, page, size, by, sort, costCode) {
     var f = p.split('\t');
     if (loc && f[5] !== loc) continue;
     if (by && f[7] !== by) continue;            // filter: LastOfRequest_By
+    if (act && (f[STOCK_ACT_COL] === '0') !== (act === 'off')) continue;
     var rank = 2;
     if (terms.length) {
       var code = f[0].toLowerCase(), desc = (f[1] + ' ' + f[2]).toLowerCase();
@@ -1865,9 +1885,9 @@ function searchStock(token, q, field, loc, page, size, by, sort, costCode) {
   }
   if (sort === 'cost_asc' || sort === 'cost_desc') { if (!cost) sort = ''; }
   if (sort) {
-    var sp = sort.split('_'), col = { code: 0, desc: 1, qty: 3, unit: 4, loc: 5, cost: 8 }[sp[0]], dir = sp[1] === 'desc' ? -1 : 1;
+    var sp = sort.split('_'), col = { code: 0, desc: 1, qty: 3, unit: 4, loc: 5, cost: 8, used: 10 }[sp[0]], dir = sp[1] === 'desc' ? -1 : 1;
     hits.sort(function (a, b) {
-      var x = a[2][col], y = b[2][col], d;
+      var x = a[2][col] || '', y = b[2][col] || '', d;
       if (col === 3 || col === 8) { x = x === '' ? -Infinity : Number(x); y = y === '' ? -Infinity : Number(y); d = x - y; }
       else d = x < y ? -1 : x > y ? 1 : 0;
       return d * dir || a[1] - b[1];
@@ -1877,7 +1897,7 @@ function searchStock(token, q, field, loc, page, size, by, sort, costCode) {
   var all = hits.length <= STOCK_ALL_MAX;
   var pages = Math.max(1, Math.ceil(hits.length / size)); if (page > pages) page = pages;
   var rows = (all ? hits : hits.slice((page - 1) * size, page * size)).map(function (h) {
-    var f = h[2].slice(0, STOCK_NCOL);
+    var f = h[2].slice(0, STOCK_NCOL); while (f.length < STOCK_NCOL) f.push('');
     if (!cost) f[STOCK_COST_COL] = '';
     if (!admin) f[STOCK_REQ_COL] = '';
     return f;

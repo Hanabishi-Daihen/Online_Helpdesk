@@ -5,6 +5,8 @@
  *                  + CODE ที่ Admin ติดป้ายไว้เอง
  *  • ค้างนาน     = จำนวนคงเหลือรวมทุกคลังไม่เปลี่ยนมา ≥ N วัน (จากประวัติ StockHistory ที่ระบบจดทุกครั้งที่ซิงค์ Stock)
  *  • RQN เก่า     = เลข RQN ล่าสุดเก่ากว่า N ปี (RQNyy-xxxx)
+ *  • ไม่ได้เบิกใช้ = LASTUSED (วันที่นำไปใช้ล่าสุดจากระบบ Official) เก่ากว่า N วัน (ใช้เกณฑ์วันเดียวกับ "ค้างนาน")
+ *  • CODE เลิกใช้  = ACTIVE = 0 ในระบบ Official แต่ยังมีของในคลัง → ควรใช้ให้หมดหรือเคลียร์
  *  • ป้าย (Admin) = last (ล็อตสุดท้าย/เปลี่ยนรุ่น) · sub (ใช้แทนกันได้ → CODE ใหม่) · skip (ไม่ต้องแจ้ง)
  *  • ราคา / มูลค่า (QTY × LASTCOST) เห็นเฉพาะ Admin
  *  ต้องมี Code.gs, OrderService.gs และ StockAlert.gs (ใช้ helper ร่วมกัน)
@@ -17,7 +19,7 @@ var RS_HIST_HEADER = ['CODE', 'QTY', 'SINCE', 'LAST_SEEN'];
 var RS_DEF = { days: 180, rqnYears: 2, by: 'DS13' };
 // Every item code counts (8-digit stock codes and 16-char job codes such as 3694PP1024C00403)
 // except Service codes that start with SV (e.g. SV024355).
-var RS_SNAP_VER = 2;                                 // bump when the item filter changes → old snapshots are rebuilt
+var RS_SNAP_VER = 3;                                 // bump when the item filter changes → old snapshots are rebuilt
 function rsCodeOk_(k) { k = String(k || ''); return !!k && !/^SV/i.test(k); }
 var RS_TAGS = { last: 'ล็อตสุดท้าย / เปลี่ยนรุ่น', sub: 'ใช้แทนกันได้', skip: 'ไม่ต้องแจ้ง' };
 
@@ -118,7 +120,7 @@ function rsMeasure_(ss, tot, rows) {
     rsSavedAdd_(agg, used);
     rsCloseClaims_(used.map(function (u) { return u[1]; }));
   }
-  var snap = rsCompute_(rows.map(function (r) { return r[STOCK_NCOL]; }), true);
+  var snap = rsCompute_(rows.map(function (r) { return r[STOCK_W - 1]; }), true);   // packed column (K)
   rsSnapPut_(snap);                                   // the page reads this instead of recomputing
   var cur = snap.items.filter(function (x) { return !x.skip; })
     .map(function (x) { return [x.key, String(x.qty), String(x.cost || 0), x.desc || '', x.unit || '', (x.why || []).join(',')]; });
@@ -314,6 +316,8 @@ function rsView_(snap, admin) {
     if (B) { y.booked = B.qty; y.bookedBy = B.projects; y.value = Math.round((x.qty - B.qty) * (x.cost || 0) * 100) / 100; }
     y.still = rsDays_(y.since);
     if (y.still != null && y.still >= cfg.days && y.why.indexOf('still') < 0) y.why.unshift('still');
+    y.idle = rsDays_(y.lastUsed);
+    if (y.idle != null && y.idle >= cfg.days && y.why.indexOf('idle') < 0) y.why.push('idle');
     if (!y.skip) total += y.value || 0;
     if (!admin) { delete y.cost; delete y.value; delete y.rqn; }
     return y;
@@ -341,7 +345,9 @@ function rsCompute_(rows, admin) {
     var f = p.split('\t'), k = ordCodeKey_(f[0]);
     if (!rsCodeOk_(k) || !(isBy(f[7]) || tags[k])) continue;
     var q = saNum_(f[3]), c = saNum_(f[8]);
-    var it = items[k] || (items[k] = { code: f[0], desc: f[1], comment: f[2], unit: f[4], qty: 0, locs: [], cost: 0, rqn: '', by: f[7] });
+    var it = items[k] || (items[k] = { code: f[0], desc: f[1], comment: f[2], unit: f[4], qty: 0, locs: [], cost: 0, rqn: '', by: f[7], lu: '', on: 0, off: 0 });
+    if (f[10] && f[10] > it.lu) it.lu = f[10];
+    if (f[11] === '0') it.off++; else if (f[11] === '1') it.on++;
     if (q != null) it.qty += q;
     it.locs.push([f[5] || '-', q == null ? '' : q]);
     if (c != null && c > it.cost) it.cost = c;
@@ -357,8 +363,12 @@ function rsCompute_(rows, admin) {
     if (!(it.qty > 0)) return;
     it.since = hist[k] || ''; it.still = rsDays_(it.since);
     var ry = rsRqnYear_(it.rqn); it.rqnAge = ry ? year - ry : null;
+    it.lastUsed = stockLuDmy_(it.lu); it.idle = rsDays_(it.lastUsed); it.inactive = it.off > 0 && !it.on;
+    delete it.lu; delete it.on; delete it.off;
     var why = [];
+    if (it.inactive) why.push('off');
     if (it.still != null && it.still >= cfg.days) why.push('still');
+    if (it.idle != null && it.idle >= cfg.days) why.push('idle');
     if (cfg.rqnYears > 0 && it.rqnAge != null && it.rqnAge >= cfg.rqnYears) why.push('rqn');
     if (tg && (tg.tag === 'last' || tg.tag === 'sub')) why.push(tg.tag);
     it.skip = !!(tg && tg.tag === 'skip');

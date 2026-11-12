@@ -143,7 +143,9 @@ function saCompute_() {
     var p2 = rows[j], t = p2.indexOf('\t'); if (t < 0) continue;
     var k = ordCodeKey_(p2.substring(0, t)); if (!codes[k]) continue;
     var g = p2.split('\t'), q = saNum_(g[3]);
-    var it = items[k] || (items[k] = { code: g[0], desc: g[1], comment: g[2], unit: g[4], qty: 0, locs: [], by: g[7] });
+    var it = items[k] || (items[k] = { code: g[0], desc: g[1], comment: g[2], unit: g[4], qty: 0, locs: [], by: g[7], _on: 0, _off: 0, lastUsed: '' });
+    if (g[11] === '0') it._off++; else if (g[11] === '1') it._on++;
+    if (g[10] && g[10] > it.lastUsed) it.lastUsed = g[10];
     it.locs.push([g[5] || '-', q == null ? '' : q]); if (q != null) it.qty += q;
     if (!it.unit && g[4]) it.unit = g[4];
     if (isBy(g[7])) it.by = g[7];
@@ -179,8 +181,10 @@ function saCompute_() {
     it.pend = P.qty; it.pendList = P.list; it.pendStale = P.stale;
     var B = bk[k]; it.booked = B ? B.qty : 0; it.bookedBy = B ? B.projects : [];
     it.isOut = it.qty <= 0;
+    it.inactive = !!(it._off && !it._on); delete it._on; delete it._off;     // ACTIVE = 0 in the Official system
+    it.lastUsed = stockLuDmy_(it.lastUsed || '');
     var eff = it.qty - it.booked, avail = eff + it.pend, lv;          // eff = onhand left after BOM bookings
-    if (it.notUse) lv = 'off';
+    if (it.notUse || it.inactive) lv = 'off';
     else if (it.min == null) lv = 'nomin';                    // ยังไม่ตั้ง Min → ไม่แจ้งเตือน (แสดงป้าย "หมด" ถ้าคงเหลือ ≤ 0)
     else if (eff < it.min) {
       if (avail >= it.min) lv = 'wait';                       // on order and enough once it arrives
@@ -195,7 +199,7 @@ function saCompute_() {
     it.level = lv;
     var target = it.max != null ? it.max : it.min;
     it.suggest = target != null && (lv === 'high' || lv === 'mid' || lv === 'low' || lv === 'part') ? Math.max(0, Math.ceil(target - avail)) : 0;
-    cnt[lv]++; if (it.isOut && !it.notUse) cnt.out++;
+    cnt[lv]++; if (it.isOut && !it.notUse && !it.inactive) cnt.out++;
     out.push(it);
   });
   out.sort(function (a, b2) { return SA_LV_ORDER[a.level] - SA_LV_ORDER[b2.level] || (b2.lt || 0) - (a.lt || 0) || a.qty - b2.qty || String(a.code).localeCompare(String(b2.code)); });

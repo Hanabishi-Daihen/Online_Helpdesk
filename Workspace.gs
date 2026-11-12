@@ -130,9 +130,12 @@ function getItem360(token, code) {
       out.by = out.by || String(f[7] || '').trim(); out.rqn = out.rqn || f[9] || '';
       if (admin && !out.cost && saNum_(f[8])) out.cost = saNum_(f[8]);
       out.onhand = Math.round((out.onhand + q) * 1000) / 1000;
+      if (f[10] && f[10] > (out._lu || '')) out._lu = f[10];
+      if (f[11] === '0') out._off = (out._off || 0) + 1; else if (f[11] === '1') out._on = (out._on || 0) + 1;
       out.locs.push({ loc: String(f[5] || '').trim(), pk: String(f[6] || '').trim(), qty: q });
     }
     out.locs.sort(function (a, b) { return b.qty - a.qty; });
+    out.lastUsed = stockLuDmy_(out._lu || ''); out.inactive = !!(out._off && !out._on); delete out._lu; delete out._on; delete out._off;
   } catch (e) {}
   // Pending Order: open (≤ 1 year) and recent closed, plus the planned lead time of closed POs
   var today = wsToday_(), YEAR = 365 * 864e5, open = [], done = [], lts = [];

@@ -161,6 +161,8 @@ function orderItemInfo(codes) {
       var k = ordCodeKey_(p.substring(0, t)); if (!want[k]) continue;
       var f = p.split('\t'), q = f[3] === '' ? null : Number(f[3]);
       out[k].stock.push({ loc: f[5] || '', qty: q, unit: f[4] || '' });
+      if (f[10] && f[10] > (out[k].lu || '')) out[k].lu = f[10];
+      if (f[11] === '0') out[k].off = (out[k].off || 0) + 1; else if (f[11] === '1') out[k].on = (out[k].on || 0) + 1;
       if (q != null && !isNaN(q)) out[k].total = (out[k].total || 0) + q;
       if (!out[k].unit && f[4]) out[k].unit = f[4];
     }
@@ -180,6 +182,7 @@ function orderItemInfo(codes) {
     });
     Object.keys(out).forEach(function (k3) { out[k3].pending.sort(function (x, y) { return x.dist - y.dist; }); });
   } catch (e) {}
+  Object.keys(out).forEach(function (k) { var o = out[k]; o.lastUsed = stockLuDmy_(o.lu || ''); o.inactive = !!(o.off && !o.on); delete o.lu; delete o.on; delete o.off; });
   return out;
 }
 
