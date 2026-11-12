@@ -3,9 +3,9 @@
  *  REMAIN STOCK — "Stock ช่วยใช้"  ของค้างนาน / RQN เก่า / ล็อตสุดท้าย → ช่วยกันนำไปใช้ ลดการ Scrap
  *  • ขอบเขต      = Item stock ที่ "ผู้สั่งล่าสุด" (LastOfRequest_By) ตรงกับค่าที่ตั้ง (เริ่มต้น DS13)
  *                  + CODE ที่ Admin ติดป้ายไว้เอง
- *  • ค้างนาน     = จำนวนคงเหลือรวมทุกคลังไม่เปลี่ยนมา ≥ N วัน (จากประวัติ StockHistory ที่ระบบจดทุกครั้งที่ซิงค์ Stock)
+ *  • ไม่เคลื่อนไหว = เบิกใช้ล่าสุด (LASTSHIPDT จากระบบ Official) นานกว่า N วัน · CODE ที่ไม่มี LASTSHIPDT (ไม่เคยเบิก / ไฟล์ใส่ 0)
+ *                  ใช้ประวัติ StockHistory แทน (จำนวนคงเหลือรวมไม่เปลี่ยนมา ≥ N วัน ระบบจดทุกครั้งที่ซิงค์ Stock)
  *  • RQN เก่า     = เลข RQN ล่าสุดเก่ากว่า N ปี (RQNyy-xxxx)
- *  • ไม่ได้เบิกใช้ = LASTSHIPDT (วันที่นำไปใช้ล่าสุดจากระบบ Official) เก่ากว่า N วัน (ใช้เกณฑ์วันเดียวกับ "ค้างนาน")
  *  • CODE เลิกใช้  = ACTIVE = 0 ในระบบ Official แต่ยังมีของในคลัง → ควรใช้ให้หมดหรือเคลียร์
  *  • ป้าย (Admin) = last (ล็อตสุดท้าย/เปลี่ยนรุ่น) · sub (ใช้แทนกันได้ → CODE ใหม่) · skip (ไม่ต้องแจ้ง)
  *  • ราคา / มูลค่า (QTY × LASTCOST) เห็นเฉพาะ Admin
@@ -19,7 +19,7 @@ var RS_HIST_HEADER = ['CODE', 'QTY', 'SINCE', 'LAST_SEEN'];
 var RS_DEF = { days: 180, rqnYears: 2, by: 'DS13' };
 // Every item code counts (8-digit stock codes and 16-char job codes such as 3694PP1024C00403)
 // except Service codes that start with SV (e.g. SV024355).
-var RS_SNAP_VER = 3;                                 // bump when the item filter changes → old snapshots are rebuilt
+var RS_SNAP_VER = 4;                                 // bump when the item filter changes → old snapshots are rebuilt
 function rsCodeOk_(k) { k = String(k || ''); return !!k && !/^SV/i.test(k); }
 var RS_TAGS = { last: 'ล็อตสุดท้าย / เปลี่ยนรุ่น', sub: 'ใช้แทนกันได้', skip: 'ไม่ต้องแจ้ง' };
 
@@ -260,6 +260,14 @@ function rsDays_(dmy) {
   var now = new Date(), t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   return Math.max(0, Math.round((t0 - new Date(+m[3], +m[2] - 1, +m[1]).getTime()) / 864e5));
 }
+// "ไม่เคลื่อนไหว" (still, days): from the last issue in the Official system (LASTSHIPDT → lastUsed) when the file has one,
+// otherwise from this system's own history (since = total quantity unchanged since). stillSrc = 'ship' | 'hist'
+function rsStill_(x) {
+  var d = rsDays_(x.lastUsed);
+  if (d != null) { x.still = d; x.stillSrc = 'ship'; } else { x.still = rsDays_(x.since); x.stillSrc = x.still != null ? 'hist' : ''; }
+  delete x.idle;
+  return x;
+}
 function rsRqnYear_(rqn) { var m = /RQN\s*(\d{2})\s*-/i.exec(String(rqn || '')); return m ? 2000 + Number(m[1]) : null; }
 
 // ── snapshot: the full (Admin) list computed at Stock sync / tag or setting change ──
@@ -314,10 +322,8 @@ function rsView_(snap, admin) {
     if (B && B.qty >= x.qty) return null;                         // fully booked by projects → not "ช่วยใช้"
     var y = {}; Object.keys(x).forEach(function (k) { y[k] = x[k]; }); y.why = (x.why || []).slice();
     if (B) { y.booked = B.qty; y.bookedBy = B.projects; y.value = Math.round((x.qty - B.qty) * (x.cost || 0) * 100) / 100; }
-    y.still = rsDays_(y.since);
+    rsStill_(y);
     if (y.still != null && y.still >= cfg.days && y.why.indexOf('still') < 0) y.why.unshift('still');
-    y.idle = rsDays_(y.lastUsed);
-    if (y.idle != null && y.idle >= cfg.days && y.why.indexOf('idle') < 0) y.why.push('idle');
     if (!y.skip) total += y.value || 0;
     if (!admin) { delete y.cost; delete y.value; delete y.rqn; }
     return y;
@@ -361,14 +367,14 @@ function rsCompute_(rows, admin) {
     var it = items[k], tg = tags[k] || null;
     it.qty = Math.round(it.qty * 1000) / 1000;
     if (!(it.qty > 0)) return;
-    it.since = hist[k] || ''; it.still = rsDays_(it.since);
+    it.since = hist[k] || '';
     var ry = rsRqnYear_(it.rqn); it.rqnAge = ry ? year - ry : null;
-    it.lastUsed = stockLuDmy_(it.lu); it.idle = rsDays_(it.lastUsed); it.inactive = it.off > 0 && !it.on;
+    it.lastUsed = stockLuDmy_(it.lu); it.inactive = it.off > 0 && !it.on;
     delete it.lu; delete it.on; delete it.off;
+    rsStill_(it);
     var why = [];
     if (it.inactive) why.push('off');
     if (it.still != null && it.still >= cfg.days) why.push('still');
-    if (it.idle != null && it.idle >= cfg.days) why.push('idle');
     if (cfg.rqnYears > 0 && it.rqnAge != null && it.rqnAge >= cfg.rqnYears) why.push('rqn');
     if (tg && (tg.tag === 'last' || tg.tag === 'sub')) why.push(tg.tag);
     it.skip = !!(tg && tg.tag === 'skip');
@@ -419,7 +425,7 @@ function exportRemainReport(token, opt) {
   list.forEach(function (x) { var k = keyOf(x); if (!groups[k]) { groups[k] = { name: k, items: [], value: 0, qtyItems: 0, oldest: 0, claimed: 0 }; order.push(k); }
     var g = groups[k]; g.items.push(x); g.value += x.value || 0; g.oldest = Math.max(g.oldest, x.still || 0); if (claims[x.key]) g.claimed++; });
   order.sort(function (a, b) { return admin ? groups[b].value - groups[a].value : String(a).localeCompare(String(b)); });
-  var WHY = { still: 'ค้างนาน', rqn: 'RQN เก่า', last: 'ล็อตสุดท้าย', sub: 'ใช้แทนได้' };
+  var WHY = { still: 'ไม่เคลื่อนไหว', rqn: 'RQN เก่า', off: 'CODE เลิกใช้', last: 'ล็อตสุดท้าย', sub: 'ใช้แทนได้' };
   var fmt = function (n) { return n == null || n === '' ? '-' : Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 }); };
   var money = function (n) { return '฿' + Number(Math.round(n || 0)).toLocaleString('en-US'); };
   var cnt = function (w) { return list.filter(function (x) { return (x.why || []).indexOf(w) >= 0; }).length; };
@@ -435,21 +441,21 @@ function exportRemainReport(token, opt) {
   var h = [];
   h.push('<html><head><meta charset="utf-8"><style>body{font-family:Sarabun,Tahoma,Arial,sans-serif;color:#141413;font-size:9pt;}h1{font-size:17pt;margin:0;}h2{font-size:12pt;margin:16px 0 6px;border-bottom:2px solid ' + C + ';padding-bottom:3px;}table{border-collapse:collapse;width:100%;}</style></head><body>');
   h.push('<table><tr><td style="background:' + C + ';color:#fff;padding:10px 12px;"><h1>♻ รายงาน Stock ช่วยใช้ (Remain stock)</h1><div style="font-size:9pt;">DAIHEN ELECTRIC CO., LTD. · ช่วยกันนำของค้างไปใช้ เพื่อลดการ Scrap</div></td></tr></table>');
-  h.push('<p style="font-size:8.5pt;color:' + M + ';margin:6px 0;">ออกรายงาน ' + esc_(nowStr_()) + ' · ข้อมูล Stock ' + esc_(d.stockTime || '-') + ' · ผู้สั่ง ' + esc_(d.cfg.by) + ' · เกณฑ์: ค้างนาน ≥ ' + d.cfg.days + ' วัน' + (d.cfg.rqnYears ? ', RQN เก่า ≥ ' + d.cfg.rqnYears + ' ปี' : '') + ' · ' + esc_(scopeTxt) + ' · ' + esc_(groupTxt) + (opt.why && opt.why !== 'all' ? ' · เฉพาะ "' + esc_(WHY[opt.why] || '') + '"' : '') + (opt.unclaimed ? ' · เฉพาะที่ยังไม่มีผู้จอง' : '') + (d.histStart ? ' · เริ่มเก็บประวัติ ' + esc_(d.histStart) : '') + '</p>');
+  h.push('<p style="font-size:8.5pt;color:' + M + ';margin:6px 0;">ออกรายงาน ' + esc_(nowStr_()) + ' · ข้อมูล Stock ' + esc_(d.stockTime || '-') + ' · ผู้สั่ง ' + esc_(d.cfg.by) + ' · เกณฑ์: ไม่เคลื่อนไหว (เบิกใช้ล่าสุดตาม LASTSHIPDT) ≥ ' + d.cfg.days + ' วัน' + (d.cfg.rqnYears ? ', RQN เก่า ≥ ' + d.cfg.rqnYears + ' ปี' : '') + ' · ' + esc_(scopeTxt) + ' · ' + esc_(groupTxt) + (opt.why && opt.why !== 'all' ? ' · เฉพาะ "' + esc_(WHY[opt.why] || '') + '"' : '') + (opt.unclaimed ? ' · เฉพาะที่ยังไม่มีผู้จอง' : '') + (d.histStart ? ' · เริ่มเก็บประวัติ ' + esc_(d.histStart) : '') + '</p>');
   // 1) summary
   h.push('<h2>1. สรุปภาพรวม</h2><table><tr>' + kpi(fmt(list.length), 'รายการช่วยใช้') +
     (admin ? kpi(money(total), 'มูลค่าเสี่ยง Scrap', '#9f1239') : kpi(fmt(order.length), 'จำนวนหมวด')) +
     kpi(fmt(claimedN), 'มีผู้จองนำไปใช้แล้ว', '#5b21b6') +
     kpi(d.saved ? (admin ? money(d.saved.month.value) : fmt(d.saved.month.items)) : '-', admin ? 'ช่วยลด Scrap เดือนนี้' : 'รายการที่ถูกใช้เดือนนี้', '#065f46') +
     kpi(d.saved ? (admin ? money(d.saved.all.value) : fmt(d.saved.all.items)) : '-', admin ? 'ช่วยลด Scrap สะสม' : 'ถูกใช้สะสม (ครั้ง)', '#065f46') + '</tr></table>');
-  h.push('<p style="font-size:8.5pt;margin:6px 0;">แยกตามเหตุผล: ค้างนาน ' + cnt('still') + ' · RQN เก่า ' + cnt('rqn') + ' · ล็อตสุดท้าย ' + cnt('last') + ' · ใช้แทนได้ ' + cnt('sub') + ' รายการ (1 รายการอาจมีหลายเหตุผล)</p>');
+  h.push('<p style="font-size:8.5pt;margin:6px 0;">แยกตามเหตุผล: ไม่เคลื่อนไหว ' + cnt('still') + ' · RQN เก่า ' + cnt('rqn') + ' · CODE เลิกใช้ ' + cnt('off') + ' · ล็อตสุดท้าย ' + cnt('last') + ' · ใช้แทนได้ ' + cnt('sub') + ' รายการ (1 รายการอาจมีหลายเหตุผล)</p>');
   // 2) top 10
-  h.push('<h2>2. ' + (admin ? 'Top 10 มูลค่าสูงสุด — ควรเร่งนำไปใช้ก่อน' : 'Top 10 ค้างนานที่สุด') + '</h2><table><tr>' + th('#', 'center') + th('CODE') + th('รายการ') + th('คงเหลือ', 'right') + th('ไม่เคลื่อนไหว', 'right') + (admin ? th('มูลค่า', 'right') : '') + '</tr>');
+  h.push('<h2>2. ' + (admin ? 'Top 10 มูลค่าสูงสุด — ควรเร่งนำไปใช้ก่อน' : 'Top 10 ไม่เคลื่อนไหวนานที่สุด') + '</h2><table><tr>' + th('#', 'center') + th('CODE') + th('รายการ') + th('คงเหลือ', 'right') + th('ไม่เคลื่อนไหว', 'right') + (admin ? th('มูลค่า', 'right') : '') + '</tr>');
   top.forEach(function (x, i) { h.push('<tr>' + td(String(i + 1), 'center') + td('<b>' + esc_(x.code) + '</b>') + td(esc_(x.desc || '-')) + td(fmt(x.qty) + ' ' + esc_(x.unit || ''), 'right') + td(x.still != null ? x.still + ' วัน' : '-', 'right') + (admin ? td(money(x.value), 'right', 'color:#9f1239;font-weight:bold;') : '') + '</tr>'); });
   h.push('</table>');
   // 3) group summary
   if (group !== 'none') {
-    h.push('<h2>3. สรุปตามหมวด (' + esc_(groupTxt) + ')</h2><table><tr>' + th(group === 'prefix4' ? 'หมวด (4 หลักแรก)' : 'หมวด') + th('จำนวนรายการ', 'right') + th('มีผู้จอง', 'right') + th('ค้างนานสุด', 'right') + (admin ? th('มูลค่ารวม', 'right') + th('สัดส่วน', 'right') : '') + '</tr>');
+    h.push('<h2>3. สรุปตามหมวด (' + esc_(groupTxt) + ')</h2><table><tr>' + th(group === 'prefix4' ? 'หมวด (4 หลักแรก)' : 'หมวด') + th('จำนวนรายการ', 'right') + th('มีผู้จอง', 'right') + th('ไม่เคลื่อนไหวนานสุด', 'right') + (admin ? th('มูลค่ารวม', 'right') + th('สัดส่วน', 'right') : '') + '</tr>');
     order.forEach(function (k) { var g = groups[k]; h.push('<tr>' + td('<b>' + esc_(g.name) + '</b>') + td(fmt(g.items.length), 'right') + td(fmt(g.claimed), 'right') + td(g.oldest ? g.oldest + ' วัน' : '-', 'right') + (admin ? td(money(g.value), 'right') + td(total ? (g.value / total * 100).toFixed(1) + '%' : '-', 'right') : '') + '</tr>'); });
     h.push('</table>');
   }
