@@ -260,9 +260,25 @@ function getIssues(token) {
   ensureIssueCols_(s);
   var rows = s.getRange(2, 1, s.getLastRow() - 1, NCOLS).getDisplayValues();
   if (!admin) rows.forEach(function (r) { r[12] = ''; });   // reporter email: admin only
+  // Archived cases travel without their chat (the bulk of the sheet as cases pile up): column 18 = message count.
+  // The page loads the full case with getIssueFull when someone opens it.
+  rows.forEach(function (r) {
+    if (String(r[13] || '').trim() !== '1' || String(r[9] || '').length < 3) return;
+    var n = 0; try { n = (JSON.parse(r[9]) || []).length; } catch (e) {}
+    r[9] = '[]'; r[17] = String(n || 1);
+  });
   ordCachePut_(key, rows, 600);
   perf_('getIssues', t0);
   return rows;
+}
+// one case with its full chat (archived cases arrive without it, see getIssues)
+function getIssueFull(token, id) {
+  var s = ss_().getSheetByName(CONFIG.ISSUES), k = String(id || '').trim(); if (!s || !k || s.getLastRow() < 2) return null;
+  var hit = s.getRange(2, 1, s.getLastRow() - 1, 1).createTextFinder(k).matchEntireCell(true).findNext();
+  if (!hit) return null;
+  var r = s.getRange(hit.getRow(), 1, 1, NCOLS).getDisplayValues()[0];
+  if (!isAdmin_(token)) r[12] = '';
+  return r;
 }
 function getSchedules() {
   var s = ss_().getSheetByName(CONFIG.SCHEDULES);
@@ -710,6 +726,14 @@ function saveAllIssues(token, issues, baseVer) {
   return withLock_(function () {
     var sh = sheet_(CONFIG.ISSUES, ISSUE_HEADER), dead = issDeleted_();
     issues = (issues || []).filter(function (i) { return dead.indexOf(String(i && i.id || '').trim()) < 0; });   // deleted cases stay deleted
+    // archived cases reach the page without their chat → keep the chat already in the sheet (never wipe it)
+    var oldChat = {}, lr = sh.getLastRow();
+    if (lr > 1) sh.getRange(2, 1, lr - 1, 10).getDisplayValues().forEach(function (r) { if (r[0] && String(r[9] || '').length > 2) oldChat[String(r[0]).trim()] = r[9]; });
+    issues.forEach(function (i) {
+      var k = String(i && i.id || '').trim();
+      if (oldChat[k] && (i._lite || !(i.chat || []).length)) { try { i.chat = JSON.parse(oldChat[k]); } catch (e) {} }
+      delete i._lite; delete i.chatN;
+    });
     var rows = issues.map(function (i) {
       i.files = persistFiles_(i.files);
       (i.chat || []).forEach(function (m) { if (m.files) m.files = persistFiles_(m.files); });

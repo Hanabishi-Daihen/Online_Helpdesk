@@ -302,6 +302,17 @@ function ordPub_(o) {
   return x;
 }
 function ordPubAll_() { return ordAll_().reverse().map(ordPub_); }
+// What the Order Item page receives: orders issued in the last ORD_RECENT_DAYS days (covers this year and last year,
+// enough for the Spec-number duplicate check) plus any order still waiting for approval. Older ones load on request
+// (getOrders) — the full list would otherwise grow every year and be sent to every browser on every save.
+var ORD_RECENT_DAYS = 400;
+function ordRecent_(o) { var a = o.approval || {}, d = ordAgeDays_(o.issueDate); return d == null || d <= ORD_RECENT_DAYS || a.state === 'chk' || a.state === 'app'; }
+function ordPubRecent_() { return ordAll_().reverse().filter(ordRecent_).map(ordPub_); }
+function ordOlderInfo_() {
+  var all = ordAll_(), yrs = {}, n = 0;
+  all.forEach(function (o) { var m = /(\d{4})$/.exec(String(o.issueDate || '')); if (m) yrs[m[1]] = 1; if (!ordRecent_(o)) n++; });
+  return { older: n, years: Object.keys(yrs).sort().reverse(), recentDays: ORD_RECENT_DAYS };
+}
 // The OrderItem sheet is read at most once per server call: the rows are kept in __ordMemo,
 // writes update the memo in place (ordMemoPut_), deleteRow resets it, and withLock_ resets it so
 // everything inside a lock works on a fresh read.
@@ -341,7 +352,8 @@ function ordNext_(yy) {
 function getOrderBoot(token) {
   var t0 = Date.now(), admin = isAdmin_(token), tpl = null;
   if (admin) { try { tpl = ordTplInfo_(); } catch (e) { tpl = { ok: false, msg: e.message }; } }
-  var out = { db: getOrderDb(), orders: ordPubAll_(), next: null, today: ordToday_(), admin: admin, tpl: tpl,
+  var oi = ordOlderInfo_();
+  var out = { db: getOrderDb(), orders: ordPubRecent_(), older: oi.older, years: oi.years, recentDays: oi.recentDays, next: null, today: ordToday_(), admin: admin, tpl: tpl,
     approvers: oaNames_(), approverCfg: admin ? oaCfg_() : null, dupCfg: admin ? ordDupCfg_() : null, apVer: oaVer_(), ageCfg: oaAgeCfg_() };
   perf_('getOrderBoot', t0);
   return out;
@@ -427,7 +439,7 @@ function saveOrder(o) {
     x.row = row; ordMemoPut_(x); dataBump_('ORD_VER');
     audit_([['User', cur ? 'แก้ไขใบสั่ง (Order Item)' : 'สร้างใบสั่ง (Order Item)', x.id, x.spec + ' · ' + x.rqn + ' · ' + x.items.length + ' รายการ · ' + x.des]]);
     x.row = row;
-    return { order: ordPub_(x), orders: ordPubAll_() };
+    return { order: ordPub_(x), orders: ordPubRecent_() };
   });
 }
 function deleteOrder(token, id) {
@@ -437,7 +449,7 @@ function deleteOrder(token, id) {
     ordSheet_().deleteRow(o.row); ordMemoReset_(); dataBump_('ORD_VER');
     if (o.approval) oaBump_();
     audit_([['Admin', 'ลบใบสั่ง (Order Item)', id, o.spec + ' · ' + o.rqn]]);
-    return ordPubAll_();
+    return ordPubRecent_();
   });
 }
 
@@ -632,7 +644,7 @@ function exportOrder(id, fmt) {
     writeText_(ordSheet_(), cur.row, 1, ordObjToRow_(cur)); ordMemoPut_(cur); dataBump_('ORD_VER');
   });
   audit_([['User', 'ส่งออกใบสั่ง (' + fmt.toUpperCase() + ')', id, o.spec]]);
-  return { files: files, orders: ordPubAll_() };
+  return { files: files, orders: ordPubRecent_() };
 }
 
 // public: a PDF the system exported earlier (FormOrder or FormOrder/BOM_Export only) → base64 for the in-app preview

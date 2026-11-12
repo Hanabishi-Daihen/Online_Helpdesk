@@ -32,11 +32,44 @@ function wsLogChanges_(ss, old, tot) {
   var rg = sh.getRange(at, 1, add.length, 3); rg.setNumberFormat('@'); rg.setValues(add);
   var n = sh.getLastRow() - 1;
   if (n > WS_LOG_MAX) sh.deleteRows(2, n - WS_LOG_KEEP);               // keep the newest rows
+  try { wsHistIdxAdd_(ss, add); } catch (e) { console.warn('wsHistIdxAdd_', e); }
   return add.length;
+}
+// ── per-CODE history index (sheet StockHistIdx: CODE · last WS_HIDX_KEEP points as JSON [["dd/MM/yyyy","qty"], …]) ──
+// Item 360 reads one row of this sheet instead of searching StockChangeLog (up to 300,000 rows) on every open.
+// Updated with the rows each Stock sync adds; built once from StockChangeLog when it does not exist yet.
+var WS_HIDX_SHEET = 'StockHistIdx', WS_HIDX_KEEP = 120;
+function wsHistIdxAdd_(ss, add) {
+  var sh = ss.getSheetByName(WS_HIDX_SHEET), map = {}, order = [];
+  var put = function (k, d, q) { var a = map[k]; if (!a) { a = map[k] = []; order.push(k); } a.push([d, q]); if (a.length > WS_HIDX_KEEP) a.splice(0, a.length - WS_HIDX_KEEP); };
+  if (!sh || sh.getLastRow() < 2) {                                     // first time: build from the whole log (it already holds `add`)
+    var log = ss.getSheetByName(WS_LOG_SHEET); if (!log || log.getLastRow() < 2) return;
+    log.getRange(2, 1, log.getLastRow() - 1, 3).getDisplayValues().forEach(function (r) { if (r[1]) put(r[1], r[0], r[2]); });
+    if (!sh) sh = ss.insertSheet(WS_HIDX_SHEET);
+  } else {
+    sh.getRange(2, 1, sh.getLastRow() - 1, 2).getDisplayValues().forEach(function (r) {
+      if (!r[0]) return; var a = []; try { a = JSON.parse(r[1]) || []; } catch (e) {} map[r[0]] = a; order.push(r[0]);
+    });
+    add.forEach(function (r) { put(r[1], r[0], r[2]); });
+  }
+  var rows = [['CODE', 'POINTS']].concat(order.map(function (k) { return [k, JSON.stringify(map[k])]; }));
+  sh.clearContents(); fitCols_(sh, 2);
+  if (sh.getMaxRows() < rows.length) sh.insertRowsAfter(sh.getMaxRows(), rows.length - sh.getMaxRows());
+  var rg = sh.getRange(1, 1, rows.length, 2); rg.setNumberFormat('@'); rg.setValues(rows);
 }
 function wsHistory_(k) {
   var out = [];
-  try {
+  try {                                                                 // fast path: one row of the index
+    var ix = stockSS_().getSheetByName(WS_HIDX_SHEET);
+    if (ix && ix.getLastRow() > 1) {
+      var h = ix.getRange(2, 1, ix.getLastRow() - 1, 1).createTextFinder(k).matchEntireCell(true).findNext();
+      if (!h) return out;
+      var pts = []; try { pts = JSON.parse(ix.getRange(h.getRow(), 2).getDisplayValue()) || []; } catch (e) {}
+      pts.forEach(function (p) { var t = bomDate_(p[0]); if (t != null) out.push([t, Number(p[1]) || 0]); });
+      return out.sort(function (a, b) { return a[0] - b[0]; });
+    }
+  } catch (e) { console.warn('wsHistory_ index', e); out = []; }
+  try {                                                                 // no index yet: search the log (slower)
     var sh = stockSS_().getSheetByName(WS_LOG_SHEET);
     if (!sh || sh.getLastRow() < 2) return out;
     var hits = sh.getRange(2, 2, sh.getLastRow() - 1, 1).createTextFinder(k).matchEntireCell(true).findAll();

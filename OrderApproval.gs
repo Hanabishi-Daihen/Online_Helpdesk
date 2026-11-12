@@ -115,7 +115,7 @@ function oaBump_() {
 }
 function getOrderApprovalPulse(ver) {
   var v = oaVer_();
-  return String(ver || '') === v ? { ver: v } : { ver: v, orders: ordPubAll_() };
+  return String(ver || '') === v ? { ver: v } : { ver: v, orders: ordPubRecent_() };
 }
 
 // ── e-mail ──────────────────────────────────────────────────────────
@@ -191,7 +191,7 @@ function submitOrderApproval(id, req, token) {
   if (!silent) oaMail_('order_chk_request', res, a, [a.chk.email], [a.req.email], 'ขอให้ตรวจสอบใบสั่ง (CHK)',
     'เรียน คุณ' + a.chk.name + ' — คุณ' + res.des + ' ส่งใบสั่ง ' + res.id + ' ให้ตรวจสอบ กรุณากดปุ่มด้านล่างเพื่อดูรายละเอียดและ ผ่าน / ไม่ผ่าน',
     msg, { label: 'ตรวจสอบใบสั่ง', url: oaUrl_(res.id, a.k) });
-  return { order: ordPub_(res), orders: ordPubAll_() };
+  return { order: ordPub_(res), orders: ordPubRecent_() };
 }
 
 // ── Admin shortcut (tab "รอการอนุมัติ") ────────────────────────────
@@ -232,7 +232,7 @@ function adminActOrderApproval(token, id, mode, comment) {
     oaMail_('order_rejected', r, a, to, [], 'ใบสั่ง ' + r.id + ' ไม่อนุมัติ',
       'ใบสั่งนี้ไม่ได้รับการอนุมัติ — แก้ไขแล้วส่งขออนุมัติใหม่ได้', comment);
   }
-  return { order: ordPub_(r), orders: ordPubAll_() };
+  return { order: ordPub_(r), orders: ordPubRecent_() };
 }
 
 // ── approval page (opened from the e-mail link) ─────────────────────
