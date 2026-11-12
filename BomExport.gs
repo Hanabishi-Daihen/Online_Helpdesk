@@ -330,7 +330,7 @@ function exportBomShortReport(token, opt) {
   });
   var h = [];
   h.push('<html><head><meta charset="utf-8"><style>body{font-family:Sarabun,Tahoma,Arial,sans-serif;color:#141413;font-size:9pt;}h1{font-size:17pt;margin:0;}h2{font-size:12pt;margin:16px 0 6px;border-bottom:2px solid ' + A + ';padding-bottom:3px;}table{border-collapse:collapse;width:100%;}</style></head><body>');
-  h.push('<table><tr><td style="background:' + A + ';color:#fff;padding:10px 12px;"><h1>📋 รายงานรายการที่ขาด — Booking BOM</h1><div style="font-size:9pt;">DAIHEN ELECTRIC CO., LTD. · ' + (want ? 'โปรเจกต์ ' + esc_(want) : 'ทุกโปรเจกต์ที่จองอยู่') + ' · ' + (unit ? 'ผู้สั่ง ' + esc_(unit === '-' ? 'ไม่ระบุ' : unit) : 'ผู้สั่งทุกหน่วยงาน') + '</div></td></tr></table>');
+  h.push('<table><tr><td style="background:' + A + ';color:#fff;padding:10px 12px;"><h1>📋 รายงานรายการที่ขาด — Booking BOM</h1><div style="font-size:9pt;">' + (want ? 'โปรเจกต์ ' + esc_(want) : 'ทุกโปรเจกต์ที่จองอยู่') + ' · ' + (unit ? 'ผู้สั่ง ' + esc_(unit === '-' ? 'ไม่ระบุ' : unit) : 'ผู้สั่งทุกหน่วยงาน') + '</div></td></tr></table>');
   h.push('<p style="font-size:8.5pt;color:' + M + ';margin:6px 0;">ออกรายงาน ' + esc_(nowStr_()) + ' · คำนวณการจอง ' + esc_(snap.built || '-') + ' · Stock ' + esc_(snap.stockTime || '-') + ' · Pending Order ' + esc_(snap.poTime || '-') + ' · ตารางงาน ' + esc_(snap.schedTime || '-') + (withLate ? ' · รวม "ของเข้าไม่ทัน"' : ' · เฉพาะ "ขาด"') + '</p>');
   // 1) summary
   h.push('<h2>1. สรุปภาพรวม</h2><table><tr>' + kpi(fmt(projs.length), 'โปรเจกต์') + kpi(fmt(projRows.filter(function (r) { return r.items.length; }).length), 'โปรเจกต์ที่มีปัญหา', '#92400e') +

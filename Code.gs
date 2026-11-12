@@ -112,7 +112,7 @@ function rowToIssue_(r) {
 }
 function issueToRow_(i) {
   return [i.id, i.project, i.description, i.reporter, i.section, i.category,
-    JSON.stringify(i.files || []), i.reportedDate, i.status, JSON.stringify(i.chat || []),
+    JSON.stringify(i.files || []), i.reportedDate, i.status, chatFit_(i),
     i.priority, i.timestamp, i.reporterEmail || '', i.archived ? '1' : '',
     i.assignee || '', i.closedDate || '', (i.related || []).join(',')];
 }
@@ -278,6 +278,16 @@ function getIssueFull(token, id) {
   if (!hit) return null;
   var r = s.getRange(hit.getRow(), 1, 1, NCOLS).getDisplayValues()[0];
   if (!isAdmin_(token)) r[12] = '';
+  try {                                                              // long conversation: moved messages first, then the rest
+    var chat = JSON.parse(r[9] || '[]') || [];
+    if (chat.some(function (m) { return m && m.type === 'archived'; })) {
+      var bin = ss_().getSheetByName(CHAT_BIN), old = [];
+      if (bin && bin.getLastRow() > 1) bin.getRange(2, 1, bin.getLastRow() - 1, 1).createTextFinder(k).matchEntireCell(true).findAll().forEach(function (h) {
+        try { old = old.concat(JSON.parse(bin.getRange(h.getRow(), 3).getDisplayValue()) || []); } catch (e) {}
+      });
+      r[9] = JSON.stringify(old.concat(chat.filter(function (m) { return m && m.type !== 'archived'; })));
+    }
+  } catch (e) { console.warn('getIssueFull chat', e); }
   return r;
 }
 function getSchedules() {
@@ -343,11 +353,36 @@ function createIssue(issue) {
   return res;
 }
 
+// ── long conversations: a cell holds at most 50,000 characters. Past CHAT_CELL_MAX the oldest messages move to
+// sheet ChatArchive (Issue ID · moved at · JSON) and one note stays first in the case: { type:'archived', n, h:[hashes] }.
+// getIssueFull puts them back for reading; mergeChat_ never writes a moved message (hash) or a note from a browser again.
+var CHAT_CELL_MAX = 40000, CHAT_BIN = 'ChatArchive';
+function chatKey_(m) { return [m.sender, m.time, m.message, m.type || '', m.newStatus || ''].join('|'); }
+function chatHash_(m) { return Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, chatKey_(m), Utilities.Charset.UTF_8)).substring(0, 10); }
+function chatFit_(i) {
+  var chat = Array.isArray(i.chat) ? i.chat : [], js = JSON.stringify(chat);
+  if (js.length <= CHAT_CELL_MAX || !i.id) return js;
+  var note = chat.filter(function (m) { return m && m.type === 'archived'; })[0] || null, keep = chat.filter(function (m) { return m && m.type !== 'archived'; }), moved = [];
+  while (keep.length > 10 && JSON.stringify(keep).length > CHAT_CELL_MAX * 0.6) moved.push(keep.shift());
+  if (!moved.length) return js;
+  var sh = sheet_(CHAT_BIN, ['Issue ID', 'Moved At', 'Messages (JSON)']); fitCols_(sh, 3);
+  var rg = sh.getRange(Math.max(sh.getLastRow(), 1) + 1, 1, 1, 3); fmtText_(rg); rg.setValues([[String(i.id).trim(), nowStr_(), JSON.stringify(moved)]]);
+  var n = (note && note.n || 0) + moved.length, h = (note && note.h || []).concat(moved.map(chatHash_));
+  note = { sender: 'System', type: 'archived', read: true, time: nowStr_().substring(11, 16), n: n, h: h,
+    message: 'ข้อความเก่า ' + n + ' ข้อความ ย้ายไปเก็บแยกแล้ว (เคสคุยยาว) — เปิดเคสเพื่อดูทั้งหมด' };
+  i.chat = [note].concat(keep);
+  return JSON.stringify(i.chat);
+}
+function chatMoved_(chat) {                       // hashes of messages already moved to ChatArchive
+  var set = {}; (chat || []).forEach(function (m) { if (m && m.type === 'archived') (m.h || []).forEach(function (x) { set[x] = 1; }); });
+  return set;
+}
 function mergeChat_(oldChat, newChat) {
-  var key = function (m) { return [m.sender, m.time, m.message, m.type || '', m.newStatus || ''].join('|'); };
+  var key = chatKey_, moved = chatMoved_(oldChat), hasMoved = Object.keys(moved).length > 0;
   var out = oldChat.slice(), map = {};
   out.forEach(function (m, i) { map[key(m)] = i; });
   newChat.forEach(function (m) {
+    if (!m || m.type === 'archived' || (hasMoved && moved[chatHash_(m)])) return;   // notes are the server's · moved messages stay moved
     var k = key(m);
     if (k in map) { if (m.read) out[map[k]].read = true; }
     else {
@@ -732,6 +767,7 @@ function saveAllIssues(token, issues, baseVer) {
     issues.forEach(function (i) {
       var k = String(i && i.id || '').trim();
       if (oldChat[k] && (i._lite || !(i.chat || []).length)) { try { i.chat = JSON.parse(oldChat[k]); } catch (e) {} }
+      else if (oldChat[k] && oldChat[k].indexOf('"archived"') >= 0) { try { i.chat = mergeChat_(JSON.parse(oldChat[k]), i.chat || []); } catch (e) {} }
       delete i._lite; delete i.chatN;
     });
     var rows = issues.map(function (i) {
@@ -1850,16 +1886,48 @@ function stockAutoSync() { if (schedProp_('STOCK_SRC_URL')) syncStockRun_('อ�
 // depends on the new quantities: Stock ช่วยใช้ history (StockHistory / StockChangeLog), Booking BOM,
 // order tracking + notifications and the shared page caches. A one-off time trigger starts it ~30 s later.
 var STOCK_POST_WAIT = 'กำลังคำนวณ Stock ช่วยใช้ / Booking BOM / ติดตามใบสั่ง ต่อเบื้องหลัง (1–3 นาที)';
-function stockPostQueue_(why) {
-  schedProp_('STOCK_POST', JSON.stringify({ why: why, at: Date.now() }));
+function stockPostQueue_(why) { return postQueue_('stock', why); }
+// second stage after a sync, started ~30 s later by a one-off trigger (own 6-min budget):
+//   stock → stockAfterSync (Stock ช่วยใช้ history, Booking BOM, order tracking, page caches)
+//   po    → pendingAfterSync (Booking BOM, order tracking + notifications, page caches)
+var POST_KIND = { stock: ['STOCK_POST', 'stockAfterSync', function (w) { return stockPost_(w); }],
+  po: ['PO_POST', 'pendingAfterSync', function (w) { return pendingPost_(w); }] };
+var PO_POST_WAIT = 'กำลังคำนวณ Booking BOM / ติดตามใบสั่ง ต่อเบื้องหลัง (1–2 นาที)';
+function postQueue_(kind, why) {
+  var K = POST_KIND[kind];
+  schedProp_(K[0], JSON.stringify({ why: why, at: Date.now() }));
   try {
-    ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'stockAfterSync') ScriptApp.deleteTrigger(t); });
-    ScriptApp.newTrigger('stockAfterSync').timeBased().after(30 * 1000).create();
+    ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === K[1]) ScriptApp.deleteTrigger(t); });
+    ScriptApp.newTrigger(K[1]).timeBased().after(30 * 1000).create();
     return 'queued';
   } catch (e) {                                    // no trigger available (quota / permission) → do it here
-    console.warn('stockPostQueue_', e);
-    try { stockPost_(why); return 'done'; } catch (e2) { return String(e2 && e2.message || e2); }
+    console.warn('postQueue_ ' + kind, e);
+    try { schedProp_(K[0], null); K[2](why); return 'done'; } catch (e2) { return String(e2 && e2.message || e2); }
   }
+}
+function pendingAfterSync() {                      // trigger handler (one-off)
+  try { ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'pendingAfterSync') ScriptApp.deleteTrigger(t); }); } catch (e) {}
+  var job = null; try { job = JSON.parse(schedProp_('PO_POST') || 'null'); } catch (e) {}
+  if (!job) return;
+  syncMutex_('PO_POST_LAST', job.why, function () { schedProp_('PO_POST', null); return pendingPost_(job.why); });
+}
+function pendingPost_(why) {
+  var t0 = Date.now(), done = [], fail = [], step = function (nm, fn) {
+    var t = Date.now(); try { fn(); done.push(nm + ' ' + Math.round((Date.now() - t) / 1000) + 's'); } catch (e) { fail.push(nm); console.warn('pendingPost_ ' + nm, e); }
+  };
+  step('Booking BOM', function () { bomRefresh_(); });
+  step('ติดตามใบสั่ง', function () { if (typeof trkScanSafe_ === 'function') trkScanSafe_('Pending Order'); });
+  var secs = Math.round((Date.now() - t0) / 1000), info = { time: nowStr_(), why: why, ok: !fail.length, secs: secs, steps: done, fail: fail };
+  schedProp_('PO_POST_LAST', JSON.stringify(info));
+  try {
+    var last = poInfo_();
+    if (last && last.ok) {
+      last.msg = String(last.msg || '').replace(' · ' + PO_POST_WAIT, '') + ' · คำนวณต่อ' + (fail.length ? 'ไม่ครบ (' + fail.join(', ') + ')' : 'เสร็จ') + ' ' + info.time.substring(11, 16) + ' (' + secs + ' วินาที)';
+      last.post = fail.length ? 'fail' : 'done'; schedProp_('PO_SYNC_LAST', JSON.stringify(last));
+    }
+  } catch (e) {}
+  perf_('pendingPost_ ' + done.join(', '), t0);
+  return info;
 }
 function stockAfterSync() {                        // trigger handler (one-off)
   try { ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'stockAfterSync') ScriptApp.deleteTrigger(t); }); } catch (e) {}
@@ -2090,13 +2158,15 @@ function syncPendingInner_(why, force) {
     var extra = sh.getMaxRows() - all.length; if (extra > 200) sh.deleteRows(all.length + 101, extra - 100);
 
     schedProp_('PO_HASH', hash);
-    try { pendingBundle_(true); } catch (e) {}
-    try { bomRefresh_(); } catch (e) { console.warn('bomRefresh_', e); }   // Booking BOM: incoming changed
-    if (typeof trkScanSafe_ === 'function') trkScanSafe_('Pending Order');
+    try { pendingBundle_(true); } catch (e) {}                       // Pending Order page / search usable now
+    // Booking BOM, order tracking + notifications and the shared page caches: second execution (pendingAfterSync)
+    var post = postQueue_('po', why);
     var prs = {}, pos = {};
     rows.forEach(function (r) { if (r[1]) prs[r[1]] = 1; if (r[2]) pos[r[2]] = 1; });
     info.ok = true; info.rows = rows.length; info.hash = hash; info.secs = Math.round((Date.now() - t0) / 1000);
-    info.msg = 'อัปเดต ' + rows.length.toLocaleString() + ' แถว (PR ' + Object.keys(prs).length + ' · PO ' + Object.keys(pos).length + ') ใช้เวลา ' + info.secs + ' วินาที';
+    info.post = post;
+    info.msg = 'อัปเดต ' + rows.length.toLocaleString() + ' แถว (PR ' + Object.keys(prs).length + ' · PO ' + Object.keys(pos).length + ') ใช้เวลา ' + info.secs + ' วินาที' +
+      (post === 'queued' ? ' · ' + PO_POST_WAIT : post === 'done' ? ' · คำนวณ Booking BOM / ติดตามใบสั่ง เสร็จแล้ว' : ' · คำนวณต่อไม่สำเร็จ: ' + post);
     audit_([['System', 'ซิงค์ Pending Order จาก OneDrive', '', info.why + ' · ' + info.msg]]);
   } catch (e) {
     info.ok = false; info.msg = e.message || String(e);
