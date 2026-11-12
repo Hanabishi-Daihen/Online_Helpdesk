@@ -268,6 +268,20 @@ function rsStill_(x) {
   delete x.idle;
   return x;
 }
+// "6 ปี 28 วัน" — calendar years / months / days from the date the count starts (lastUsed or since) to today
+function rsYmd_(x) {
+  if (!x || x.still == null) return '-';
+  var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String((x.stillSrc === 'ship' ? x.lastUsed : x.since) || '')), y, mo, d;
+  if (m) {
+    var a = new Date(+m[3], +m[2] - 1, +m[1]), n = new Date(), b = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+    if (a > b) return '0 วัน';
+    y = b.getFullYear() - a.getFullYear(); mo = b.getMonth() - a.getMonth(); d = b.getDate() - a.getDate();
+    if (d < 0) { mo--; d += new Date(b.getFullYear(), b.getMonth(), 0).getDate(); }
+    if (mo < 0) { y--; mo += 12; }
+  } else { y = Math.floor(x.still / 365); mo = Math.floor(x.still % 365 / 30); d = x.still % 365 % 30; }
+  var p = []; if (y) p.push(y + ' ปี'); if (mo) p.push(mo + ' เดือน'); if (d || !p.length) p.push(d + ' วัน');
+  return p.join(' ');
+}
 function rsRqnYear_(rqn) { var m = /RQN\s*(\d{2})\s*-/i.exec(String(rqn || '')); return m ? 2000 + Number(m[1]) : null; }
 
 // ── snapshot: the full (Admin) list computed at Stock sync / tag or setting change ──
@@ -451,7 +465,7 @@ function exportRemainReport(token, opt) {
   h.push('<p style="font-size:8.5pt;margin:6px 0;">แยกตามเหตุผล: ไม่เคลื่อนไหว ' + cnt('still') + ' · RQN เก่า ' + cnt('rqn') + ' · CODE เลิกใช้ ' + cnt('off') + ' · ล็อตสุดท้าย ' + cnt('last') + ' · ใช้แทนได้ ' + cnt('sub') + ' รายการ (1 รายการอาจมีหลายเหตุผล)</p>');
   // 2) top 10
   h.push('<h2>2. ' + (admin ? 'Top 10 มูลค่าสูงสุด — ควรเร่งนำไปใช้ก่อน' : 'Top 10 ไม่เคลื่อนไหวนานที่สุด') + '</h2><table><tr>' + th('#', 'center') + th('CODE') + th('รายการ') + th('คงเหลือ', 'right') + th('ไม่เคลื่อนไหว', 'right') + (admin ? th('มูลค่า', 'right') : '') + '</tr>');
-  top.forEach(function (x, i) { h.push('<tr>' + td(String(i + 1), 'center') + td('<b>' + esc_(x.code) + '</b>') + td(esc_(x.desc || '-')) + td(fmt(x.qty) + ' ' + esc_(x.unit || ''), 'right') + td(x.still != null ? x.still + ' วัน' : '-', 'right') + (admin ? td(money(x.value), 'right', 'color:#9f1239;font-weight:bold;') : '') + '</tr>'); });
+  top.forEach(function (x, i) { h.push('<tr>' + td(String(i + 1), 'center') + td('<b>' + esc_(x.code) + '</b>') + td(esc_(x.desc || '-')) + td(fmt(x.qty) + ' ' + esc_(x.unit || ''), 'right') + td(rsYmd_(x), 'right') + (admin ? td(money(x.value), 'right', 'color:#9f1239;font-weight:bold;') : '') + '</tr>'); });
   h.push('</table>');
   // 3) group summary
   if (group !== 'none') {
@@ -470,7 +484,7 @@ function exportRemainReport(token, opt) {
       var cl = (claims[x.key] || []).map(function (c) { return esc_(c.name) + (c.qty ? ' (' + esc_(c.qty) + ')' : '') + ': ' + esc_(c.purpose); }).join('<br>');
       h.push('<tr>' + td('<b>' + esc_(x.code) + '</b>') + td(esc_(x.desc || '-') + (x.comment ? '<br><span style="color:' + M + ';">' + esc_(x.comment) + '</span>' : '')) +
         td(fmt(x.qty) + ' ' + esc_(x.unit || ''), 'right') + td(esc_((x.locs || []).map(function (l) { return l[0] + ' ' + fmt(l[1]); }).join(', '))) +
-        td((x.still != null ? x.still + ' วัน' : '-') + (x.rqnAge != null ? '<br><span style="color:' + M + ';">RQN ' + x.rqnAge + ' ปี</span>' : ''), 'right') +
+        td(rsYmd_(x) + (x.rqnAge != null ? '<br><span style="color:' + M + ';">RQN ' + x.rqnAge + ' ปี</span>' : ''), 'right') +
         td(esc_((x.why || []).map(function (w) { return WHY[w] || w; }).join(', ')) + (tg ? '<br><span style="color:' + M + ';">' + tg + '</span>' : '')) +
         td(cl || '-') + (admin ? td(money(x.value), 'right') : '') + '</tr>');
     });
