@@ -31,6 +31,7 @@ function logUsage(device, rows) {
   try {
     var ss = stockSS_(), sh = ss.getSheetByName(USE_SHEET);
     if (!sh) { sh = ss.insertSheet(USE_SHEET); sh.getRange(1, 1, 1, USE_HEADER.length).setValues([USE_HEADER]).setFontWeight('bold'); sh.setFrozenRows(1); }
+    fitCols_(sh, USE_HEADER.length);
     var at = sh.getLastRow() + 1;
     if (sh.getMaxRows() < at + add.length) sh.insertRowsAfter(sh.getMaxRows(), at + add.length - sh.getMaxRows());
     var rg = sh.getRange(at, 1, add.length, USE_HEADER.length); rg.setNumberFormat('@'); rg.setValues(add);

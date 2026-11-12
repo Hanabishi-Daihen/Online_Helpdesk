@@ -95,7 +95,7 @@ function rsTrack_(rows) {
     return [k, q, o && o[1] === q && o[2] ? o[2] : today, today];
   });
   var all = [RS_HIST_HEADER].concat(out);
-  sh.clearContents();
+  sh.clearContents(); fitCols_(sh, 4);
   if (sh.getMaxRows() < all.length) sh.insertRowsAfter(sh.getMaxRows(), all.length - sh.getMaxRows());
   var rg = sh.getRange(1, 1, all.length, 4); rg.setNumberFormat('@'); rg.setValues(all);
   sh.setFrozenRows(1);

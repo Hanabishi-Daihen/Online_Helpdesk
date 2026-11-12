@@ -368,6 +368,7 @@ function ntfSheet_() {
 }
 function ntfAdd_(rows, ts) {
   var sh = ntfSheet_(), at = nowStr_(), add = rows.map(function (r, i) { return [String(ts + i), at].concat(r.map(function (v) { return ordStr_(v, 500); })); });
+  fitCols_(sh, NTF_HEADER.length);
   var r0 = sh.getLastRow() + 1;
   if (sh.getMaxRows() < r0 + add.length) sh.insertRowsAfter(sh.getMaxRows(), r0 + add.length - sh.getMaxRows());
   var rg = sh.getRange(r0, 1, add.length, NTF_HEADER.length); rg.setNumberFormat('@'); rg.setValues(add);

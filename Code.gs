@@ -48,6 +48,12 @@ var __ss = null;                                   // one openById per server ca
 function ss_() { return __ss || (__ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID)); }
 // timing → Executions log (Apps Script editor → Executions); compare before / after
 function perf_(name, t0) { try { console.log('[perf] ' + name + ' ' + (Date.now() - t0) + ' ms'); } catch (e) {} }
+// A new sheet has 26 columns; Google counts every cell of the grid (empty ones too) toward the 10-million-cell limit
+// of a spreadsheet. Log sheets use 3–15 columns but grow to 100,000s of rows, so drop the unused columns.
+function fitCols_(sh, n) {
+  try { var m = sh.getMaxColumns(); if (m > n) sh.deleteColumns(n + 1, m - n); } catch (e) { console.warn('fitCols_', e); }
+  return sh;
+}
 function sheet_(name, header) {
   var s = ss_().getSheetByName(name);
   if (!s) { s = ss_().insertSheet(name); if (header) s.appendRow(header); }
@@ -1685,7 +1691,7 @@ function syncStockInner_(why, force) {
       SpreadsheetApp.flush();
     }
     var spare = sh.getMaxRows() - need; if (spare > 200) sh.deleteRows(need + 101, spare - 100);
-    sh.setFrozenRows(1); sh.hideColumns(STOCK_W);
+    sh.setFrozenRows(1); fitCols_(sh, STOCK_WW); sh.hideColumns(STOCK_W);
     lap('write');
 
     var locList = Object.keys(locs).sort().map(function (k) { return [k, locs[k]]; });
@@ -2039,6 +2045,7 @@ function syncPendingInner_(why, force) {
     sh.clearContents();
     if (sh.getMaxRows() < all.length) sh.insertRowsAfter(sh.getMaxRows(), all.length - sh.getMaxRows());
     if (sh.getMaxColumns() < PO_HEADER.length) sh.insertColumnsAfter(sh.getMaxColumns(), PO_HEADER.length - sh.getMaxColumns());
+    fitCols_(sh, PO_HEADER.length);
     var rg = sh.getRange(1, 1, all.length, PO_HEADER.length); rg.setNumberFormat('@'); rg.setValues(all);
     sh.getRange(1, 1, 1, PO_HEADER.length).setFontWeight('bold'); sh.setFrozenRows(1);
     var extra = sh.getMaxRows() - all.length; if (extra > 200) sh.deleteRows(all.length + 101, extra - 100);

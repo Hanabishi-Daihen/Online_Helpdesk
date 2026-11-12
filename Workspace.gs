@@ -26,6 +26,7 @@ function wsLogChanges_(ss, old, tot) {
   if (!add.length) return 0;
   var sh = ss.getSheetByName(WS_LOG_SHEET);
   if (!sh) { sh = ss.insertSheet(WS_LOG_SHEET); sh.getRange(1, 1, 1, 3).setValues([['DATE', 'CODE', 'QTY']]); sh.setFrozenRows(1); }
+  fitCols_(sh, 3);                                                     // 300,000 rows × 26 empty columns would be 7.8M cells
   var at = sh.getLastRow() + 1;
   if (sh.getMaxRows() < at + add.length) sh.insertRowsAfter(sh.getMaxRows(), at + add.length - sh.getMaxRows());
   var rg = sh.getRange(at, 1, add.length, 3); rg.setNumberFormat('@'); rg.setValues(add);
