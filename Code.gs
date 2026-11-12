@@ -1575,9 +1575,9 @@ function testScheduleSync() {
 // ══════════════════════════════════════════════════════════════════════
 var STOCK_SHEET = 'Stock';
 var STOCK_HEADER = ['ITEMNO', 'DESC', 'COMMENT1', 'QTYONHAND', 'STOCKUNIT', 'LOCATION', 'PICKINGSEQ',
-  'LastOfRequest_By', 'LASTCOST', 'LastOfRequisition_No', '_packed', 'LASTUSED', 'ACTIVE'];
-// Sheet: A–J data, K hidden packed search column (kept at K so an older sheet still reads), L LASTUSED, M ACTIVE.
-// Packed row = 12 fields: the 10 data columns, then [10] LASTUSED (yyyymmdd or '') and [11] ACTIVE ('1' / '0' / '' = not in file)
+  'LastOfRequest_By', 'LASTCOST', 'LastOfRequisition_No', '_packed', 'LASTSHIPDT', 'ACTIVE'];
+// Sheet: A–J data, K hidden packed search column (kept at K so an older sheet still reads), L LASTSHIPDT, M ACTIVE.
+// Packed row = 12 fields: the 10 data columns, then [10] LASTSHIPDT (yyyymmdd or '') and [11] ACTIVE ('1' / '0' / '' = not in file)
 var STOCK_NCOL = 12, STOCK_W = 11, STOCK_WW = 13, STOCK_LU_COL = 10, STOCK_ACT_COL = 11, STOCK_FMT = 2;
 var STOCK_COST_COL = 8, STOCK_REQ_COL = 9;         // LASTCOST (admin / cost code) · Requisition No (admin only)
 var STOCK_ALL_MAX = 1500;                          // ≤ this many matches → return all rows at once
@@ -1619,7 +1619,7 @@ function stockNum_(v) {                             // "?4380750.07" → "438075
   var s = String(v || '').replace(/[^0-9.\-]/g, '');
   return s === '' || s === '-' || s === '.' ? '' : s;
 }
-// LASTUSED "20210331" → "20210331" (a real date) · "0" / blank / anything else → "" (never used / unknown)
+// LASTSHIPDT "20210331" → "20210331" (a real date) · "0" / blank / anything else → "" (never used / unknown)
 function stockLu_(v) {
   var s = String(v == null ? '' : v).replace(/\D/g, ''); if (s.length !== 8) return '';
   var y = +s.substring(0, 4), m = +s.substring(4, 6), d = +s.substring(6, 8);
@@ -1627,13 +1627,13 @@ function stockLu_(v) {
 }
 function stockAct_(v) { var s = String(v == null ? '' : v).trim(); return s === '' ? '' : /^(0|n|no|false|inactive)$/i.test(s) ? '0' : '1'; }
 function stockLuDmy_(s) { return s && s.length === 8 ? s.substring(6, 8) + '/' + s.substring(4, 6) + '/' + s.substring(0, 4) : ''; }
-// ix = { lu, act } column positions of LASTUSED / ACTIVE in the file (-1 = not there)
+// ix = { lu, act } column positions of LASTSHIPDT / ACTIVE in the file (-1 = not there)
 function stockRow_(f, ix) {
   var r = [];
   for (var c = 0; c < 10; c++) r.push(String(f[c] == null ? '' : f[c]).replace(/[\t\r\n]+/g, ' ').trim());
   r[3] = stockNum_(r[3]); r[8] = stockNum_(r[8]);
   var lu = ix && ix.lu >= 0 ? stockLu_(f[ix.lu]) : '', act = ix && ix.act >= 0 ? stockAct_(f[ix.act]) : '';
-  r.push([r.join('\t'), lu, act].join('\t'), lu, act);   // K packed · L LASTUSED · M ACTIVE
+  r.push([r.join('\t'), lu, act].join('\t'), lu, act);   // K packed · L LASTSHIPDT · M ACTIVE
   return r;
 }
 
@@ -1642,7 +1642,8 @@ function syncStockInner_(why, force) {
   var url = schedProp_('STOCK_SRC_URL'), info = { time: nowStr_(), why: why }, t0 = Date.now();
   if (!url) throw new Error('ยังไม่ได้ตั้งค่าลิงก์ OneDrive ของ Item stock');
   try {
-    var text = downloadShared_(url);
+    var text = downloadShared_(url), lap = function (k) { tm[k] = Math.round((Date.now() - t1) / 1000); t1 = Date.now(); }, tm = {}, t1 = t0;
+    lap('dl');
     var hash = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, text));
     var prev = stockInfo_();
     if (!force && prev && prev.ok && prev.hash === hash && prev.fmt === STOCK_FMT) {
@@ -1652,8 +1653,8 @@ function syncStockInner_(why, force) {
     var lines = text.split(/\r?\n/); text = null;
     var head = csvLine_(lines[0] || '').map(function (x) { return String(x).trim().toUpperCase(); });
     if (head[0] !== 'ITEMNO' || head[3] !== 'QTYONHAND' || head[8] !== 'LASTCOST' || head.length < 10)
-      throw new Error('หัวคอลัมน์ไม่ตรงรูปแบบ ต้องเป็น: ' + STOCK_HEADER.slice(0, 10).join(', ') + ' (ต่อด้วย LASTUSED, ACTIVE ได้)');
-    var ix = { lu: head.indexOf('LASTUSED'), act: head.indexOf('ACTIVE') }, nOff = 0;
+      throw new Error('หัวคอลัมน์ไม่ตรงรูปแบบ ต้องเป็น: ' + STOCK_HEADER.slice(0, 10).join(', ') + ' (ต่อด้วย LASTSHIPDT, ACTIVE ได้)');
+    var ix = { lu: head.indexOf('LASTSHIPDT') >= 0 ? head.indexOf('LASTSHIPDT') : head.indexOf('LASTUSED'), act: head.indexOf('ACTIVE') }, nOff = 0;   // LASTSHIPDT (older files: LASTUSED)
     var rows = [], locs = {}, codes = {}, bys = {};
     for (var i = 1, buf = ''; i < lines.length; i++) {
       buf = buf ? buf + ' ' + lines[i] : lines[i];
@@ -1666,6 +1667,7 @@ function syncStockInner_(why, force) {
     }
     lines = null;
     if (!rows.length) throw new Error('ไฟล์ไม่มีข้อมูล');
+    lap('parse');
 
     // Write in place: the "Stock" sheet keeps its sheet ID and the other sheets (PendingOrder, StockRT) are never touched.
     // (Before: a temp sheet was swapped in and every other sheet in the workbook was deleted.)
@@ -1684,19 +1686,25 @@ function syncStockInner_(why, force) {
     }
     var spare = sh.getMaxRows() - need; if (spare > 200) sh.deleteRows(need + 101, spare - 100);
     sh.setFrozenRows(1); sh.hideColumns(STOCK_W);
+    lap('write');
 
     var locList = Object.keys(locs).sort().map(function (k) { return [k, locs[k]]; });
     schedProp_('STOCK_META', JSON.stringify({ rows: rows.length, items: Object.keys(codes).length, locations: locList, bys: stockUnitList_(bys), time: info.time }));
     schedProp_('STOCK_HASH', hash);
-    try { rsTrack_(rows); CacheService.getScriptCache().remove('rs_flags'); } catch (e) { console.warn('rsTrack_', e); }   // Stock ช่วยใช้: quantity history
-    try { stockWarm_(rows.map(function (r) { return r[STOCK_W - 1]; }), hash); stockBundle_(); } catch (e) {}   // prime fast caches
-    try { bomRefresh_(); } catch (e) { console.warn('bomRefresh_', e); }   // Booking BOM: onhand changed
-    if (typeof trkScanSafe_ === 'function') trkScanSafe_('Item stock');      // Tracking.gs: order status + "ของเข้าแล้ว" notifications
-    info.ok = true; info.rows = rows.length; info.items = Object.keys(codes).length; info.hash = hash; info.fmt = STOCK_FMT;
-    info.cols = (ix.lu >= 0 ? 'LASTUSED ' : '') + (ix.act >= 0 ? 'ACTIVE' : ''); info.inactive = nOff;
+    try { stockWarm_(rows.map(function (r) { return r[STOCK_W - 1]; }), hash); stockBundle_(); } catch (e) {}   // prime fast caches (Item stock usable now)
+    lap('cache');
+    // Stock ช่วยใช้ history, Booking BOM, order tracking and the shared page caches run in a SECOND execution
+    // (stockAfterSync, own 6-min budget). Doing everything in one run went past the Apps Script time limit.
+    var nRows = rows.length; rows = null;
+    var post = stockPostQueue_(why);
+    info.ok = true; info.rows = nRows; info.items = Object.keys(codes).length; info.hash = hash; info.fmt = STOCK_FMT;
+    info.t = tm; info.post = post;
+    info.cols = (ix.lu >= 0 ? 'LASTSHIPDT ' : '') + (ix.act >= 0 ? 'ACTIVE' : ''); info.inactive = nOff;
     info.secs = Math.round((Date.now() - t0) / 1000);
-    info.msg = 'อัปเดต ' + rows.length.toLocaleString() + ' แถว (' + info.items.toLocaleString() + ' รายการ) ใช้เวลา ' + info.secs + ' วินาที' +
-      (ix.act >= 0 ? ' · เลิกใช้ (ACTIVE=0) ' + nOff.toLocaleString() + ' แถว' : '') + (ix.lu < 0 || ix.act < 0 ? ' · ไฟล์ไม่มีคอลัมน์ ' + [ix.lu < 0 ? 'LASTUSED' : '', ix.act < 0 ? 'ACTIVE' : ''].filter(String).join(', ') : '');
+    info.msg = 'อัปเดต ' + nRows.toLocaleString() + ' แถว (' + info.items.toLocaleString() + ' รายการ) ใช้เวลา ' + info.secs + ' วินาที' +
+      (ix.act >= 0 ? ' · เลิกใช้ (ACTIVE=0) ' + nOff.toLocaleString() + ' แถว' : '') + (ix.lu < 0 || ix.act < 0 ? ' · ไฟล์ไม่มีคอลัมน์ ' + [ix.lu < 0 ? 'LASTSHIPDT' : '', ix.act < 0 ? 'ACTIVE' : ''].filter(String).join(', ') : '') +
+      ' (ดาวน์โหลด ' + tm.dl + ' · อ่าน ' + tm.parse + ' · เขียนชีต ' + tm.write + ' วินาที)' +
+      (post === 'queued' ? ' · ' + STOCK_POST_WAIT : post === 'done' ? ' · คำนวณ Stock ช่วยใช้ / BOM / ติดตามใบสั่ง เสร็จแล้ว' : ' · คำนวณต่อไม่สำเร็จ: ' + post);
     audit_([['System', 'ซิงค์ Item stock จาก OneDrive', '', info.why + ' · ' + info.msg]]);
   } catch (e) {
     info.ok = false; info.msg = e.message || String(e);
@@ -1748,7 +1756,7 @@ function stockKeepWarm() { try { stockData_(); stockBundle_(); } catch (e) {} }
 
 // ── Browser-side search bundle ───────────────────────────────────────
 // Public columns only (0–7: CODE…LastOfRequest_By). LASTCOST / Requisition No never leave the server.
-// + [8] LASTUSED, [9] ACTIVE (public: when the code was last used / still open in the Official system)
+// + [8] LASTSHIPDT, [9] ACTIVE (public: when the code was last used / still open in the Official system)
 var STOCK_PUB_COLS = 8;
 function stockBundle_() {
   var hash = schedProp_('STOCK_HASH') || '', cache = CacheService.getScriptCache(), pre = 'stkb' + STOCK_FMT + '_' + hash.substring(0, 10) + '_';
@@ -1791,6 +1799,53 @@ function getStockCosts(token, costCode, keys) {
 }
 
 function stockAutoSync() { if (schedProp_('STOCK_SRC_URL')) syncStockRun_('อัตโนมัติ', false); }   // time trigger
+
+// ── after a Stock sync: second stage in its own execution ──
+// Stage 1 (the sync) only downloads, writes the sheet and primes the search cache. This stage recomputes what
+// depends on the new quantities: Stock ช่วยใช้ history (StockHistory / StockChangeLog), Booking BOM,
+// order tracking + notifications and the shared page caches. A one-off time trigger starts it ~30 s later.
+var STOCK_POST_WAIT = 'กำลังคำนวณ Stock ช่วยใช้ / Booking BOM / ติดตามใบสั่ง ต่อเบื้องหลัง (1–3 นาที)';
+function stockPostQueue_(why) {
+  schedProp_('STOCK_POST', JSON.stringify({ why: why, at: Date.now() }));
+  try {
+    ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'stockAfterSync') ScriptApp.deleteTrigger(t); });
+    ScriptApp.newTrigger('stockAfterSync').timeBased().after(30 * 1000).create();
+    return 'queued';
+  } catch (e) {                                    // no trigger available (quota / permission) → do it here
+    console.warn('stockPostQueue_', e);
+    try { stockPost_(why); return 'done'; } catch (e2) { return String(e2 && e2.message || e2); }
+  }
+}
+function stockAfterSync() {                        // trigger handler (one-off)
+  try { ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'stockAfterSync') ScriptApp.deleteTrigger(t); }); } catch (e) {}
+  var job = null; try { job = JSON.parse(schedProp_('STOCK_POST') || 'null'); } catch (e) {}
+  if (!job) return;
+  syncMutex_('STOCK_POST_LAST', job.why, function () { schedProp_('STOCK_POST', null); return stockPost_(job.why); });
+}
+function stockPost_(why) {
+  var t0 = Date.now(), done = [], fail = [], step = function (nm, fn) {
+    var t = Date.now(); try { fn(); done.push(nm + ' ' + Math.round((Date.now() - t) / 1000) + 's'); } catch (e) { fail.push(nm); console.warn('stockPost_ ' + nm, e); }
+  };
+  // rows for rsTrack_: [CODE, …, QTY at 3, …, packed at K] rebuilt from the cached packed rows (no sheet read)
+  var rows = stockData_().map(function (p) { var f = p.split('\t'), r = f.slice(0, 10); r[STOCK_W - 1] = p; return r; });
+  step('Stock ช่วยใช้', function () { rsTrack_(rows); CacheService.getScriptCache().remove('rs_flags'); });
+  rows = null;
+  step('Booking BOM', function () { bomRefresh_(); });
+  step('ติดตามใบสั่ง', function () { if (typeof trkScanSafe_ === 'function') trkScanSafe_('Item stock'); });
+  var secs = Math.round((Date.now() - t0) / 1000), info = { time: nowStr_(), why: why, ok: !fail.length, secs: secs, steps: done, fail: fail };
+  schedProp_('STOCK_POST_LAST', JSON.stringify(info));
+  try {                                             // show the result on the sync card
+    var last = stockInfo_();
+    if (last && last.ok) {
+      last.msg = String(last.msg || '').replace(' · ' + STOCK_POST_WAIT, '') + ' · คำนวณต่อ' + (fail.length ? 'ไม่ครบ (' + fail.join(', ') + ')' : 'เสร็จ') + ' ' + info.time.substring(11, 16) + ' (' + secs + ' วินาที)';
+      last.post = fail.length ? 'fail' : 'done'; schedProp_('STOCK_SYNC_LAST', JSON.stringify(last));
+    }
+  } catch (e) {}
+  perf_('stockPost_ ' + done.join(', '), t0);
+  return info;
+}
+// Admin / editor: run the second stage now (e.g. after a sync that stopped at the time limit)
+function stockPostNow(token) { requireAdmin_(token); return syncMutex_('STOCK_POST_LAST', 'สั่งโดย Admin', function () { schedProp_('STOCK_POST', null); return stockPost_('สั่งโดย Admin'); }); }
 function getStockSource(token) {
   requireAdmin_(token);
   var hrs = 0; ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'stockAutoSync') hrs = Number(schedProp_('STOCK_SYNC_HOURS') || 8); });
