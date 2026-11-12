@@ -1608,7 +1608,7 @@ var STOCK_HEADER = ['ITEMNO', 'DESC', 'COMMENT1', 'QTYONHAND', 'STOCKUNIT', 'LOC
   'LastOfRequest_By', 'LASTCOST', 'LastOfRequisition_No', '_packed', 'LASTSHIPDT', 'ACTIVE'];
 // Sheet: A–J data, K hidden packed search column (kept at K so an older sheet still reads), L LASTSHIPDT, M ACTIVE.
 // Packed row = 12 fields: the 10 data columns, then [10] LASTSHIPDT (yyyymmdd or '') and [11] ACTIVE ('1' / '0' / '' = not in file)
-var STOCK_NCOL = 12, STOCK_W = 11, STOCK_WW = 13, STOCK_LU_COL = 10, STOCK_ACT_COL = 11, STOCK_FMT = 2;
+var STOCK_NCOL = 12, STOCK_W = 11, STOCK_WW = 13, STOCK_LU_COL = 10, STOCK_ACT_COL = 11, STOCK_FMT = 3;   // FMT 3: LASTSHIPDT date formats → re-read once
 var STOCK_COST_COL = 8, STOCK_REQ_COL = 9;         // LASTCOST (admin / cost code) · Requisition No (admin only)
 var STOCK_ALL_MAX = 1500;                          // ≤ this many matches → return all rows at once
 var STOCK_CHUNK = 15000;
@@ -1650,10 +1650,17 @@ function stockNum_(v) {                             // "?4380750.07" → "438075
   return s === '' || s === '-' || s === '.' ? '' : s;
 }
 // LASTSHIPDT "20210331" → "20210331" (a real date) · "0" / blank / anything else → "" (never used / unknown)
-function stockLu_(v) {
-  var s = String(v == null ? '' : v).replace(/\D/g, ''); if (s.length !== 8) return '';
-  var y = +s.substring(0, 4), m = +s.substring(4, 6), d = +s.substring(6, 8);
-  return y >= 1990 && y <= 2100 && m >= 1 && m <= 12 && d >= 1 && d <= 31 ? s : '';
+// Accepts 20210331 · 2021-03-31 · 31/03/2021 or 3/31/2021 (with or without a time; order = 'dm' | 'md' from
+// poDateOrder_ over a sample of the file) · Buddhist years (2564) · Excel day numbers (44286).
+function stockLu_(v, order) {
+  var raw = String(v == null ? '' : v).trim(), s = raw.replace(/\D/g, ''), y, m, d;
+  if (!raw || /^0+$/.test(raw)) return '';
+  if (/^\d{8}$/.test(raw)) { y = +s.substring(0, 4); m = +s.substring(4, 6); d = +s.substring(6, 8); }
+  else if (/^\d{5}(\.\d+)?$/.test(raw)) { var t = new Date(Date.UTC(1899, 11, 30) + Math.floor(Number(raw)) * 864e5); y = t.getUTCFullYear(); m = t.getUTCMonth() + 1; d = t.getUTCDate(); }
+  else { var x = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(poDate_(raw, order || 'dm')); if (!x) return ''; d = +x[1]; m = +x[2]; y = +x[3]; }
+  if (y > 2400) y -= 543;
+  if (!(y >= 1990 && y <= 2100 && m >= 1 && m <= 12 && d >= 1 && d <= 31)) return '';
+  return String(y) + (m < 10 ? '0' : '') + m + (d < 10 ? '0' : '') + d;
 }
 function stockAct_(v) { var s = String(v == null ? '' : v).trim(); return s === '' ? '' : /^(0|n|no|false|inactive)$/i.test(s) ? '0' : '1'; }
 function stockLuDmy_(s) { return s && s.length === 8 ? s.substring(6, 8) + '/' + s.substring(4, 6) + '/' + s.substring(0, 4) : ''; }
@@ -1662,7 +1669,7 @@ function stockRow_(f, ix) {
   var r = [];
   for (var c = 0; c < 10; c++) r.push(String(f[c] == null ? '' : f[c]).replace(/[\t\r\n]+/g, ' ').trim());
   r[3] = stockNum_(r[3]); r[8] = stockNum_(r[8]);
-  var lu = ix && ix.lu >= 0 ? stockLu_(f[ix.lu]) : '', act = ix && ix.act >= 0 ? stockAct_(f[ix.act]) : '';
+  var lu = ix && ix.lu >= 0 ? stockLu_(f[ix.lu], ix.luOrder) : '', act = ix && ix.act >= 0 ? stockAct_(f[ix.act]) : '';
   r.push([r.join('\t'), lu, act].join('\t'), lu, act);   // K packed · L LASTSHIPDT · M ACTIVE
   return r;
 }
@@ -1684,7 +1691,13 @@ function syncStockInner_(why, force) {
     var head = csvLine_(lines[0] || '').map(function (x) { return String(x).trim().toUpperCase(); });
     if (head[0] !== 'ITEMNO' || head[3] !== 'QTYONHAND' || head[8] !== 'LASTCOST' || head.length < 10)
       throw new Error('หัวคอลัมน์ไม่ตรงรูปแบบ ต้องเป็น: ' + STOCK_HEADER.slice(0, 10).join(', ') + ' (ต่อด้วย LASTSHIPDT, ACTIVE ได้)');
-    var ix = { lu: head.indexOf('LASTSHIPDT') >= 0 ? head.indexOf('LASTSHIPDT') : head.indexOf('LASTUSED'), act: head.indexOf('ACTIVE') }, nOff = 0;   // LASTSHIPDT (older files: LASTUSED)
+    var ix = { lu: head.indexOf('LASTSHIPDT') >= 0 ? head.indexOf('LASTSHIPDT') : head.indexOf('LASTUSED'), act: head.indexOf('ACTIVE') }, nOff = 0, nLu = 0, luRaw = '';   // LASTSHIPDT (older files: LASTUSED)
+    if (ix.lu >= 0) {                                                 // day / month order of LASTSHIPDT from a sample of the file
+      var smp = [];
+      for (var si = 1; si < lines.length && smp.length < 3000; si += Math.max(1, Math.floor(lines.length / 3000))) { var sf = csvLine_(lines[si] || ''); if (sf[ix.lu]) smp.push([String(sf[ix.lu]).trim()]); }
+      ix.luOrder = poDateOrder_(smp, 0);
+      for (var sj = 0; sj < smp.length && !luRaw; sj++) if (!/^0*$/.test(smp[sj][0])) luRaw = smp[sj][0];   // shown in the sync message
+    }
     var rows = [], locs = {}, codes = {}, bys = {};
     for (var i = 1, buf = ''; i < lines.length; i++) {
       buf = buf ? buf + ' ' + lines[i] : lines[i];
@@ -1693,6 +1706,7 @@ function syncStockInner_(why, force) {
       var r = stockRow_(csvLine_(buf), ix); buf = '';
       if (!r[0]) continue;
       if (r[12] === '0') nOff++;
+      if (r[11]) nLu++;
       rows.push(r); codes[r[0]] = 1; if (r[5]) locs[r[5]] = (locs[r[5]] || 0) + 1; if (r[7]) bys[r[7]] = (bys[r[7]] || 0) + 1;
     }
     lines = null;
@@ -1732,7 +1746,8 @@ function syncStockInner_(why, force) {
     info.cols = (ix.lu >= 0 ? 'LASTSHIPDT ' : '') + (ix.act >= 0 ? 'ACTIVE' : ''); info.inactive = nOff;
     info.secs = Math.round((Date.now() - t0) / 1000);
     info.msg = 'อัปเดต ' + nRows.toLocaleString() + ' แถว (' + info.items.toLocaleString() + ' รายการ) ใช้เวลา ' + info.secs + ' วินาที' +
-      (ix.act >= 0 ? ' · เลิกใช้ (ACTIVE=0) ' + nOff.toLocaleString() + ' แถว' : '') + (ix.lu < 0 || ix.act < 0 ? ' · ไฟล์ไม่มีคอลัมน์ ' + [ix.lu < 0 ? 'LASTSHIPDT' : '', ix.act < 0 ? 'ACTIVE' : ''].filter(String).join(', ') : '') +
+      (ix.act >= 0 ? ' · เลิกใช้ (ACTIVE=0) ' + nOff.toLocaleString() + ' แถว' : '') +
+      (ix.lu >= 0 ? ' · มีวันที่ LASTSHIPDT ' + nLu.toLocaleString() + ' แถว' + (!nLu && luRaw ? ' (อ่านรูปแบบ "' + luRaw.substring(0, 20) + '" ไม่ได้)' : '') : '') + (ix.lu < 0 || ix.act < 0 ? ' · ไฟล์ไม่มีคอลัมน์ ' + [ix.lu < 0 ? 'LASTSHIPDT' : '', ix.act < 0 ? 'ACTIVE' : ''].filter(String).join(', ') : '') +
       ' (ดาวน์โหลด ' + tm.dl + ' · อ่าน ' + tm.parse + ' · เขียนชีต ' + tm.write + ' วินาที)' +
       (post === 'queued' ? ' · ' + STOCK_POST_WAIT : post === 'done' ? ' · คำนวณ Stock ช่วยใช้ / BOM / ติดตามใบสั่ง เสร็จแล้ว' : ' · คำนวณต่อไม่สำเร็จ: ' + post);
     audit_([['System', 'ซิงค์ Item stock จาก OneDrive', '', info.why + ' · ' + info.msg]]);
