@@ -270,7 +270,8 @@ function rsStill_(x) {
 }
 // "6 ปี 28 วัน" — calendar years / months / days from the date the count starts (lastUsed or since) to today
 function rsYmd_(x) {
-  if (!x || x.still == null) return '-';
+  if (!x) return '-';
+  if (x.stillSrc !== 'ship' || x.still == null) return 'ไม่พบประวัติการเบิก';   // no LASTSHIPDT in the file
   var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String((x.stillSrc === 'ship' ? x.lastUsed : x.since) || '')), y, mo, d;
   if (m) {
     var a = new Date(+m[3], +m[2] - 1, +m[1]), n = new Date(), b = new Date(n.getFullYear(), n.getMonth(), n.getDate());
