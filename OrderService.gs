@@ -13,11 +13,23 @@ var ORD_DB_DEFAULT_HEADER = ['CODE', 'MATERIAL', 'TYPE', 'SPEC', 'UNIT', 'MANUFA
 var ORD_SHEET = 'OrderItem';
 var ORD_HEADER = ['Order ID', 'RQN No', 'Spec No', 'Issue Date', "DES'D", "CHK'D", "APP'D", 'Revisions',
   'Manufacturer', 'Supplier', 'Delivery Date', 'Place', 'Remark', 'Items', 'Note', 'Images',
-  'Status', 'Created', 'Updated', 'PDF', 'XLSX', 'Item Codes', 'Approval', 'Sect Line', 'Order Type', 'Trans Prod No', 'Name'];
-var ORD_NCOL = ORD_HEADER.length;   // 27 (Approval = JSON, see OrderApproval.gs · Sect Line = 4 boxes after "C")
+  'Status', 'Created', 'Updated', 'PDF', 'XLSX', 'Item Codes', 'Approval', 'Sect Line', 'Order Type', 'Trans Prod No', 'Name', 'Kit'];
+var ORD_NCOL = ORD_HEADER.length;   // 28 · Kit = Order Project helper (card holder / strip marker drawings, JSON) (Approval = JSON, see OrderApproval.gs · Sect Line = 4 boxes after "C")
 // Order type: 'stock' (Trans. Production No. = STOCK, Name. = MATERIAL of item 1, full CODE) or
 // 'project' (Trans. Production No. = the project e.g. PP1040D, Name. typed freely, CODE = its first 4 digits only —
 // the Official system makes the full code when it opens the PR, e.g. 3694 + PP1044 + C… = 3694PP1044C01301)
+// Order Project helper data (drawn in the browser): { cab, pages, groups: [card | strip] } — kept small and plain
+function ordKitClean_(k) {
+  if (!k || typeof k !== 'object' || !Array.isArray(k.groups) || !k.groups.length) return null;
+  var S = function (v, n) { return String(v == null ? '' : v).substring(0, n); }, N = function (v, a, b, d) { v = Number(v); return isFinite(v) ? Math.min(b, Math.max(a, v)) : d; };
+  var out = { cab: S(k.cab, 30), pages: N(k.pages, 0, 60, 0), groups: k.groups.slice(0, 8).map(function (g) {
+    if (g && g.kind === 'strip') return { kind: 'strip', type: S(g.type, 12), dir: g.dir === 'HOR' ? 'HOR' : 'VER', sets: N(g.sets, 1, 20, 2), per: N(g.per, 1, 20, 10), text: S(g.text, 12000) };
+    return { kind: 'card', w: N(g && g.w, 5, 1000, 60), h: N(g && g.h, 5, 1000, 15), shape: /^(rect|button|vert)$/.test(g && g.shape) ? g.shape : 'rect',
+      mat: g && g.mat === 'aluminum' ? 'aluminum' : 'plastic', letter: N(g && g.letter, 1, 200, 5), font: S(g && g.font, 12) || 'arial', text: S(g && g.text, 12000), note: S(g && g.note, 600) };
+  }) };
+  if (JSON.stringify(out).length > 40000) throw new Error('ข้อมูลตัวช่วย Card holder / Strip marker ยาวเกินไป — แยกเป็นหลายใบสั่ง');
+  return out;
+}
 function ordIsProj_(o) { return !!o && o.otype === 'project'; }
 function ordProjBase_(p) { var m = /^([A-Z]+\d+)/.exec(String(p || '').toUpperCase().replace(/\s+/g, '')); return m ? m[1] : ''; }
 // does a full code from Pending Order belong to this line of a project order? (prefix + project number)
@@ -326,14 +338,15 @@ function ordRowToObj_(r, row) {
     manufacturer: r[8], supplier: r[9], delivery: r[10], place: r[11], remark: r[12], items: arr(r[13], []), note: r[14],
     images: arr(r[15], []), status: r[16] || 'Saved', created: r[17], updated: r[18], pdf: r[19], xlsx: r[20],
     approval: (function () { try { var a = JSON.parse(r[22] || 'null'); return a && typeof a === 'object' ? a : null; } catch (e) { return null; } })(),
-    sectLine: r[23] || '', otype: r[24] === 'project' ? 'project' : 'stock', prodNo: r[25] || '', name: r[26] || ''
+    sectLine: r[23] || '', otype: r[24] === 'project' ? 'project' : 'stock', prodNo: r[25] || '', name: r[26] || '',
+    kit: (function () { try { var k = JSON.parse(r[27] || 'null'); return k && typeof k === 'object' ? k : null; } catch (e) { return null; } })()
   };
 }
 function ordObjToRow_(o) {
   return [o.id, o.rqn, o.spec, o.issueDate, o.des, o.chk, o.app, JSON.stringify(o.revs || []), o.manufacturer, o.supplier,
     o.delivery, o.place, o.remark, JSON.stringify(o.items || []), o.note, JSON.stringify(o.images || []), o.status || 'Saved',
     o.created || '', o.updated || '', o.pdf || '', o.xlsx || '', (o.items || []).map(function (i) { return i.code; }).join(', '),
-    o.approval ? JSON.stringify(o.approval) : '', o.sectLine || '', o.otype === 'project' ? 'project' : 'stock', o.prodNo || '', o.name || ''];
+    o.approval ? JSON.stringify(o.approval) : '', o.sectLine || '', o.otype === 'project' ? 'project' : 'stock', o.prodNo || '', o.name || '', o.kit ? JSON.stringify(o.kit) : ''];
 }
 // browser-safe copy: the approval step key and approvers' e-mails never leave the server
 function ordPub_(o) {
@@ -414,6 +427,7 @@ function ordClean_(o) {
   };
   x.prodNo = x.otype === 'project' ? ordStr_(o.prodNo, 30).toUpperCase().replace(/\s+/g, '') : '';
   x.name = x.otype === 'project' ? ordStr_(o.name, 120) : '';
+  x.kit = x.otype === 'project' ? ordKitClean_(o.kit) : null;
   var yy = ordYY_(x.issueDate);
   var rqn = ordStr_(o.rqnNo, 12).replace(/[^0-9A-Za-z]/g, ''), spec = ordStr_(o.specNo, 4).replace(/\D/g, '');   // 3–4 digits
   x.rqn = 'RQN' + yy + '-' + rqn; x.spec = 'DS1C' + yy + '-' + spec;
@@ -575,6 +589,10 @@ function ordFill_(sh, o) {
   } catch (e) { console.warn('header fonts', e); }
   var yy = ordYY_(o.issueDate), sp = String(o.specNo || String(o.spec || '').split('-').pop() || '').replace(/\D/g, '').slice(-4);
   ordSet_(sh, 'O4', 'RQN' + yy + '-', { h: 'center' });
+  try {                                                     // "Page 1/N" when the helper's drawing pages follow (Order Project)
+    var pn = 1 + (o.kit && o.kit.pages || 0), pc = sh.getRange(1, 1, 8, ORD_PRINT_COLS).createTextFinder('Page\\s*1\\s*/\\s*\\d+').useRegularExpression(true).findNext();
+    if (pc) pc.setValue('Page 1/' + pn);
+  } catch (e) { console.warn('Page 1/N', e); }
   ordSet_(sh, 'Q4', o.rqnNo != null ? o.rqnNo : String(o.rqn || '').split('-').slice(1).join('-'), { h: 'center' });
   // O5 … X5 = 10 boxes: D S 1 C y y - n n n · a 4-digit number puts the year in one box: D S 1 C yy - n n n n
   (sp.length === 4 ? ['D', 'S', '1', 'C', yy, '-', sp.charAt(0), sp.charAt(1), sp.charAt(2), sp.charAt(3)] : ['D', 'S', '1', 'C', yy.charAt(0), yy.charAt(1), '-', sp.charAt(0), sp.charAt(1), sp.charAt(2)]).forEach(function (ch, i) {
@@ -701,6 +719,27 @@ function exportOrder(id, fmt) {
 }
 
 // public: a PDF the system exported earlier (FormOrder or FormOrder/BOM_Export only) → base64 for the in-app preview
+// Order Project: the browser appends the helper's drawing pages to the exported form and sends the whole PDF back.
+// It replaces the order's PDF in the FormOrder folder (the form-only copy made a moment ago goes to the trash).
+function saveOrderKitPdf(id, b64, name) {
+  var o = ordFind_(String(id || '')); if (!o) throw new Error('ไม่พบใบสั่ง ' + id);
+  if (!o.kit) throw new Error('ใบสั่งนี้ไม่มีหน้าแบบจากตัวช่วย');
+  var bytes = Utilities.base64Decode(String(b64 || ''));
+  if (bytes.length < 100 || bytes.length > 20 * 1024 * 1024) throw new Error('ไฟล์ PDF ไม่ถูกต้อง');
+  if (String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]) !== '%PDF') throw new Error('ไฟล์ PDF ไม่ถูกต้อง');
+  var nm = String(name || (o.spec || o.id) + '.pdf').replace(/[\\\/:*?"<>|]+/g, '_').substring(0, 120); if (!/\.pdf$/i.test(nm)) nm += '.pdf';
+  var folder = ordFolder_(), file = folder.createFile(Utilities.newBlob(bytes, 'application/pdf', nm));
+  try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
+  var url = file.getUrl();
+  withLock_(function () {
+    var cur = ordFind_(o.id); if (!cur) return;
+    var old = /\/d\/([\w-]+)/.exec(cur.pdf || '');
+    if (old && old[1] !== file.getId()) try { var of = DriveApp.getFileById(old[1]); if (of.getParents().hasNext() && of.getParents().next().getId() === folder.getId()) of.setTrashed(true); } catch (e) {}
+    cur.pdf = url; cur.updated = nowStr_();
+    writeText_(ordSheet_(), cur.row, 1, ordObjToRow_(cur)); ordMemoPut_(cur); dataBump_('ORD_VER');
+  });
+  return { fmt: 'pdf', name: nm, mime: 'application/pdf', url: url };
+}
 function getExportPdf(url) {
   var m = /\/d\/([\w-]+)/.exec(String(url || '')) || /[?&]id=([\w-]+)/.exec(String(url || ''));
   if (!m) throw new Error('ลิงก์ไฟล์ไม่ถูกต้อง');
