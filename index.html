@@ -2998,7 +2998,6 @@ button.zq-sim-r:hover{background:#fef3c7}
       var f = g.rows[0].it, gs = Math.min.apply(null, g.rows.map(function (r) { return r.s != null ? r.s : r.f; })), gf = Math.max.apply(null, g.rows.map(function (r) { return r.f != null ? r.f : r.s; }));
       var dl = g.rows[0].dl;
       h += '<tr class="gp"><td title="' + esc(g.id) + '">' + esc(g.id) + '</td><td>' + fmt(gs) + '</td><td>' + fmt(gf) + '</td><td style="font-weight:400">' + esc(f.customer || '') + '</td><td class="tl">' + grid +
-        '<div class="bar" style="left:' + pct(Math.max(gs, a)) + ';width:' + (((Math.min(gf, b) - Math.max(gs, a)) / DAY + 1) / days * 100) + '%;background:#141413;height:5px;top:5px"></div>' +
         (dl != null && dl >= a && dl <= b ? '<div class="dm" style="left:' + pct(dl + DAY / 2) + '" title="ส่งมอบ"></div>' : '') + todayLine + '</td></tr>';
       g.rows.forEach(function (r) {
         var p = procOf(r.it, pm), st = status(r, t), s = r.s != null ? r.s : r.f, e = r.f != null ? r.f : r.s, cs = Math.max(s, a), ce = Math.min(e, b);
@@ -3007,7 +3006,7 @@ button.zq-sim-r:hover{background:#fef3c7}
           (days <= 60 ? '<span>' + (Math.round((e - s) / DAY) + 1) + 'd</span>' : '') + '</div>' + todayLine + '</td></tr>';
       });
     });
-    return h + '</tbody></table><div class="ft"><span>แท่งดำ = ช่วงงานรวมของ Project · ◆ = New Delivery · เส้นส้ม = วันนี้ · ลายเฉียง = งานต่อเนื่องนอกช่วงที่พิมพ์</span><span>' + rows.length + ' รายการ</span></div>' + sign();
+    return h + '</tbody></table><div class="ft"><span>แท่งสี = Process ที่เลือก · ◆ = New Delivery · เส้นส้ม = วันนี้ · ลายเฉียง = งานต่อเนื่องนอกช่วงที่พิมพ์</span><span>' + rows.length + ' รายการ</span></div>' + sign();
   }
 
   /* ── print plumbing ────────────────────────────────────────── */
