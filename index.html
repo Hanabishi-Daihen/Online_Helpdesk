@@ -1993,7 +1993,7 @@ const note=String(g.note||zqKitNoteDef(g.mat)).split("\n").filter(Boolean);note.
 s<1&&zqKitText(ctx,"(ภาพย่อ — ใช้ขนาดตามตัวเลขกำกับ)",105,36,2.6);return info},
 zqKitDrawStrip=(ctx,p,meta)=>{const g=p.g,per=p.strips[0]?p.strips[0].length:10,cw=10.5,gap=3,ch=Math.min(11.5,150/per),n=p.strips.length,x0=(210-(10*cw+9*gap))/2,y0=52;ctx.strokeStyle="#000";ctx.fillStyle="#000";
 zqKitText(ctx,"ORDER PRINTED MARKER CARD",105,43,4.2);ctx.lineWidth=.25;ctx.beginPath();ctx.moveTo(78,44.2);ctx.lineTo(132,44.2);ctx.stroke();let sq=0;
-p.strips.forEach((st,c)=>st.forEach((m,r)=>{const x=x0+c*(cw+gap),y=y0+r*ch;ctx.lineWidth=.3;ctx.strokeRect(x,y,cw,ch);m&&zqKitText(ctx,m,x+cw/2,y+ch/2+1.2,3.4,{bold:!0,max:cw-1}).squeezed&&sq++}));
+p.strips.forEach((st,c)=>st.forEach((m,r)=>{const x=x0+c*(cw+gap),y=y0+r*ch;ctx.lineWidth=.3;ctx.strokeRect(x,y,cw,ch);m&&(g.dir==="HOR"?zqKitText(ctx,m,x+cw/2,y+ch/2,3.4,{bold:!0,max:ch-1.2,rot:Math.PI/2,base:"middle"}):zqKitText(ctx,m,x+cw/2,y+ch/2+1.2,3.4,{bold:!0,max:cw-1})).squeezed&&sq++}));
 const ty=y0+per*ch+12,tx=58,w1=26,w2=26,w3=26,rh=5.4;ctx.lineWidth=.25;[[tx,ty,w1+w2,"MARKING DIRECTION"],[tx+w1+w2,ty,w3,"TYPE"],[tx,ty+rh,w1,"VERTICAL"],[tx+w1,ty+rh,w2,"HORIZONTAL"],[tx+w1+w2,ty+rh,w3,""],[tx,ty+2*rh,w1,g.dir!=="HOR"?"X":""],[tx+w1,ty+2*rh,w2,g.dir==="HOR"?"X":""],[tx+w1+w2,ty+2*rh,w3,g.type||""],[tx,ty+3*rh,w1,""],[tx+w1,ty+3*rh,w2,""],[tx+w1+w2,ty+3*rh,w3,""]].forEach(([x,y,w,t])=>{ctx.strokeRect(x,y,w,rh);t&&zqKitText(ctx,t,x+w/2,y+4,t.length>2?3:3.8,{font:"times"})});return{squeezed:sq}},
 /* ── Cam switch plate (3634): one line = one plate · "43FLR | FAN SELECTOR SW. | LOCAL / REMOTE | CA10 A222 EG" · "{60}" = angle between positions ── */
 zqKitCamTypes=["CA10 A222 EG","CA10 A210 EG","CHR10 A214 EG","CA10 A222 E","CHR10 A214 E"],
@@ -2090,7 +2090,7 @@ zqE("details",{key:"n"},zqE("summary",{style:{fontSize:".75rem",cursor:"pointer"
 zqE("small",{key:"c",className:"zq-muted"},L.length+" ชิ้น"+(L.length?" · "+B.pages.filter(p=>p.gi===i).length+" หน้า":""))]};
 const stripUI=(g,i)=>{const S=zqKitStrips(g),m=S.reduce((a,x)=>a+x.filter(Boolean).length,0);return[
 zqE("div",{key:"a",className:"zq-kit-row"},zqE("label",{},"Type",zqE("input",{list:"zq-kit-st",value:g.type,style:{width:70},onChange:e=>upG(i,{type:e.target.value.toUpperCase().slice(0,12)})})),zqE("datalist",{id:"zq-kit-st"},["ZB5","ZB6","ZB8","ZB10","ZB12"].map(t=>zqE("option",{key:t,value:t}))),
-zqE("label",{},"ทิศทาง",zqE("select",{value:g.dir,onChange:e=>upG(i,{dir:e.target.value})},zqE("option",{value:"VER"},"VERTICAL"),zqE("option",{value:"HOR"},"HORIZONTAL"))),
+zqE("label",{title:"VERTICAL = ตัวอักษรตั้งฉากกับแถบ (ตั้งตรงในหน้าแบบ) · HORIZONTAL = ตัวอักษรอ่านตามแนวแถบ (หมุน 90° ในหน้าแบบ)"},"ทิศทาง",zqE("select",{value:g.dir,onChange:e=>upG(i,{dir:e.target.value})},zqE("option",{value:"VER"},"VERTICAL ↕ ตัวอักษรตั้งฉากกับแถบ"),zqE("option",{value:"HOR"},"HORIZONTAL ↔ อ่านตามแนวแถบ"))),
 zqE("label",{title:"จำนวนชุดที่ต้องการต่อหน้า (Q'TY = จำนวนแถบ × ชุด)"},"ชุด/หน้า",zqE("input",{type:"number",min:1,max:20,value:g.sets,style:{width:52},onChange:e=>upG(i,{sets:Number(e.target.value)||1})})),
 zqE("label",{},"ช่อง/แถบ",zqE("input",{type:"number",min:1,max:20,value:g.per,style:{width:52},onChange:e=>upG(i,{per:Number(e.target.value)||10})}))),
 hlp(g,i),zqE("textarea",{key:"t",rows:8,value:g.text,placeholder:"พิมพ์ที่นี่ — ดู 📖 วิธีพิมพ์ด้านบน",onChange:e=>upG(i,{text:e.target.value})}),
