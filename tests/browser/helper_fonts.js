@@ -1,0 +1,22 @@
+// helper fonts — prints what it sees; exits 1 when the page throws an error
+const OUT=__dirname+'/../out/';
+const {chromium}=require('playwright');(async()=>{const b=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||undefined});const ctx=await b.newContext({viewport:{width:1440,height:1000}});
+await ctx.route('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/**',r=>r.fulfill({contentType:'application/javascript',body:require('fs').readFileSync(require.resolve('pdf-lib/dist/pdf-lib.min.js'),'utf8')}));
+const p=await ctx.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>m.type()==='error'&&errs.push('C:'+m.text().slice(0,300)));p.on('dialog',d=>d.accept());
+const http=require('http'),fs=require('fs');const srv=http.createServer((q,r)=>{r.setHeader('content-type','text/html; charset=utf-8');r.end(fs.readFileSync(OUT+'order.html'))}).listen(8823);
+await p.goto('http://localhost:8823/');await p.waitForTimeout(2000);
+await p.locator('aside nav button',{hasText:'Order Item'}).first().click();await p.waitForTimeout(1200);
+await p.locator('.zq-or-tabs button').first().click();await p.waitForTimeout(300);
+await p.locator('.zq-or-type button',{hasText:'Order Project'}).click();await p.locator('input[aria-label="Trans. Production No. (โปรเจกต์)"]').fill('PP1040D');
+await p.locator('button:has-text("ตัวช่วยหน้าแบบ")').click();await p.waitForTimeout(400);
+const K=p.locator('[role=dialog]');const G0=K.locator('section.zq-kit-g').nth(0);
+await G0.locator('textarea').first().fill('ARIAL 1234\nNARROW 1234 {narrow}\nWD FONT 43FL {wd}\nWD_IEC 52-1 {wd_iec}\nSIMPLEX X1 {simplex}\nISOCP X1 {isocp}\nTIMES X1 {times}\nARIAL W0.7 {w0.7}\nWD W1.3 {wd w1.3}');
+console.log('font options',(await G0.locator('select').filter({hasText:'WD (CAD'}).first().locator('option').allInnerTexts()).join(' / '));
+console.log('missing note',await G0.locator('text=เครื่องนี้ไม่มี font').count());
+await K.locator('button:has-text("＋ Strip marker")').click();const G1=K.locator('section.zq-kit-g').nth(1);await G1.locator('select').filter({hasText:'WD (CAD'}).selectOption('wd');await G1.locator('textarea').fill('1-10\n--\nM11-M13, PE*2');
+await K.locator('button:has-text("＋ Cam switch plate")').click();const G2=K.locator('section.zq-kit-g').nth(2);await G2.locator('select').filter({hasText:'WD (CAD'}).selectOption('wd_iec');await G2.locator('textarea').fill('43FLR | FAN SELECTOR SW. | LOCAL / REMOTE\n43HR | HEATER SW. | AUTO / OFF / ON | CA10 A210 EG');
+console.log('dialog',await K.count(),errs);await p.waitForTimeout(800);const cs=K.locator('.zq-kit-r canvas');for(let i=0;i<await cs.count();i++)await cs.nth(i).screenshot({path:OUT+'font_p'+i+'.png'});
+await K.locator('button:has-text("ใส่ลงใบสั่ง")').click();await p.waitForTimeout(400);
+await p.locator('button:has-text("PDF")').first().click().catch(()=>{});await p.waitForTimeout(4000);
+const sent=await p.evaluate(()=>{const c=window.__calls.filter(c=>c[0]==='saveOrderKitPdf').pop();return c?c[1][1].length:0});console.log('merged b64 len',sent);
+console.log('errors:',errs);srv.close();await b.close();process.exit(errs.length?1:0)})();

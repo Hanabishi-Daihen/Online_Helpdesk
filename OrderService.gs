@@ -36,11 +36,52 @@ function ordKitClean_(k) {
   if (JSON.stringify(out).length > 40000) throw new Error('ข้อมูลตัวช่วย Card holder / Strip marker ยาวเกินไป — แยกเป็นหลายใบสั่ง');
   return out;
 }
+// ── shared sets of the Order Project helper (sheet "KitTemplates": Name | By | Updated | JSON) ──
+var KIT_TPL_SHEET = 'KitTemplates', KIT_TPL_MAX = 200;
+function kitTplSheet_() {
+  var s = ss_().getSheetByName(KIT_TPL_SHEET);
+  if (!s) { s = ss_().insertSheet(KIT_TPL_SHEET); s.getRange(1, 1, 1, 4).setValues([['Name', 'By', 'Updated', 'JSON']]).setFontWeight('bold'); s.setFrozenRows(1); }
+  return s;
+}
+function kitTplRows_() { var s = kitTplSheet_(), n = s.getLastRow() - 1; return n > 0 ? s.getRange(2, 1, n, 4).getDisplayValues() : []; }
+function kitTplList_() {
+  return kitTplRows_().map(function (r) { var k = null; try { k = JSON.parse(r[3]); } catch (e) {} return r[0] && k ? { name: r[0], by: r[1], at: r[2], n: (k.groups || []).length, cab: k.cab || '' } : null; }).filter(Boolean);
+}
+// public: names of the shared sets (the set itself loads on demand)
+function getKitTemplates() { return kitTplList_(); }
+function getKitTemplate(name) {
+  name = ordStr_(name, 60); var r = kitTplRows_().filter(function (x) { return x[0] === name; })[0];
+  if (!r) throw new Error('ไม่พบชุด "' + name + '"');
+  var k = ordKitClean_(JSON.parse(r[3])); if (!k) throw new Error('ชุด "' + name + '" ว่าง');
+  return k;
+}
+// public (like saving an order): a set with the same name is replaced only when replace = true
+function saveKitTemplate(name, kit, by, replace) {
+  name = ordStr_(name, 60); if (!name) throw new Error('ตั้งชื่อชุดก่อน');
+  var k = ordKitClean_(kit); if (!k) throw new Error('ชุดนี้ยังไม่มีรายการ');
+  k.pages = 0;
+  return withLock_(function () {
+    var s = kitTplSheet_(), rows = kitTplRows_(), ix = -1; rows.forEach(function (r, i) { if (r[0] === name) ix = i; });
+    if (ix >= 0 && !replace) return { exists: true, list: kitTplList_() };
+    if (ix < 0 && rows.length >= KIT_TPL_MAX) throw new Error('ชุดที่บันทึกไว้ครบ ' + KIT_TPL_MAX + ' ชุดแล้ว — ให้ Admin ลบชุดที่ไม่ใช้');
+    writeText_(s, ix >= 0 ? ix + 2 : rows.length + 2, 1, [name, ordStr_(by, 40), nowStr_(), JSON.stringify(k)]);
+    audit_([['User', (ix >= 0 ? 'แทนที่' : 'บันทึก') + 'ชุดตัวช่วย Order Project', name, ordStr_(by, 40)]]);
+    return { ok: true, list: kitTplList_() };
+  });
+}
+function deleteKitTemplate(token, name) {
+  requireAdmin_(token); name = ordStr_(name, 60);
+  return withLock_(function () {
+    var s = kitTplSheet_(), rows = kitTplRows_(), ix = -1; rows.forEach(function (r, i) { if (r[0] === name) ix = i; });
+    if (ix >= 0) { s.deleteRow(ix + 2); audit_([['Admin', 'ลบชุดตัวช่วย Order Project', name, '']]); }
+    return { ok: true, list: kitTplList_() };
+  });
+}
 function ordIsProj_(o) { return !!o && o.otype === 'project'; }
 function ordProjBase_(p) { var m = /^([A-Z]+\d+)/.exec(String(p || '').toUpperCase().replace(/\s+/g, '')); return m ? m[1] : ''; }
 // does a full code from Pending Order belong to this line of a project order? (prefix + project number)
 function ordProjMatch_(prefix, proj, code) { var b = ordProjBase_(proj), c = ordCodeKey_(code); return !!prefix && !!b && c.indexOf(ordCodeKey_(prefix) + b) === 0; }
-var ORD_MAX_ITEMS = 8, ORD_MAX_REVS = 3, ORD_MAX_IMAGES = 6;
+var ORD_MAX_ITEMS = 8, ORD_MAX_TOTAL = 24, ORD_MAX_REVS = 3, ORD_MAX_IMAGES = 6;   // 8 items per form page · up to 3 form pages per order
 var ORD_PLACE_DEFAULT = "DELCO'S FACTORY";
 // cell map of the template (sheet "Order")
 var ORD_ITEM_ROW0 = 21, ORD_NOTE_ROW = 38, ORD_IMG_ROW0 = 41, ORD_IMG_ROW1 = 65, ORD_PRINT_ROWS = 67, ORD_PRINT_COLS = 25;
@@ -446,7 +487,7 @@ function ordClean_(o) {
       qty: ordStr_(i.qty, 12).replace(/[^0-9.,]/g, ''), unit: ordStr_(i.unit, 12).toUpperCase(), manufac: ordStr_(i.manufac, 80) };
   }).filter(function (i) { return i.code || i.material; });
   if (!x.items.length) throw new Error('ต้องมีรายการสินค้าอย่างน้อย 1 รายการ');
-  if (x.items.length > ORD_MAX_ITEMS) throw new Error('สั่งได้สูงสุด ' + ORD_MAX_ITEMS + ' รายการต่อใบ');
+  if (x.items.length > ORD_MAX_TOTAL) throw new Error('สั่งได้สูงสุด ' + ORD_MAX_TOTAL + ' รายการต่อใบ (' + (ORD_MAX_TOTAL / ORD_MAX_ITEMS) + ' หน้าฟอร์ม)');
   x.items.forEach(function (i, n) { if (!i.code) throw new Error('รายการที่ ' + (n + 1) + ': ต้องมี CODE'); if (!(Number(i.qty.replace(/,/g, '')) > 0)) throw new Error('รายการที่ ' + (n + 1) + ' (' + i.code + '): จำนวนต้องมากกว่า 0'); });
   if (x.otype === 'project') {
     if (!ordProjBase_(x.prodNo)) throw new Error('Order Project: กรอก Trans. Production No. เป็นเลขโปรเจกต์ เช่น PP1040D');
@@ -588,7 +629,12 @@ function ordSet_(sh, a1, v, opt) {
 function ordFit_(s, base, steps) {                           // smaller font for long text
   var n = String(s || '').length; for (var i = 0; i < steps.length; i++) if (n > steps[i][0]) return steps[i][1]; return base;
 }
-function ordFill_(sh, o) {
+// form pages an order needs (8 items each)
+function ordFormPages_(o) { var n = 0; (o.items || []).forEach(function (it, i) { if (it && (it.code || it.material || it.spec || it.type)) n = i + 1; }); return Math.max(1, Math.ceil(n / ORD_MAX_ITEMS)); }
+// pg = { i: form page index (0 = first), F: form pages, N: all pages incl. the helper's drawing pages } — page 2+ carries items 9.., no note / pictures
+function ordFill_(sh, o, pg) {
+  pg = pg || { i: 0, F: 1, N: 1 + (o.kit && o.kit.pages || 0) };
+  var off = pg.i * ORD_MAX_ITEMS;
   try {                                                     // header + labels (rows 1–19): small template fonts × 1.25 for a clearer print
     var hr = sh.getRange(1, 1, 19, ORD_PRINT_COLS), fz = hr.getFontSizes();
     hr.setFontSizes(fz.map(function (r) { return r.map(function (z) { z = Number(z) || 10; return z <= 12 ? Math.round(z * 1.25) : z; }); }));
@@ -596,8 +642,8 @@ function ordFill_(sh, o) {
   var yy = ordYY_(o.issueDate), sp = String(o.specNo || String(o.spec || '').split('-').pop() || '').replace(/\D/g, '').slice(-4);
   ordSet_(sh, 'O4', 'RQN' + yy + '-', { h: 'center' });
   try {                                                     // "Page 1/N" when the helper's drawing pages follow (Order Project)
-    var pn = 1 + (o.kit && o.kit.pages || 0), pc = sh.getRange(1, 1, 8, ORD_PRINT_COLS).createTextFinder('Page\\s*1\\s*/\\s*\\d+').useRegularExpression(true).findNext();
-    if (pc) pc.setValue('Page 1/' + pn);
+    var pc = sh.getRange(1, 1, 8, ORD_PRINT_COLS).createTextFinder('Page\\s*1\\s*/\\s*\\d+').useRegularExpression(true).findNext();
+    if (pc) pc.setValue('Page ' + (pg.i + 1) + '/' + pg.N);
   } catch (e) { console.warn('Page 1/N', e); }
   ordSet_(sh, 'Q4', o.rqnNo != null ? o.rqnNo : String(o.rqn || '').split('-').slice(1).join('-'), { h: 'center' });
   // O5 … X5 = 10 boxes: D S 1 C y y - n n n · a 4-digit number puts the year in one box: D S 1 C yy - n n n n
@@ -624,7 +670,7 @@ function ordFill_(sh, o) {
   ordSet_(sh, 'K17', ':  ' + (o.place || ORD_PLACE_DEFAULT));
   ordSet_(sh, 'K18', ':  ' + (o.remark || ''));
   // item table: only as many rows as there are items; larger text; a row grows (instead of the text shrinking) when it is long
-  var items = o.items || [], n = 0;
+  var items = (o.items || []).slice(off, off + ORD_MAX_ITEMS), n = 0;
   items.forEach(function (it, i) { if (it && (it.code || it.material || it.spec || it.type)) n = i + 1; });
   n = Math.max(1, Math.min(ORD_MAX_ITEMS, n));
   var COLS = [['B', 'B', 'no'], ['C', 'E', 'code'], ['F', 'J', 'material'], ['K', 'N', 'type'], ['O', 'R', 'spec'], ['S', 'U', 'qty'], ['V', 'X', 'manufac']];
@@ -633,7 +679,7 @@ function ordFill_(sh, o) {
     var it = items[i], row = ORD_ITEM_ROW0 + i * 2;
     if (!it) { COLS.forEach(function (c) { ordSet_(sh, c[0] + row, ''); }); continue; }
     var qty = it.qty ? it.qty + (it.unit ? ' ' + it.unit : '') : '';
-    var val = { no: String(i + 1), code: it.code, material: it.material, type: it.type, spec: it.spec, qty: qty, manufac: it.manufac };
+    var val = { no: String(off + i + 1), code: it.code, material: it.material, type: it.type, spec: it.spec, qty: qty, manufac: it.manufac };
     var fs = { no: 16, code: ordFit_(it.code, 16, [[14, 12], [10, 14]]), material: ordFit_(it.material, 16, [[160, 11], [110, 12], [70, 13], [36, 14]]),
       type: ordFit_(it.type, 15, [[160, 10], [100, 11], [60, 12], [30, 13]]), spec: ordFit_(it.spec, 15, [[200, 10], [130, 11], [80, 12], [40, 13]]),
       qty: ordFit_(qty, 16, [[14, 13]]), manufac: ordFit_(it.manufac, 14, [[40, 10], [26, 11], [16, 12]]) };
@@ -648,9 +694,10 @@ function ordFill_(sh, o) {
     try { var cur = sh.getRowHeight(row) + sh.getRowHeight(row + 1); if (need > cur) { sh.setRowHeight(row, Math.ceil(need / 2)); sh.setRowHeight(row + 1, Math.ceil(need / 2)); } } catch (e) {}
   }
   if (n < ORD_MAX_ITEMS) try { sh.hideRows(ORD_ITEM_ROW0 + n * 2, (ORD_MAX_ITEMS - n) * 2); } catch (e) { console.warn('hideRows', e); }
-  var hasImg = (o.images || []).length > 0;
+  var hasImg = !pg.i && (o.images || []).length > 0;
   if (!hasImg) { try { sh.getRange('D38:X40').breakApart(); sh.getRange('D38:W' + ORD_IMG_ROW1).merge(); } catch (e) {} }
-  ordSet_(sh, 'D38', o.note || '', { h: 'left', v: 'top', wrap: true, size: ordFit_(o.note, 12, [[260, 9], [160, 10]]) });
+  var note = pg.i ? '(ต่อจากหน้า ' + pg.i + ' — รายการที่ ' + (off + 1) + ' เป็นต้นไป)' : o.note || '';
+  ordSet_(sh, 'D38', note, { h: 'left', v: 'top', wrap: true, size: ordFit_(note, 12, [[260, 9], [160, 10]]) });
   if (hasImg) ordImages_(sh, o.images);
   try {                                                     // keep the frames closed whatever the merges did
     sh.getRange('B20:X' + (ORD_IMG_ROW1 + 1)).setBorder(null, true, true, true, null, null);
@@ -681,9 +728,9 @@ function ordImages_(sh, imgs) {
 function ordFetchExport_(ssId, gid, fmt) {
   var base = 'https://docs.google.com/spreadsheets/d/' + ssId + '/export?';
   var q = fmt === 'pdf'
-    ? 'format=pdf&gid=' + gid + '&size=A4&portrait=true&scale=4&gridlines=false&printtitle=false&sheetnames=false&pagenum=UNDEFINED' +
+    ? 'format=pdf' + (gid == null ? '' : '&gid=' + gid) + '&size=A4&portrait=true&scale=4&gridlines=false&printtitle=false&sheetnames=false&pagenum=UNDEFINED' +
       '&fzr=false&horizontal_alignment=CENTER&vertical_alignment=TOP&top_margin=0.35&bottom_margin=0.35&left_margin=0.35&right_margin=0.35' +
-      '&r1=0&c1=0&r2=' + ORD_PRINT_ROWS + '&c2=' + ORD_PRINT_COLS
+      (gid == null ? '' : '&r1=0&c1=0&r2=' + ORD_PRINT_ROWS + '&c2=' + ORD_PRINT_COLS)
     : 'format=xlsx';
   var opt = { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true };
   for (var t = 0; t < 3; t++) {
@@ -704,10 +751,17 @@ function exportOrder(id, fmt) {
     var ss = SpreadsheetApp.openById(copy.getId()), sh = ss.getSheetByName('Order') || ss.getSheets()[0];
     ss.getSheets().forEach(function (x) { if (x.getSheetId() !== sh.getSheetId()) ss.deleteSheet(x); });
     sh.setName('Order');
-    ordFill_(sh, o);
+    // more than 8 items → one copy of the form sheet per extra page; the whole workbook is then exported as one PDF / one xlsx
+    var F = ordFormPages_(o), N = F + (o.kit && o.kit.pages || 0), pages = [sh];
+    for (var k = 1; k < F; k++) { var c = sh.copyTo(ss); c.setName('Order (' + (k + 1) + ')'); ss.setActiveSheet(c); ss.moveActiveSheet(k + 1); pages.push(c); }
+    pages.forEach(function (p, i) { ordFill_(p, o, { i: i, F: F, N: N }); });
+    if (F > 1) pages.forEach(function (p) {                  // workbook export has no print range: keep only the print area on every page
+      try { if (p.getMaxRows() > ORD_PRINT_ROWS) p.deleteRows(ORD_PRINT_ROWS + 1, p.getMaxRows() - ORD_PRINT_ROWS); } catch (e) { try { p.hideRows(ORD_PRINT_ROWS + 1, p.getMaxRows() - ORD_PRINT_ROWS); } catch (e2) {} }
+      try { if (p.getMaxColumns() > ORD_PRINT_COLS) p.deleteColumns(ORD_PRINT_COLS + 1, p.getMaxColumns() - ORD_PRINT_COLS); } catch (e) { try { p.hideColumns(ORD_PRINT_COLS + 1, p.getMaxColumns() - ORD_PRINT_COLS); } catch (e2) {} }
+    });
     SpreadsheetApp.flush();
     (fmt === 'both' ? ['pdf', 'xlsx'] : [fmt]).forEach(function (f) {
-      var blob = ordFetchExport_(ss.getId(), sh.getSheetId(), f).setName(base + (f === 'pdf' ? '.pdf' : '.xlsx'));
+      var blob = ordFetchExport_(ss.getId(), F > 1 ? null : sh.getSheetId(), f).setName(base + (f === 'pdf' ? '.pdf' : '.xlsx'));
       var file = folder.createFile(blob);
       try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
       var b = blob.getBytes();

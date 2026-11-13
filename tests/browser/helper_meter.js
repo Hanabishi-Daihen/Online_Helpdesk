@@ -1,0 +1,25 @@
+// helper meter — prints what it sees; exits 1 when the page throws an error
+const OUT=__dirname+'/../out/';
+const {chromium}=require('playwright');(async()=>{const b=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||undefined});const ctx=await b.newContext({viewport:{width:1440,height:1000},deviceScaleFactor:2});
+await ctx.route('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/**',r=>r.fulfill({contentType:'application/javascript',body:require('fs').readFileSync(require.resolve('pdf-lib/dist/pdf-lib.min.js'),'utf8')}));
+const p=await ctx.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('dialog',d=>d.accept());
+const http=require('http'),fs=require('fs');const srv=http.createServer((q,r)=>{r.setHeader('content-type','text/html; charset=utf-8');r.end(fs.readFileSync(OUT+'order.html'))}).listen(8821);
+await p.goto('http://localhost:8821/');await p.waitForTimeout(2000);
+await p.locator('aside nav button',{hasText:'Order Item'}).first().click();await p.waitForTimeout(1200);
+await p.locator('.zq-or-tabs button').first().click();await p.waitForTimeout(300);
+await p.locator('.zq-or-type button',{hasText:'Order Project'}).click();await p.locator('input[aria-label="Trans. Production No. (โปรเจกต์)"]').fill('PP1040D');
+await p.locator('button:has-text("ตัวช่วยหน้าแบบ")').click();await p.waitForTimeout(400);
+const K=p.locator('[role=dialog]');await K.locator('section.zq-kit-g').nth(0).locator('textarea').first().fill('AMMETER (X1)\nVOLTMETER');
+await K.locator('button:has-text("＋ Ammeter / Voltmeter")').click();const G=K.locator('section.zq-kit-g').nth(1);
+const M=()=>G.locator('.zq-kit-mt');
+await M().nth(0).locator('input').first().fill('2300');await M().nth(0).locator('select').nth(1).selectOption('5');await M().nth(0).locator('select').nth(2).selectOption('');
+await G.locator('button:has-text("＋ Ammeter")').click();await M().nth(1).locator('input').first().fill('750');await M().nth(1).locator('select').nth(1).selectOption('5');await M().nth(1).locator('select').nth(2).selectOption('');
+await G.locator('button:has-text("＋ Voltmeter")').click();await M().nth(2).locator('input').first().fill('11');
+await p.waitForTimeout(300);console.log('sm',await M().first().locator('small').evaluate(e=>{const c=getComputedStyle(e);return [Math.round(e.getBoundingClientRect().width),c.display,c.whiteSpace,c.lineHeight,c.fontSize,c.height,c.minHeight,c.flexGrow,c.flexBasis,c.position].join(' | ')}));console.log('dbg',await M().first().evaluate(e=>{const c=getComputedStyle(e);return [c.display,c.flex,c.height,c.minHeight,[...e.children].map(k=>k.tagName+':'+Math.round(k.getBoundingClientRect().height)).join(','),getComputedStyle(e.parentElement).display].join(' | ')}));console.log('mt heights',await M().evaluateAll(E=>E.map(e=>Math.round(e.getBoundingClientRect().height))));await G.evaluate(e=>e.scrollIntoView());await p.screenshot({path:OUT+'meter1.png'});
+console.log('footer',(await K.locator('.zq-kit-f small').innerText()).slice(0,200));
+await K.locator('button:has-text("ใส่ลงใบสั่ง")').click();await p.waitForTimeout(500);
+const rows=async()=>(await p.locator('.zq-or-items tbody tr.it').evaluateAll(T=>T.map(t=>[...t.querySelectorAll('input,textarea')].slice(0,7).map(i=>i.value).join(' | '))));console.log((await rows()).join('\n'));
+console.log('page',await p.locator('.zq-or-paper').innerText().then(t=>(t.match(/Page 1\/\d+/)||[''])[0]));
+await p.locator('button:has-text("ตัวช่วยหน้าแบบ")').click();await p.waitForTimeout(300);await K.locator('button:has-text("ใส่ลงใบสั่ง")').click();await p.waitForTimeout(300);
+console.log('re-apply rows',(await rows()).length);
+console.log('errors:',errs);srv.close();await b.close();process.exit(errs.length?1:0)})();

@@ -1,0 +1,37 @@
+// helper card strip — prints what it sees; exits 1 when the page throws an error
+const OUT=__dirname+'/../out/';
+const {chromium}=require('playwright');(async()=>{const b=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||undefined});const ctx=await b.newContext({viewport:{width:1440,height:1000}});
+await ctx.route('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/**',r=>r.fulfill({contentType:'application/javascript',body:require('fs').readFileSync(require.resolve('pdf-lib/dist/pdf-lib.min.js'),'utf8')}));
+await ctx.route('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/**',r=>r.abort());
+const p=await ctx.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('dialog',d=>d.accept());
+const http=require('http'),fs=require('fs');const srv=http.createServer((q,r)=>{r.setHeader('content-type','text/html; charset=utf-8');r.end(fs.readFileSync(OUT+'order.html'))}).listen(8817);
+await p.goto('http://localhost:8817/');await p.waitForTimeout(2000);
+await p.locator('aside nav button',{hasText:'Order Item'}).first().click();await p.waitForTimeout(1200);
+await p.locator('.zq-or-tabs button').first().click();await p.waitForTimeout(300);
+await p.locator('.zq-or-type button',{hasText:'Order Project'}).click();await p.waitForTimeout(200);
+await p.locator('input[aria-label="Trans. Production No. (โปรเจกต์)"]').fill('PP1044D');
+await p.locator('button:has-text("ตัวช่วยหน้าแบบ")').click();await p.waitForTimeout(400);
+const K=p.locator('[role=dialog][aria-label="ตัวช่วย Order Project"]');
+const ta=()=>K.locator('section.zq-kit-g textarea:visible');
+await ta().nth(0).fill('AMMETER (X1)\nAMMETER (X2)\nAMMETER (X3)\nVOLTMETER');
+await K.locator('button:has-text("＋ Card holder")').click();await K.locator('section.zq-kit-g').nth(1).locator('.zq-kit-sz button',{hasText:'50x20'}).click();
+await K.locator('section.zq-kit-g').nth(1).locator('textarea').first().fill('FAN GROUP1 ON\nFAN GROUP1 OFF\nTAP CHANGE/IN PROGRESS {4}\nFAN STAND-BY OFF {narrow}\n(SPARE)');
+await K.locator('button:has-text("＋ Card holder")').click();await K.locator('section.zq-kit-g').nth(2).locator('.zq-kit-sz button',{hasText:'57x40'}).click();
+await K.locator('section.zq-kit-g').nth(2).locator('textarea').first().fill('LAMP TEST\nAS56D1\nAS321D\nAS32D1\nA3S21D\n3AS2D1');
+await K.locator('button:has-text("＋ Card holder")').click();const g4=K.locator('section.zq-kit-g').nth(3);await g4.locator('.zq-kit-sz button',{hasText:/^300x40$/}).click();await g4.locator('select').first().selectOption('vert');
+await g4.locator('textarea').first().fill('REMOTE CONTROL CABINET');
+await K.locator('button:has-text("＋ Strip marker")').click();await K.locator('section.zq-kit-g').nth(4).locator('textarea').first().fill('1-10\n1-20\n1-9\n10-69\n70-139\n201-235\n20,21,64,65,81-106,1-10');
+await p.waitForTimeout(800);
+console.log('preview pages',await K.locator('.zq-kit-r canvas').count(),'| footer',(await K.locator('.zq-kit-f small').innerText()).slice(0,260));
+const cs=K.locator('.zq-kit-r canvas');for(let i=0;i<await cs.count();i++){await cs.nth(i).screenshot({path:OUT+'kit_p'+(i+2)+'.png'})}
+await K.locator('button:has-text("ใส่ลงใบสั่ง")').click();await p.waitForTimeout(500);
+const rows=await p.locator('.zq-or-items tbody tr.it').evaluateAll(T=>T.map(t=>[...t.querySelectorAll('input,textarea')].slice(0,5).map(i=>i.value).join(' | ')));console.log('order rows',JSON.stringify(rows,null,0));
+console.log('note',JSON.stringify(await p.locator('.zq-or-paper textarea').last().inputValue().catch(()=>'')));console.log('page label',await p.locator('.zq-or-paper').innerText().then(t=>(t.match(/Page 1\/\d+/)||[''])[0]),'| name',await p.locator('input[aria-label="Name."]').inputValue());
+await p.locator('input[placeholder="ชื่อผู้ Order"]').fill('C.Premwit').catch(()=>{});
+const dIn=p.locator('div',{hasText:/^2\. Delivery Date/}).locator('input').first();await dIn.fill('30/11/2026');await dIn.press('Tab');
+await p.locator('.zq-or-paper').screenshot({path:OUT+'kit_form.png'});
+await p.locator('button:has-text("PDF")').first().click().catch(e=>console.log('pdf btn',e.message.slice(0,80)));await p.waitForTimeout(4000);
+const sent=await p.evaluate(()=>{const c=window.__calls.filter(c=>c[0]==='saveOrderKitPdf').pop();return c?c[1][1]:null});
+if(sent){const L=require('pdf-lib');const d=await L.PDFDocument.load(Buffer.from(sent,'base64'));console.log('merged PDF pages',d.getPageCount());fs.writeFileSync(OUT+'kit_merged.pdf',Buffer.from(sent,'base64'))}else console.log('no merge call',JSON.stringify(await p.evaluate(()=>window.__calls.map(c=>c[0]).slice(-8))));
+console.log('msg',(await p.locator('.zq-em-msg').allInnerTexts()).join(' | ').slice(0,200));
+console.log('errors:',errs);srv.close();await b.close();process.exit(errs.length?1:0)})();

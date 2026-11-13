@@ -1,0 +1,7 @@
+{
+  "name": "online-helpdesk-tests",
+  "private": true,
+  "description": "Tests for the Online Helpdesk Apps Script project (run on a PC with Node.js — not part of the deployed app)",
+  "scripts": { "test": "bash run.sh" },
+  "devDependencies": { "pdf-lib": "1.17.1", "playwright": "^1.48.0" }
+}
