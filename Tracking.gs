@@ -108,6 +108,13 @@ function trkPendIdx_() {
   } catch (e) { console.warn('trkPendIdx_', e); }
   return { idx: idx, byCode: byCode, n: n };
 }
+// which Pending Order codes belong to an order line: the same CODE (Order Stock) or, for Order Project,
+// the 4-digit prefix + project number (3694 + PP1044 → 3694PP1044C01301; OrderService.gs ordProjMatch_)
+function trkItemMatch_(o, it) {
+  var k = ordCodeKey_(it.code);
+  return ordIsProj_(o) ? function (c) { return ordProjMatch_(k, o.prodNo, c); } : function (c) { return c === k; };
+}
+function trkMine_(o) { var fs = (o.items || []).map(function (it) { return trkItemMatch_(o, it); }); return function (c) { return fs.some(function (f) { return f(c); }); }; }
 function trkRefOk_(v) { return /\d$/.test(String(v || '').trim()); }   // "RQN26-" / "DS1C26-" / "-" = not filled in yet
 function trkRows_(o, idx) {
   var seen = {}, rows = [];
@@ -132,11 +139,11 @@ function trkOrder_(o, idx, prev, today, opt, auto) {
   var a = o.approval || {}, st = wsOrderState_(o), rows = auto || trkRows_(o, idx), P = prev || {};
   opt = opt || {};
   var items = (o.items || []).filter(function (it) { return it.code || it.material; }).map(function (it) {
-    var k = ordCodeKey_(it.code), rs = rows.filter(function (r) { return r.code === k; }), s = trkItemSt_(rs), p = P[k];
+    var k = ordCodeKey_(it.code), mt = trkItemMatch_(o, it), rs = rows.filter(function (r) { return mt(r.code); }), s = trkItemSt_(rs), p = P[k];
     if (s === 'none' && p && p[0] !== 'none') s = /^(pr|po|part)$/.test(p[0]) ? (opt.gone ? 'gone' : p[0]) : p[0];   // was in Pending, no longer listed → closed at the source
     var r0 = rs.filter(function (r) { return !TRK_CANCEL.test(r.status || ''); })[0] || rs[0] || {};
     var due = null; rs.forEach(function (r) { if (ORD_PO_DONE.test(r.status || '')) return; var d = bomDate_(r.due); if (d != null && (due == null || d > due)) due = d; });
-    return { code: it.code, material: it.material, type: it.type || '', spec: it.spec || '', maker: it.manufac || '', qty: it.qty, unit: it.unit, st: s,
+    return { code: it.code, full: ordIsProj_(o) && r0.code ? r0.code : '', material: it.material, type: it.type || '', spec: it.spec || '', maker: it.manufac || '', qty: it.qty, unit: it.unit, st: s,
       pname: r0.name || '', pqty: rs.reduce(function (n, r) { return TRK_CANCEL.test(r.status || '') ? n : n + (Number(r.qty) || 0); }, 0), punit: r0.unit || '', pr: r0.pr || '', po: r0.po || '', status: r0.status || '', due: bomFmt_(due),
       late: due != null && due < today && /^(pr|po|part)$/.test(s) ? Math.round((today - due) / 864e5) : 0, req: r0.req || '', poDate: r0.poDate || '',
       at: p && p[0] === s ? p[1] : '' };
@@ -159,7 +166,7 @@ function trkOrder_(o, idx, prev, today, opt, auto) {
     { k: 'recv', label: 'ของเข้าครบ', at: recvAt, done: stage === 'done' }
   ];
   var apDays = appr && hi === 0 && apAt ? Math.round((today - (bomDate_(apAt) || today)) / 864e5) : 0;
-  return { id: o.id, spec: o.spec, rqn: o.rqn, des: o.des, chk: o.chk, app: o.app, date: o.issueDate, remark: o.remark || '', state: st.key, stateTh: st.label,
+  return { id: o.id, otype: o.otype || 'stock', prodNo: o.prodNo || '', name: o.name || '', spec: o.spec, rqn: o.rqn, des: o.des, chk: o.chk, app: o.app, date: o.issueDate, remark: o.remark || '', state: st.key, stateTh: st.label,
     auto: auto ? auto.map(function (r) { return r.pr; }).filter(function (v, i, A) { return v && A.indexOf(v) === i; }) : null, refMissing: !trkRefOk_(o.rqn) && !trkRefOk_(o.spec),
     fill: auto ? trkFill_(o, auto, opt.specAs) : !trkRefOk_(o.spec) && opt.specAs && opt.specAs[o.id] ? { rqn: '', spec: opt.specAs[o.id], sure: true } : null,
     stage: stage, steps: steps, items: items, late: items.reduce(function (m, i) { return Math.max(m, i.late); }, 0), noPr: apDays, waitDays: st.key === 'chk' || st.key === 'app' ? oaWorkDays_(oaSince_(a)) : null };
@@ -171,13 +178,15 @@ function trkOrder_(o, idx, prev, today, opt, auto) {
 function trkAuto_(orders, P) {
   var used = {}, out = {};
   // a PR line counts as taken only for a CODE that order really has: another CODE on the same PR can belong to another order
-  orders.forEach(function (o) { var mine = {}; (o.items || []).forEach(function (it) { mine[ordCodeKey_(it.code)] = 1; }); trkRows_(o, P.idx).forEach(function (r) { if (mine[r.code]) used[r.id] = 1; }); });
+  orders.forEach(function (o) { var mine = trkMine_(o); trkRows_(o, P.idx).forEach(function (r) { if (mine(r.code)) used[r.id] = 1; }); });
   orders.forEach(function (o) {
     if (trkRefOk_(o.rqn) || trkRefOk_(o.spec) || wsOrderState_(o).key === 'rejected') return;
     var t0 = bomDate_(o.issueDate), rs = []; if (t0 == null) return;
     (o.items || []).forEach(function (it) {
       var k = ordCodeKey_(it.code), best = null, bs = 9e15; if (!k) return;
-      (P.byCode[k] || []).forEach(function (r) {
+      var cand = P.byCode[k] || [];
+      if (ordIsProj_(o)) { var mt = trkItemMatch_(o, it); cand = []; Object.keys(P.byCode).forEach(function (c) { if (mt(c)) cand = cand.concat(P.byCode[c]); }); }
+      cand.forEach(function (r) {
         var d = bomDate_(r.req); if (used[r.id] || d == null || d < t0 - 3 * 864e5 || d > t0 + 90 * 864e5) return;
         var sc = Math.abs(d - t0) + (Number(it.qty) === r.qty ? 0 : 30 * 864e5); if (sc < bs) { bs = sc; best = r; }
       });
@@ -210,8 +219,8 @@ function trkSpecAssign_(orders, P, auto) {
   orders.forEach(function (o) { var m = /^DS1C(\d{2})-(\d{3,4})$/i.exec(String(o.spec || '').trim()); if (m) used[m[1] + '-' + parseInt(m[2], 10)] = 1; });
   orders.forEach(function (o) {
     if (trkRefOk_(o.spec) || wsOrderState_(o).key === 'rejected') return;
-    var mine = {}; (o.items || []).forEach(function (it) { mine[ordCodeKey_(it.code)] = 1; });
-    var rows = (auto[o.id] || trkRows_(o, P.idx)).filter(function (r) { return mine[r.code]; }), yy = ordYY_(o.issueDate), nums = [];
+    var mine = trkMine_(o);
+    var rows = (auto[o.id] || trkRows_(o, P.idx)).filter(function (r) { return mine(r.code); }), yy = ordYY_(o.issueDate), nums = [];
     rows.forEach(function (r) {
       var m = /^DS1C(\d{2})-(.+)$/i.exec(String(r.spec || '').trim()); if (!m || m[1] !== yy) return;
       m[2].split(/[,\s\/]+/).forEach(function (n) { if (/^\d{3,4}$/.test(n) && nums.indexOf(n) < 0) nums.push(n); });
@@ -261,7 +270,7 @@ function trkAll_(prevState) {
   return out;
 }
 function trkCached_() {
-  return wsCached_('otrk2', ['ord', 'oa', 'po', 'ntf'], '', function () {
+  return wsCached_('otrk3', ['ord', 'oa', 'po', 'ntf'], '', function () {
     var list = trkAll_(trkStateGet_()).filter(function (x) { return x.stage !== 'done' && x.stage !== 'cancel' || ordAgeDays_(x.date) <= 180; });
     return { orders: list.slice(0, 400), time: nowStr_(), po: (poInfo_() || {}).time || '', ageCfg: oaAgeCfg_() };
   });

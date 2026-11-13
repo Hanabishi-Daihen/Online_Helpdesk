@@ -13,8 +13,15 @@ var ORD_DB_DEFAULT_HEADER = ['CODE', 'MATERIAL', 'TYPE', 'SPEC', 'UNIT', 'MANUFA
 var ORD_SHEET = 'OrderItem';
 var ORD_HEADER = ['Order ID', 'RQN No', 'Spec No', 'Issue Date', "DES'D", "CHK'D", "APP'D", 'Revisions',
   'Manufacturer', 'Supplier', 'Delivery Date', 'Place', 'Remark', 'Items', 'Note', 'Images',
-  'Status', 'Created', 'Updated', 'PDF', 'XLSX', 'Item Codes', 'Approval', 'Sect Line'];
-var ORD_NCOL = ORD_HEADER.length;   // 24 (Approval = JSON, see OrderApproval.gs · Sect Line = 4 boxes after "C")
+  'Status', 'Created', 'Updated', 'PDF', 'XLSX', 'Item Codes', 'Approval', 'Sect Line', 'Order Type', 'Trans Prod No', 'Name'];
+var ORD_NCOL = ORD_HEADER.length;   // 27 (Approval = JSON, see OrderApproval.gs · Sect Line = 4 boxes after "C")
+// Order type: 'stock' (Trans. Production No. = STOCK, Name. = MATERIAL of item 1, full CODE) or
+// 'project' (Trans. Production No. = the project e.g. PP1040D, Name. typed freely, CODE = its first 4 digits only —
+// the Official system makes the full code when it opens the PR, e.g. 3694 + PP1044 + C… = 3694PP1044C01301)
+function ordIsProj_(o) { return !!o && o.otype === 'project'; }
+function ordProjBase_(p) { var m = /^([A-Z]+\d+)/.exec(String(p || '').toUpperCase().replace(/\s+/g, '')); return m ? m[1] : ''; }
+// does a full code from Pending Order belong to this line of a project order? (prefix + project number)
+function ordProjMatch_(prefix, proj, code) { var b = ordProjBase_(proj), c = ordCodeKey_(code); return !!prefix && !!b && c.indexOf(ordCodeKey_(prefix) + b) === 0; }
 var ORD_MAX_ITEMS = 8, ORD_MAX_REVS = 3, ORD_MAX_IMAGES = 6;
 var ORD_PLACE_DEFAULT = "DELCO'S FACTORY";
 // cell map of the template (sheet "Order")
@@ -309,7 +316,7 @@ function ordSheet_() {
   var s = ss_().getSheetByName(ORD_SHEET);
   if (!s) { s = ss_().insertSheet(ORD_SHEET); s.getRange(1, 1, 1, ORD_NCOL).setValues([ORD_HEADER]).setFontWeight('bold'); s.setFrozenRows(1); }
   if (s.getMaxColumns() < ORD_NCOL) s.insertColumnsAfter(s.getMaxColumns(), ORD_NCOL - s.getMaxColumns());
-  if (!s.getRange(1, ORD_NCOL).getValue()) s.getRange(1, ORD_NCOL).setValue(ORD_HEADER[ORD_NCOL - 1]).setFontWeight('bold');
+  if (!s.getRange(1, ORD_NCOL).getValue()) s.getRange(1, 24, 1, ORD_NCOL - 23).setValues([ORD_HEADER.slice(23)]).setFontWeight('bold');   // columns added later
   return s;
 }
 function ordRowToObj_(r, row) {
@@ -319,14 +326,14 @@ function ordRowToObj_(r, row) {
     manufacturer: r[8], supplier: r[9], delivery: r[10], place: r[11], remark: r[12], items: arr(r[13], []), note: r[14],
     images: arr(r[15], []), status: r[16] || 'Saved', created: r[17], updated: r[18], pdf: r[19], xlsx: r[20],
     approval: (function () { try { var a = JSON.parse(r[22] || 'null'); return a && typeof a === 'object' ? a : null; } catch (e) { return null; } })(),
-    sectLine: r[23] || ''
+    sectLine: r[23] || '', otype: r[24] === 'project' ? 'project' : 'stock', prodNo: r[25] || '', name: r[26] || ''
   };
 }
 function ordObjToRow_(o) {
   return [o.id, o.rqn, o.spec, o.issueDate, o.des, o.chk, o.app, JSON.stringify(o.revs || []), o.manufacturer, o.supplier,
     o.delivery, o.place, o.remark, JSON.stringify(o.items || []), o.note, JSON.stringify(o.images || []), o.status || 'Saved',
     o.created || '', o.updated || '', o.pdf || '', o.xlsx || '', (o.items || []).map(function (i) { return i.code; }).join(', '),
-    o.approval ? JSON.stringify(o.approval) : '', o.sectLine || ''];
+    o.approval ? JSON.stringify(o.approval) : '', o.sectLine || '', o.otype === 'project' ? 'project' : 'stock', o.prodNo || '', o.name || ''];
 }
 // browser-safe copy: the approval step key and approvers' e-mails never leave the server
 function ordPub_(o) {
@@ -402,8 +409,11 @@ function ordClean_(o) {
     des: ordStr_(o.des, 60), chk: ordStr_(o.chk, 60), app: ordStr_(o.app, 60),
     manufacturer: ordStr_(o.manufacturer, 120) || '-', supplier: ordStr_(o.supplier, 120) || '-',
     delivery: d.test(o.delivery) ? o.delivery : '', place: ordStr_(o.place, 120) || ORD_PLACE_DEFAULT,
-    remark: ordStr_(o.remark, 200), note: ordStr_(o.note, 1500)
+    remark: ordStr_(o.remark, 200), note: ordStr_(o.note, 1500),
+    otype: o.otype === 'project' ? 'project' : 'stock'
   };
+  x.prodNo = x.otype === 'project' ? ordStr_(o.prodNo, 30).toUpperCase().replace(/\s+/g, '') : '';
+  x.name = x.otype === 'project' ? ordStr_(o.name, 120) : '';
   var yy = ordYY_(x.issueDate);
   var rqn = ordStr_(o.rqnNo, 12).replace(/[^0-9A-Za-z]/g, ''), spec = ordStr_(o.specNo, 4).replace(/\D/g, '');   // 3–4 digits
   x.rqn = 'RQN' + yy + '-' + rqn; x.spec = 'DS1C' + yy + '-' + spec;
@@ -418,6 +428,11 @@ function ordClean_(o) {
   if (!x.items.length) throw new Error('ต้องมีรายการสินค้าอย่างน้อย 1 รายการ');
   if (x.items.length > ORD_MAX_ITEMS) throw new Error('สั่งได้สูงสุด ' + ORD_MAX_ITEMS + ' รายการต่อใบ');
   x.items.forEach(function (i, n) { if (!i.code) throw new Error('รายการที่ ' + (n + 1) + ': ต้องมี CODE'); if (!(Number(i.qty.replace(/,/g, '')) > 0)) throw new Error('รายการที่ ' + (n + 1) + ' (' + i.code + '): จำนวนต้องมากกว่า 0'); });
+  if (x.otype === 'project') {
+    if (!ordProjBase_(x.prodNo)) throw new Error('Order Project: กรอก Trans. Production No. เป็นเลขโปรเจกต์ เช่น PP1040D');
+    if (!x.name) throw new Error('Order Project: กรอก Name.');
+    x.items.forEach(function (i, n) { i.code = i.code.replace(/\s+/g, ''); if (!/^\d{4}$/.test(i.code)) throw new Error('Order Project รายการที่ ' + (n + 1) + ': CODE ใส่เฉพาะ 4 หลักแรก (เช่น 3694) — Official จะออก CODE เต็มให้ตอนเปิด PR'); });
+  }
   if (!x.des) throw new Error("ต้องกรอกชื่อผู้ Order (DES'D)");
   if (spec && (spec.length < 3 || spec.length > 4)) throw new Error('เลข Spec ต้องเป็นตัวเลข 3–4 หลัก (DS1C' + yy + '-____) หรือเว้นว่าง');
   if (!x.delivery) throw new Error('ต้องระบุ Delivery Date (วว/ดด/ปปปป ค.ศ.)');
@@ -568,7 +583,11 @@ function ordFill_(sh, o) {
   if (sp.length === 4) try { sh.getRange('T5:X5').setBorder(true, true, true, true, true, null); } catch (e) {}
   var sl = String(o.sectLine || '');                         // Sect&Line No. of  C [M8][N8][O8][P8]
   ['M8', 'N8', 'O8', 'P8'].forEach(function (a, i) { ordSet_(sh, a, (sl.charAt(i) || '').trim(), { h: 'center' }); });
-  ordSet_(sh, 'F6', 'Name.   ' + (((o.items || [])[0] || {}).material || ''));               // Name. = MATERIAL ของรายการที่ 1
+  ordSet_(sh, 'F6', 'Name.   ' + (ordIsProj_(o) ? o.name || '' : (((o.items || [])[0] || {}).material || '')));   // Stock: MATERIAL ของรายการที่ 1 · Project: กรอกเอง
+  try {                                                     // Trans. Production No.: STOCK (template text) or the project
+    var tp = sh.getRange(1, 1, 10, ORD_PRINT_COLS).createTextFinder('Trans. Production No').findNext();
+    if (tp) tp.setValue('Trans. Production No.   ' + (ordIsProj_(o) ? o.prodNo : 'STOCK'));
+  } catch (e) { console.warn('Trans. Production No.', e); }
   ordSet_(sh, 'U10', o.issueDate, { h: 'center' });
   ordSet_(sh, 'U11', o.des, { h: 'center' }); ordSet_(sh, 'U12', o.chk, { h: 'center' }); ordSet_(sh, 'U13', o.app, { h: 'center' });
   for (var k = 0; k < ORD_MAX_REVS; k++) {

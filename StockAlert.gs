@@ -137,7 +137,7 @@ function saOrders_() {
   if (typeof trkCached_ !== 'function') return out;            // Tracking.gs not added
   try {
     (trkCached_().orders || []).forEach(function (o) {
-      if (/^(done|rejected|cancel)$/.test(o.stage)) return;
+      if (/^(done|rejected|cancel)$/.test(o.stage) || o.otype === 'project') return;   // Order Project lines are not stock
       (o.items || []).forEach(function (i) {
         var k = ordCodeKey_(i.code); if (!k || /^(cancel|recv|gone)$/.test(i.st)) return;
         var q = Number(String(i.qty || '').replace(/,/g, '')) || 0, O = out[k] || (out[k] = { qty: 0, list: [] });
