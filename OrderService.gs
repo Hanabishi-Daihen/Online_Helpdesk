@@ -135,6 +135,40 @@ function saveOrderDbRow(token, row, values, expectCode) {
     return getOrderDb(true);
   });
 }
+// admin: add many new rows at once (pasted from Excel or typed in the grid). list = [[value per column], …] in sheet order.
+// All or nothing: every row needs a CODE, no CODE may repeat inside the list or exist already. A blank ID column
+// (header "ID" / "NO") is numbered on from the largest number in the sheet. One sheet write for the whole list.
+var ORD_DB_BULK_MAX = 500;
+function saveOrderDbRows(token, list) {
+  requireAdmin_(token);
+  list = (Array.isArray(list) ? list : []).filter(function (r) { return Array.isArray(r) && r.join('').trim(); });
+  if (!list.length) throw new Error('ไม่มีรายการที่จะเพิ่ม');
+  if (list.length > ORD_DB_BULK_MAX) throw new Error('เพิ่มได้ครั้งละไม่เกิน ' + ORD_DB_BULK_MAX + ' รายการ');
+  return withLock_(function () {
+    var d = ordDbRead_(), sh = d.sheet, n = d.header.length, ci = d.map.code, errs = [], seen = {}, have = {};
+    var idc = d.header.map(ordNorm_).reduce(function (f, h, i) { return f < 0 && /^(ID|NO|ลำดับ)$/.test(h) && i !== ci ? i : f; }, -1);
+    d.rows.forEach(function (x) { have[ordCodeKey_(x.v[ci])] = x.row; });
+    var nextId = idc < 0 ? 0 : d.rows.reduce(function (m, x) { var v = Number(String(x.v[idc]).replace(/[^\d.]/g, '')); return isFinite(v) && v > m ? v : m; }, 0);
+    var out = list.map(function (src, i) {
+      var v = []; for (var c = 0; c < n; c++) v.push(ordStr_(src[c], 500));
+      var k = ordCodeKey_(v[ci]), no = 'รายการที่ ' + (i + 1);
+      if (!k) errs.push(no + ': ไม่มี ' + (d.header[ci] || 'CODE'));
+      else if (have[k]) errs.push(no + ': CODE ' + v[ci] + ' มีอยู่แล้วในแถวที่ ' + have[k]);
+      else if (seen[k]) errs.push(no + ': CODE ' + v[ci] + ' ซ้ำกับรายการที่ ' + seen[k]);
+      else seen[k] = i + 1;
+      if (idc >= 0 && !v[idc]) v[idc] = String(++nextId);
+      return v;
+    });
+    if (errs.length) throw new Error('ยังไม่ได้บันทึก — แก้ ' + errs.length + ' จุดก่อน:\n' + errs.slice(0, 15).join('\n') + (errs.length > 15 ? '\n… และอีก ' + (errs.length - 15) + ' จุด' : ''));
+    var at = Math.max(sh.getLastRow(), 1) + 1;
+    if (sh.getMaxRows() < at + out.length) sh.insertRowsAfter(sh.getMaxRows(), at + out.length - sh.getMaxRows());
+    var rg = sh.getRange(at, 1, out.length, n); fmtText_(rg); rg.setValues(out);
+    audit_([['Admin', 'เพิ่มสินค้าใน DatabaseItemOrder ' + out.length + ' รายการ', '', out.map(function (v) { return v[ci]; }).join(', ').substring(0, 450)]]);
+    ordDbBump_();
+    var db = getOrderDb(true); db.added = out.length;
+    return db;
+  });
+}
 function deleteOrderDbRow(token, row, expectCode) {
   requireAdmin_(token);
   return withLock_(function () {
