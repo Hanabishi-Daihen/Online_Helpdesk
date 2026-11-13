@@ -26,12 +26,12 @@ function ordKitClean_(k) {
     if (g && g.kind === 'meter') return { kind: 'meter', maker: S(g.maker, 40), tA: S(g.tA, 30), tV: S(g.tV, 30), rows: (Array.isArray(g.rows) ? g.rows : []).slice(0, 8).map(function (r) {
       r = r || {}; return { t: r.t === 'V' ? 'V' : 'A', pri: S(r.pri, 12), sec: S(r.sec, 6), ol: S(r.ol, 8), inp: S(r.inp, 6), scale: S(r.scale, 20), qty: N(r.qty, 0, 999, 1) };
     }) };
-    if (g && g.kind === 'cam') return { kind: 'cam', type: S(g.type, 30), step: N(g.step, 0, 180, 0), manu: S(g.manu, 40), plate: g.plate !== false, text: S(g.text, 12000) };
+    if (g && g.kind === 'cam') return { kind: 'cam', type: S(g.type, 30), step: N(g.step, 0, 180, 0), manu: S(g.manu, 40), plate: g.plate !== false, font: S(g.font, 12), wf: N(g.wf, 0.3, 3, 1), text: S(g.text, 12000) };
     if (g && g.kind === 'ann') return { kind: 'ann', mode: g.mode === 'eng' ? 'eng' : 'ann', model: S(g.model, 20), win: N(g.win, 1, 96, 35), wh: N(g.wh, 10, 200, 40), ww: N(g.ww, 10, 200, 50), units: N(g.units, 1, 99, 1),
-      manu: S(g.manu, 40), col: /^(r1|or|r)$/.test(g.col) ? g.col : '', font: S(g.font, 12) || 'arial', spec: S(g.spec, 600), text: S(g.text, 12000) };
-    if (g && g.kind === 'strip') return { kind: 'strip', type: S(g.type, 12), dir: g.dir === 'HOR' ? 'HOR' : 'VER', sets: N(g.sets, 1, 20, 2), per: N(g.per, 1, 20, 10), text: S(g.text, 12000) };
+      manu: S(g.manu, 40), col: /^(r1|or|r)$/.test(g.col) ? g.col : '', font: S(g.font, 12) || 'arial', wf: N(g.wf, 0.3, 3, 1), spec: S(g.spec, 600), text: S(g.text, 12000) };
+    if (g && g.kind === 'strip') return { kind: 'strip', type: S(g.type, 12), dir: g.dir === 'HOR' ? 'HOR' : 'VER', sets: N(g.sets, 1, 20, 2), per: N(g.per, 1, 20, 10), font: S(g.font, 12), wf: N(g.wf, 0.3, 3, 1), text: S(g.text, 12000) };
     return { kind: 'card', w: N(g && g.w, 5, 1000, 60), h: N(g && g.h, 5, 1000, 15), shape: /^(rect|button|vert)$/.test(g && g.shape) ? g.shape : 'rect',
-      mat: g && g.mat === 'aluminum' ? 'aluminum' : 'plastic', letter: N(g && g.letter, 1, 200, 5), font: S(g && g.font, 12) || 'arial', text: S(g && g.text, 12000), note: S(g && g.note, 600) };
+      mat: g && g.mat === 'aluminum' ? 'aluminum' : 'plastic', letter: N(g && g.letter, 1, 200, 5), font: S(g && g.font, 12) || 'arial', wf: N(g && g.wf, 0.3, 3, 1), text: S(g && g.text, 12000), note: S(g && g.note, 600) };
   }) };
   if (JSON.stringify(out).length > 40000) throw new Error('ข้อมูลตัวช่วย Card holder / Strip marker ยาวเกินไป — แยกเป็นหลายใบสั่ง');
   return out;
