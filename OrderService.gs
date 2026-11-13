@@ -23,6 +23,9 @@ function ordKitClean_(k) {
   if (!k || typeof k !== 'object' || !Array.isArray(k.groups) || !k.groups.length) return null;
   var S = function (v, n) { return String(v == null ? '' : v).substring(0, n); }, N = function (v, a, b, d) { v = Number(v); return isFinite(v) ? Math.min(b, Math.max(a, v)) : d; };
   var out = { cab: S(k.cab, 30), pages: N(k.pages, 0, 60, 0), groups: k.groups.slice(0, 8).map(function (g) {
+    if (g && g.kind === 'cam') return { kind: 'cam', type: S(g.type, 30), step: N(g.step, 0, 180, 0), manu: S(g.manu, 40), plate: g.plate !== false, text: S(g.text, 12000) };
+    if (g && g.kind === 'ann') return { kind: 'ann', mode: g.mode === 'eng' ? 'eng' : 'ann', model: S(g.model, 20), win: N(g.win, 1, 96, 35), wh: N(g.wh, 10, 200, 40), ww: N(g.ww, 10, 200, 50), units: N(g.units, 1, 99, 1),
+      manu: S(g.manu, 40), col: /^(r1|or|r)$/.test(g.col) ? g.col : '', font: S(g.font, 12) || 'arial', spec: S(g.spec, 600), text: S(g.text, 12000) };
     if (g && g.kind === 'strip') return { kind: 'strip', type: S(g.type, 12), dir: g.dir === 'HOR' ? 'HOR' : 'VER', sets: N(g.sets, 1, 20, 2), per: N(g.per, 1, 20, 10), text: S(g.text, 12000) };
     return { kind: 'card', w: N(g && g.w, 5, 1000, 60), h: N(g && g.h, 5, 1000, 15), shape: /^(rect|button|vert)$/.test(g && g.shape) ? g.shape : 'rect',
       mat: g && g.mat === 'aluminum' ? 'aluminum' : 'plastic', letter: N(g && g.letter, 1, 200, 5), font: S(g && g.font, 12) || 'arial', text: S(g && g.text, 12000), note: S(g && g.note, 600) };
@@ -759,4 +762,4 @@ function testOrderSetup() {
   var d = getOrderDb();
   Logger.log('✓ ' + d.sheetName + ' (' + d.book + '): ' + d.rows.length + ' แถว · คอลัมน์ ' + d.header.join(', ') + ' · map ' + JSON.stringify(d.map));
   Logger.log('✓ เลขถัดไป: ' + JSON.stringify(ordNext_()));
-}
+}
