@@ -519,7 +519,7 @@ function upsertIssues(list, token) {
 // Issues to restore it). Their IDs are remembered (ISS_DELETED, newest 500) so a browser that still shows them
 // cannot write them back, and the ID number is never handed out again. Attached files stay in Drive.
 var ISS_DEL_MAX = 500, ISS_BIN = 'DeletedIssues';
-function issDeleted_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('ISS_DELETED') || '[]') || []; } catch (e) { return []; } }
+function issDeleted_() { try { return JSON.parse(schedProp_('ISS_DELETED') || '[]') || []; } catch (e) { return []; } }
 function deleteIssues(token, ids) {
   requireAdmin_(token);
   var want = {};
@@ -542,7 +542,7 @@ function deleteIssues(token, ids) {
     }
     var gone = hit.map(function (i) { return String(all[i][0]).trim(); });
     var dead = issDeleted_().filter(function (x) { return gone.indexOf(x) < 0; }).concat(gone);
-    PropertiesService.getScriptProperties().setProperty('ISS_DELETED', JSON.stringify(dead.slice(-ISS_DEL_MAX)));
+    schedProp_('ISS_DELETED', JSON.stringify(dead.slice(-ISS_DEL_MAX)));
     audit_(hit.map(function (i) {
       var r = all[i]; return ['Admin', 'ลบเคสถาวร', String(r[0]).trim(), (r[1] || '-') + ' · ' + String(r[2] || '').substring(0, 120) + ' · ผู้แจ้ง ' + (r[3] || '-') + ' (สำเนาอยู่ในชีต ' + ISS_BIN + ')'];
     }));
@@ -1346,11 +1346,11 @@ function getAuditLog(token, limit) {
 // ══ Backup (daily copy of the whole spreadsheet into Drive, keep 30 days) ══
 var BACKUP_KEEP_DAYS = 30;
 function backupFolder_() {
-  var P = PropertiesService.getScriptProperties(), id = P.getProperty('BACKUP_FOLDER_ID');
+  var P = PropertiesService.getScriptProperties(), id = schedProp_('BACKUP_FOLDER_ID');
   if (id) { try { return DriveApp.getFolderById(id); } catch (e) {} }
   var parent = DriveApp.getFolderById(CONFIG.DRIVE_FOLDER_ID), it = parent.getFoldersByName('_Helpdesk_Backups');
   var f = it.hasNext() ? it.next() : parent.createFolder('_Helpdesk_Backups');
-  P.setProperty('BACKUP_FOLDER_ID', f.getId());
+  schedProp_('BACKUP_FOLDER_ID', f.getId());
   return f;
 }
 function backupRun_(why) {
@@ -1359,7 +1359,7 @@ function backupRun_(why) {
   var cut = Date.now() - BACKUP_KEEP_DAYS * 864e5, it = folder.getFiles(), removed = 0;
   while (it.hasNext()) { var f = it.next(); if (f.getId() !== copy.getId() && f.getDateCreated().getTime() < cut) { f.setTrashed(true); removed++; } }
   var info = { time: nowStr_(), name: copy.getName(), url: copy.getUrl(), why: why || 'อัตโนมัติรายวัน', removed: removed };
-  PropertiesService.getScriptProperties().setProperty('LAST_BACKUP', JSON.stringify(info));
+  schedProp_('LAST_BACKUP', JSON.stringify(info));
   audit_([['System', 'สำรองข้อมูล', '', info.why + ' · ' + info.name]]);
   return info;
 }
@@ -1375,7 +1375,106 @@ function listBackups(token) {
 
 // ══ Schedules auto-sync from a OneDrive / SharePoint "Anyone with the link" CSV ══
 var SCHED_HEADER = ['ProjectNo', 'MVA', 'RatingVolt', 'Purchaser', 'Customer', 'DeliveryByPO', 'NewDelivery', 'ActualPlanDelivery', 'Process', 'Start-date', 'Finish-date'];
-function schedProp_(k, v) { var P = PropertiesService.getScriptProperties(); if (v === undefined) return P.getProperty(k); if (v === null) P.deleteProperty(k); else P.setProperty(k, v); }
+// ── Settings store ────────────────────────────────────────────────────────────────────────────────
+// Script Properties are kept for what must be secret or is read on every poll: passwords, data version
+// stamps, file hashes, the sync lock. Everything else — settings, source links, "last sync" notes, folder
+// and template ids — lives in the sheet "Config" (Key | Value | Updated) so the property list stays short
+// (the Apps Script editor cannot add a property by hand once there are 50).
+// Reads: memo of this run → script cache (6 h, checked against CFG_VER) → the sheet. A write updates the sheet and changes CFG_VER.
+// A key that is not in the sheet yet is still read from Script Properties, so nothing is lost if the move fails.
+var CFG_SHEET = 'Config', CFG_DONE = '__MOVED_FROM_PROPERTIES';
+var CFG_KEYS = (function () {
+  var o = {};
+  ('BOM_CFG FC_CFG OA_AGE_CFG ORD_APPROVERS ORD_DUP_CFG P360_CFG RS_CFG DOC_OD ' +
+   'SCHED_SRC_URL STOCK_SRC_URL PO_SRC_URL RT_SRC_URL DOC_SRC_URL ' +
+   'SCHED_SYNC_HOURS STOCK_SYNC_HOURS PO_SYNC_HOURS RT_SYNC_HOURS DOC_SYNC_HOURS ' +
+   'SCHED_SYNC_LAST STOCK_SYNC_LAST PO_SYNC_LAST RT_SYNC_LAST DOC_SYNC_LAST ' +
+   'BOM_EXP_LAST LAST_BACKUP SA_MAIL_LAST BOM_SHORT_MAIL PO_POST_LAST STOCK_POST_LAST STOCK_META RS_HIST_START RS_SAVED_AGG ' +
+   'BACKUP_FOLDER_ID BOM_EXP_FOLDER_ID ORDER_FOLDER_ID ORDER_TPL_ID ORDER_TPL_SRC ISS_DELETED').split(' ').forEach(function (k) { o[k] = 1; });
+  return o;
+})();
+function cfgIs_(k) { return CFG_KEYS[k] === 1 || /^BOM_TPL_/.test(String(k)); }
+var __cfg = null;                                             // { map: {key: value}, ok: the sheet could be read }
+function cfgSheet_() {
+  var s = ss_().getSheetByName(CFG_SHEET);
+  if (!s) {
+    s = ss_().insertSheet(CFG_SHEET); s.getRange(1, 1, 1, 3).setValues([['Key', 'Value', 'Updated']]).setFontWeight('bold'); s.setFrozenRows(1);
+    try { s.getRange(1, 5).setValue('ค่าตั้งค่าของระบบ — ระบบอ่าน/เขียนเอง อย่าลบชีตนี้ และอย่าแก้ด้วยมือถ้าไม่จำเป็น'); } catch (e) {}
+  }
+  return s;
+}
+function cfgCachePut_(map) {
+  try {
+    var s = JSON.stringify(map), n = Math.ceil(s.length / 90000) || 1, o = { cfg_n: String(n) };
+    for (var i = 0; i < n; i++) o['cfg_' + i] = s.substring(i * 90000, (i + 1) * 90000);
+    CacheService.getScriptCache().putAll(o, 21600);
+  } catch (e) {}
+}
+function cfgCacheGet_() {
+  try {
+    var C = CacheService.getScriptCache(), n = Number(C.get('cfg_n') || 0); if (!n) return null;
+    var keys = []; for (var i = 0; i < n; i++) keys.push('cfg_' + i);
+    var got = C.getAll(keys), s = ''; for (var j = 0; j < n; j++) { if (got['cfg_' + j] == null) return null; s += got['cfg_' + j]; }
+    var m = JSON.parse(s); return m && typeof m === 'object' ? m : null;
+  } catch (e) { return null; }
+}
+// CFG_VER (a Script Property) changes on every write; a cached copy is used only while it carries the current stamp,
+// so a reader that was half-way through the sheet when someone saved cannot leave an old copy behind
+function cfgVer_() { try { return String(PropertiesService.getScriptProperties().getProperty('CFG_VER') || '0'); } catch (e) { return '0'; } }
+function cfgCacheDrop_() { try { PropertiesService.getScriptProperties().setProperty('CFG_VER', String(Date.now()) + Math.floor(Math.random() * 1000)); } catch (e) {} }
+function cfgRead_() {                                         // sheet → map (the first row of a key wins)
+  var s = cfgSheet_(), n = s.getLastRow() - 1, map = {};
+  if (n > 0) s.getRange(2, 1, n, 2).getValues().forEach(function (r) { var k = String(r[0] || '').trim(); if (k && !(k in map)) map[k] = String(r[1] == null ? '' : r[1]); });
+  return map;
+}
+function cfgLoad_() {
+  if (__cfg) return __cfg;
+  var ver = cfgVer_(), hit = cfgCacheGet_(); if (hit && hit.v === ver && hit.m) return (__cfg = { map: hit.m, ok: true });
+  try {
+    var map = cfgRead_();
+    if (!map[CFG_DONE]) map = cfgMove_(map);
+    cfgCachePut_({ v: ver, m: map });
+    return (__cfg = { map: map, ok: true });
+  } catch (e) { console.warn('cfgLoad_', e); return (__cfg = { map: {}, ok: false }); }
+}
+// one time: copy the movable keys from Script Properties into the sheet, then delete them from the properties
+function cfgMove_(map) {
+  var P = PropertiesService.getScriptProperties(), all = P.getProperties(), rows = [], moved = [];
+  Object.keys(all).sort().forEach(function (k) { if (cfgIs_(k)) { moved.push(k); if (!(k in map)) { rows.push([k, String(all[k]), nowStr_()]); map[k] = String(all[k]); } } });
+  rows.push([CFG_DONE, moved.length + ' keys', nowStr_()]); map[CFG_DONE] = moved.length + ' keys';
+  var s = cfgSheet_(), r0 = s.getLastRow() + 1, rg = s.getRange(r0, 1, rows.length, 3);
+  fmtText_(rg); rg.setValues(rows); SpreadsheetApp.flush();
+  moved.forEach(function (k) { try { P.deleteProperty(k); } catch (e) {} });        // only after the sheet has them
+  try { audit_([['System', 'ย้ายค่าตั้งค่าไปชีต Config', String(moved.length) + ' keys', moved.join(', ').substring(0, 400)]]); } catch (e) {}
+  return map;
+}
+function cfgGet_(k) {
+  var c = cfgLoad_();
+  if (c.ok && Object.prototype.hasOwnProperty.call(c.map, k)) return c.map[k] === '' ? null : c.map[k];
+  return PropertiesService.getScriptProperties().getProperty(k);          // not moved yet / the sheet could not be read
+}
+function cfgSet_(k, v) {
+  var val = v == null ? '' : String(v);
+  if (val.length > 49000) throw new Error('ค่าตั้งค่า ' + k + ' ยาวเกินไป (' + val.length + ' ตัวอักษร)');
+  try {
+    var s = cfgSheet_(), n = s.getLastRow() - 1, row = 0;
+    if (n > 0) { var K = s.getRange(2, 1, n, 1).getValues(); for (var i = 0; i < K.length; i++) if (String(K[i][0]).trim() === k) { row = i + 2; break; } }
+    if (!row) { if (v == null) { cfgForget_(k); return; } row = s.getLastRow() + 1; }
+    var rg = s.getRange(row, 1, 1, 3); fmtText_(rg); rg.setValues([[k, val, nowStr_()]]);
+    cfgForget_(k);
+    if (__cfg && __cfg.ok) __cfg.map[k] = val;
+    cfgCacheDrop_();
+  } catch (e) {                                              // the sheet is not reachable → keep working on Script Properties
+    console.warn('cfgSet_ ' + k, e);
+    var P = PropertiesService.getScriptProperties(); if (v == null) P.deleteProperty(k); else P.setProperty(k, val);
+  }
+}
+function cfgForget_(k) { try { PropertiesService.getScriptProperties().deleteProperty(k); } catch (e) {} }   // an old copy must not come back
+// every setting goes through here: schedProp_(k) reads · schedProp_(k, v) writes · schedProp_(k, null) deletes
+function schedProp_(k, v) {
+  if (cfgIs_(k)) { if (v === undefined) return cfgGet_(k); cfgSet_(k, v); return; }
+  var P = PropertiesService.getScriptProperties(); if (v === undefined) return P.getProperty(k); if (v === null) P.deleteProperty(k); else P.setProperty(k, v);
+}
 function schedSyncInfo_() { try { return JSON.parse(schedProp_('SCHED_SYNC_LAST') || 'null'); } catch (e) { return null; } }
 // SharePoint/OneDrive "Anyone" links answer with a redirect that sets a FedAuth cookie; UrlFetchApp's automatic
 // redirect-following drops cookies and lands on the login page. So redirects are followed manually with a cookie jar,
@@ -1550,7 +1649,7 @@ function getSystemHealth(token) {
   try { h.mailQuota = MailApp.getRemainingDailyQuota(); } catch (e) { h.mailQuota = null; }
   var trig = {}; try { ScriptApp.getProjectTriggers().forEach(function (t) { trig[t.getHandlerFunction()] = 1; }); } catch (e) {}
   h.triggers = { dailyReminder: !!trig.dailyReminder, dailyBackup: !!trig.dailyBackup };
-  try { h.lastBackup = JSON.parse(PropertiesService.getScriptProperties().getProperty('LAST_BACKUP') || 'null'); } catch (e) { h.lastBackup = null; }
+  try { h.lastBackup = JSON.parse(schedProp_('LAST_BACKUP') || 'null'); } catch (e) { h.lastBackup = null; }
   var book = ss_(), is = book.getSheetByName(CONFIG.ISSUES);
   h.issueRows = is ? Math.max(0, is.getLastRow() - 1) : 0;
   h.cells = 0; book.getSheets().forEach(function (x) { h.cells += x.getMaxRows() * x.getMaxColumns(); });

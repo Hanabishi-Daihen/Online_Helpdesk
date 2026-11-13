@@ -1,0 +1,23 @@
+// helper text check: duplicate texts + compare with an earlier order — prints what it sees; exits 1 when the page throws an error
+const OUT=__dirname+'/../out/';
+const {chromium}=require('playwright');(async()=>{const b=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||undefined});const p=await b.newPage({viewport:{width:1440,height:1000}});const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('dialog',d=>d.accept());
+const http=require('http'),fs=require('fs');const srv=http.createServer((q,r)=>{r.setHeader('content-type','text/html; charset=utf-8');r.end(fs.readFileSync(OUT+'order.html'))}).listen(8831);
+await p.goto('http://localhost:8831/');await p.waitForTimeout(2000);
+await p.locator('aside nav button',{hasText:'Order Item'}).first().click();await p.waitForTimeout(1200);
+await p.locator('.zq-or-tabs button').first().click();await p.waitForTimeout(300);
+await p.locator('.zq-or-type button',{hasText:'Order Project'}).click();await p.locator('input[aria-label="Trans. Production No. (โปรเจกต์)"]').fill('PP1004B');
+await p.locator('button:has-text("ตัวช่วยหน้าแบบ")').click();await p.waitForTimeout(500);
+const K=p.locator('[role=dialog][aria-label="ตัวช่วย Order Project"]'),ta=K.locator('section.zq-kit-g').first().locator('textarea').first(),C=K.locator('.zq-kit-chk');
+console.log('empty helper: check box shown',await C.count());
+await ta.fill('AMMETER (X1)\nLAMP TEST ×2\nammeter  (x1)');await p.waitForTimeout(400);
+console.log('dups:',(await C.locator('b').first().innerText()),'| chips',(await C.locator('.tg').first().locator('button').allInnerTexts()).join(' ; '));
+await C.locator('.tg').first().locator('button').nth(1).click();await p.waitForTimeout(300);
+console.log('click dup → selected',JSON.stringify(await ta.evaluate(t=>t.value.slice(t.selectionStart,t.selectionEnd))));
+await ta.fill('AMMETER (X1)\nLAMP TEST ×2');await p.waitForTimeout(300);console.log('after fix:',await C.locator('small',{hasText:'ไม่มีข้อความซ้ำ'}).count()?'✓ no duplicates':'still dup');
+await C.locator('select').selectOption('ORD26-0050');await p.waitForTimeout(300);
+const bs=await C.locator('b').allInnerTexts();console.log('compare:',bs.slice(1).join(' | '));
+console.log('missing chips',(await C.locator('.tg').nth(0).locator('button').allInnerTexts()).join(' ; '),'| added chips',(await C.locator('.tg').nth(1).locator('button').allInnerTexts()).join(' ; '));
+await C.locator('.tg').nth(0).locator('button',{hasText:'VOLTMETER'}).click();await p.waitForTimeout(400);
+console.log('after add back:',JSON.stringify(await ta.inputValue()),'| missing now',(await C.locator('b').allInnerTexts())[1]);
+await C.screenshot({path:OUT+'text_check.png'});
+console.log('errors:',errs);srv.close();await b.close();process.exit(errs.length?1:0)})();
