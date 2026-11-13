@@ -140,8 +140,15 @@ function docIndex_(rebuild) {
   ordCachePut_(key, out, 21600);
   return out;
 }
-// public: the list (anyone can search; it holds file names and paths only)
-function getDocIndex() { var x = docIndex_(false), o = docOd_(); if (o) { x = JSON.parse(JSON.stringify(x)); x.od = o; } return x; }
+// public: the list (anyone can search) — file names only. The file-server root and folder paths are Admin-only (getDocPaths);
+// each folder becomes a tag: 'STOCK…' keeps the Stock / Project filter, a project folder keeps its PP number (already in col 5).
+function getDocIndex() {
+  var x = JSON.parse(JSON.stringify(docIndex_(false))), o = docOd_();
+  x.root = ''; x.dirs = (x.dirs || []).map(function (d) { return /^STOCK/i.test(d) ? 'STOCK' : ''; });
+  if (o) x.od = o;
+  return x;
+}
+function getDocPaths(token) { requireAdmin_(token); var x = docIndex_(false); return { root: x.root, dirs: x.dirs }; }
 
 // ── OneDrive copy of the file server folder → "open in OneDrive" per file ──
 // The folder is stored as its server-relative path (e.g. /personal/premwit_daihen_co_th/Documents/1 ELECTRICAL DESIGN SHEET).
