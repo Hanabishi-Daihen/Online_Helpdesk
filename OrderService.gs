@@ -23,6 +23,9 @@ function ordKitClean_(k) {
   if (!k || typeof k !== 'object' || !Array.isArray(k.groups) || !k.groups.length) return null;
   var S = function (v, n) { return String(v == null ? '' : v).substring(0, n); }, N = function (v, a, b, d) { v = Number(v); return isFinite(v) ? Math.min(b, Math.max(a, v)) : d; };
   var out = { cab: S(k.cab, 30), pages: N(k.pages, 0, 60, 0), groups: k.groups.slice(0, 8).map(function (g) {
+    if (g && g.kind === 'meter') return { kind: 'meter', maker: S(g.maker, 40), tA: S(g.tA, 30), tV: S(g.tV, 30), rows: (Array.isArray(g.rows) ? g.rows : []).slice(0, 8).map(function (r) {
+      r = r || {}; return { t: r.t === 'V' ? 'V' : 'A', pri: S(r.pri, 12), sec: S(r.sec, 6), ol: S(r.ol, 8), inp: S(r.inp, 6), scale: S(r.scale, 20), qty: N(r.qty, 0, 999, 1) };
+    }) };
     if (g && g.kind === 'cam') return { kind: 'cam', type: S(g.type, 30), step: N(g.step, 0, 180, 0), manu: S(g.manu, 40), plate: g.plate !== false, text: S(g.text, 12000) };
     if (g && g.kind === 'ann') return { kind: 'ann', mode: g.mode === 'eng' ? 'eng' : 'ann', model: S(g.model, 20), win: N(g.win, 1, 96, 35), wh: N(g.wh, 10, 200, 40), ww: N(g.ww, 10, 200, 50), units: N(g.units, 1, 99, 1),
       manu: S(g.manu, 40), col: /^(r1|or|r)$/.test(g.col) ? g.col : '', font: S(g.font, 12) || 'arial', spec: S(g.spec, 600), text: S(g.text, 12000) };
