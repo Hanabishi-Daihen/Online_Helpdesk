@@ -142,13 +142,13 @@ function docIndex_(rebuild) {
 }
 // public: the list (anyone can search) — file names only. The file-server root and folder paths are Admin-only (getDocPaths);
 // each folder becomes a tag: 'STOCK…' keeps the Stock / Project filter, a project folder keeps its PP number (already in col 5).
-function getDocIndex() {
+function getDocIndex() { apiOnly_();
   var x = JSON.parse(JSON.stringify(docIndex_(false))), o = docOd_();
   x.root = ''; x.dirs = (x.dirs || []).map(function (d) { return /^STOCK/i.test(d) ? 'STOCK' : ''; });
   if (o) x.od = o;
   return x;
 }
-function getDocPaths(token) { requireAdmin_(token); var x = docIndex_(false); return { root: x.root, dirs: x.dirs }; }
+function getDocPaths(token) { apiOnly_(); requireAdmin_(token); var x = docIndex_(false); return { root: x.root, dirs: x.dirs }; }
 
 // ── OneDrive copy of the file server folder → "open in OneDrive" per file ──
 // The folder is stored as its server-relative path (e.g. /personal/premwit_daihen_co_th/Documents/1 ELECTRICAL DESIGN SHEET).
@@ -178,7 +178,7 @@ function docOdResolve_(link) {
 }
 // Admin: link = the folder's sharing link, or its URL from the browser address bar (…onedrive.aspx?id=/personal/…/Documents/…)
 // match = the file-server folder this OneDrive folder copies (default: a folder with the same name)
-function setDocOneDrive(token, link, match) {
+function setDocOneDrive(token, link, match) { apiOnly_();
   requireAdmin_(token);
   link = String(link || '').trim();
   if (!link) { schedProp_('DOC_OD', null); dataBump_('DOC_OD_VER'); return null; }
@@ -196,7 +196,7 @@ function setDocOneDrive(token, link, match) {
 }
 
 // public: PO / CODE / name → the RQN and DS1 numbers of those purchases (Pending Order + Order Item)
-function docLookup(q) {
+function docLookup(q) { apiOnly_();
   var toks = String(q || '').toUpperCase().split(/[\s,;]+/).map(function (t) { return t.replace(/[^A-Z0-9\-\/.]/g, ''); })
     .filter(function (t) { return t.length >= 4; }).slice(0, 6);
   var out = { hits: [], r: [], d: [] };
@@ -235,14 +235,14 @@ function docLookup(q) {
 }
 
 // ── settings (Admin) ────────────────────────────────────────────────
-function docAutoSync() { if (schedProp_('DOC_SRC_URL')) syncDocsRun_('อัตโนมัติ', false); }   // time trigger
-function getDocSource(token) {
+function docAutoSync() { trustEntry_(); if (schedProp_('DOC_SRC_URL')) syncDocsRun_('อัตโนมัติ', false); }   // time trigger
+function getDocSource(token) { apiOnly_();
   requireAdmin_(token);
   var hrs = 0; ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'docAutoSync') hrs = Number(schedProp_('DOC_SYNC_HOURS') || 24); });
   var id = schedProp_('STOCK_SS_ID');
   return { url: schedProp_('DOC_SRC_URL') || '', hours: hrs, last: docInfo_(), od: docOd_(), sheetUrl: id ? 'https://docs.google.com/spreadsheets/d/' + id + '/edit' : '' };
 }
-function setDocSource(token, url, hours) {
+function setDocSource(token, url, hours) { apiOnly_();
   requireAdmin_(token);
   url = String(url || '').trim();
   if (url && !/^https:\/\/[^\s]+$/i.test(url)) throw new Error('ลิงก์ต้องขึ้นต้นด้วย https://');
@@ -257,10 +257,10 @@ function setDocSource(token, url, hours) {
   audit_([['Admin', 'ตั้งค่าซิงค์รายการเอกสาร', '', (url ? 'ตั้งลิงก์แล้ว' : 'ลบลิงก์') + ' · ' + syncLabel_(hours)]]);
   return getDocSource(token);
 }
-function syncDocsNow(token) { requireAdmin_(token); return syncDocsRun_('สั่งโดย Admin', true); }
+function syncDocsNow(token) { apiOnly_(); requireAdmin_(token); return syncDocsRun_('สั่งโดย Admin', true); }
 
 // Run ONCE from the editor after saving the link, to authorize and check the result in the log.
-function testDocSync() {
+function testDocSync() { trustEntry_();
   if (!schedProp_('DOC_SRC_URL')) { Logger.log('✗ ยังไม่ได้บันทึกลิงก์ใน ตั้งค่าระบบ → ☁ ซิงค์รายการเอกสาร'); return; }
   var r = syncDocsRun_('ทดสอบจาก Editor', true);
   Logger.log((r.ok ? '✓ ' : '✗ ') + r.msg);

@@ -13,4 +13,7 @@ const st=await p.evaluate(()=>{const s=window.__calls.filter(c=>c[0]==='getDocPa
 await p.locator('button',{hasText:/Admin|ปลดล็อค/}).first().click();await p.waitForTimeout(500);
 const u=p.locator('input[autocomplete=username]');if(await u.count())await u.fill('premwit');const pw=p.locator('input[type=password]');await pw.first().fill('control');await pw.first().press('Enter');await p.waitForTimeout(1500);
 console.log('admin?',await p.evaluate(()=>window.__calls.filter(c=>c[0]==='adminLogin').map(c=>JSON.stringify(c[1])).join()),await p.locator('text=ออกจากระบบ').count());await p.locator('aside nav button:has-text("Dashboard")').first().click().catch(()=>{});await p.waitForTimeout(500);await check('ADMIN');
+await p.locator('aside nav button',{hasText:'ตั้งค่าระบบ'}).first().click().catch(()=>{});await p.waitForTimeout(1500);
+const card=p.locator('section.zq-em',{hasText:'บัญชีผู้ใช้งาน'});console.log('users card',await card.count(),'| rows',await card.locator('tbody tr').count(),'| pending badge',await card.locator('text=รออนุมัติ 1').count());
+await card.screenshot({path:OUT+'auth_users_card.png'}).catch(()=>{});
 console.log('errors:',errs);srv.close();await b.close();process.exit(errs.length?1:0)})();

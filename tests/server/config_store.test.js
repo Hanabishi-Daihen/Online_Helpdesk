@@ -10,7 +10,7 @@ const world=()=>{const sheets={},props={ADMIN_PASSCODE:'secret',ORD_VER:'5',STOC
   PropertiesService:{getScriptProperties:()=>({getProperty:k=>k in props?props[k]:null,setProperty:(k,v)=>{props[k]=String(v)},deleteProperty:k=>{delete props[k]},getProperties:()=>({...props}),setProperties:o=>Object.assign(props,o)})},
   Utilities:{formatDate:()=>'13/11/2026 10:00:00'},SpreadsheetApp:{openById:()=>SS,flush(){}},
   CacheService:{getScriptCache:()=>({get:k=>k in cache?cache[k]:null,put:(k,v)=>{cache[k]=v},putAll:o=>Object.assign(cache,o),getAll:ks=>{const o={};ks.forEach(k=>{if(k in cache)o[k]=cache[k]});return o},remove:k=>{delete cache[k]}})}};
-  ctx.globalThis=ctx;vm.createContext(ctx);vm.runInContext(src,ctx);ctx.audit_=()=>{};return ctx};
+  ctx.globalThis=ctx;vm.createContext(ctx);vm.runInContext(src,ctx);ctx.__trusted=true;ctx.audit_=()=>{};return ctx};
  return{run,props,sheets,cache,reads:()=>reads,down:v=>breakSheet=v}};
 let ok=0,bad=0;const T=(n,c,x)=>{c?ok++:bad++;console.log((c?'PASS ':'FAIL ')+n+(c?'':' → '+JSON.stringify(x)))};
 const W=world();let c=W.run();                                   // each run() = one new execution (fresh memo)

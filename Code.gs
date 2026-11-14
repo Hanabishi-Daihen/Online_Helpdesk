@@ -19,7 +19,7 @@ function frameMode_() {
   return PropertiesService.getScriptProperties().getProperty('ALLOW_EMBED') === '1'
     ? HtmlService.XFrameOptionsMode.ALLOWALL : HtmlService.XFrameOptionsMode.DEFAULT;
 }
-function doGet(e) {
+function doGet(e) { trustEntry_();
   var ap = (e && e.parameter && e.parameter.ordapprove) || '';
   if (ap) return orderApprovalPage_(ap, (e.parameter.k || ''));     // OrderApproval.gs
   var out = HtmlService.createHtmlOutputFromFile('index')
@@ -35,8 +35,11 @@ function doGet(e) {
   var t0 = Date.now(), boot = {}, vers = null;
   try { vers = getDataVers(); } catch (e) {}                      // read before the data → conflict checks stay safe
   // cached copies (bootCfg_ / schedCached_) → usually no spreadsheet is opened here; getPulse lets the first page loads keep their cache
+  // with sign-in on, the page source carries no data (it is readable before signing in) — only the URL and the version stamps
+  var authOn = true; try { authOn = authCfg_().on; } catch (e) {}
+  (authOn ? [['getAppUrl', getAppUrl], ['getPulse', getPulse], ['authInfo', authInfo]] :
   [['getAppUrl', getAppUrl], ['getSettings', function () { return bootCfg_().settings; }], ['getSchedules', schedCached_],
-   ['getPublicTemplates', function () { return bootCfg_().templates; }], ['getPulse', getPulse]]
+   ['getPublicTemplates', function () { return bootCfg_().templates; }], ['getPulse', getPulse], ['authInfo', authInfo]])
     .forEach(function (f) { try { boot[f[0]] = f[1](); } catch (e) { console.warn(f[0], e); } });
   out.append('<script>window.__ZQ_BOOT__=' + JSON.stringify({ t: Date.now(), r: boot, v: vers }).replace(/</g, '\\u003c') + ';</script>');
   perf_('doGet boot', t0);
@@ -69,7 +72,7 @@ function ensureIssueCols_(s) {
   }
 }
 function nowStr_() { return Utilities.formatDate(new Date(), 'Asia/Bangkok', 'dd/MM/yyyy HH:mm:ss'); }
-function getAppUrl() { return ScriptApp.getService().getUrl(); }
+function getAppUrl() { apiOnly_(); return ScriptApp.getService().getUrl(); }
 function parse_(v) { try { var a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
 function withLock_(fn) {
   var lock = LockService.getScriptLock();
@@ -214,7 +217,7 @@ function verConflict_(kind, base, who) {
 //   oa    order approvals  odb    DatabaseItemOrder        ntf    notifications (Tracking.gs)
 //   doc   FileList (DocSearch.gs)  isb  5-minute bucket: the case list re-reads the sheet to catch edits made by hand
 function dataBump_(key) { PropertiesService.getScriptProperties().setProperty(key, String(Date.now())); }
-function getPulse() {
+function getPulse() { apiOnly_();
   var P = PropertiesService.getScriptProperties().getProperties(), g = function (k) { return String(P[k] || ''); };
   var iv = issVer_().split(':');                                   // iss = real version · isb = 5-minute bucket (only the case list uses it)
   return { iss: iv[0], isb: iv[1] || '', sched: g('SCHED_VER'), stock: g('STOCK_HASH').substring(0, 16), po: g('PO_HASH').substring(0, 16),
@@ -222,12 +225,12 @@ function getPulse() {
     rs: g('RS_VER'), ord: g('ORD_VER'), oa: g('ORD_AP_VER'), odb: g('ORD_DB_VER'), ntf: g('NTF_VER'), doc: g('DOC_HASH').substring(0, 16) + '|' + g('DOC_OD_VER') };
 }
 // browser records these when it loads Issues / Schedules
-function getDataVers() {
+function getDataVers() { apiOnly_();
   var P = PropertiesService.getScriptProperties();
   return { iss: P.getProperty('ISS_VER') || '0', sched: P.getProperty('SCHED_VER') || '0' };
 }
 // pre-check before "write everything back" (both sheets)
-function checkDataVers(token, vers) {
+function checkDataVers(token, vers) { apiOnly_();
   requireAdmin_(token); vers = vers || {};
   var who = verWho_(token), out = {};
   if (vers.iss == null || vers.sched == null) return { nobase: true };
@@ -235,12 +238,12 @@ function checkDataVers(token, vers) {
   if (a) out.iss = a; if (b) out.sched = b;
   return out;
 }
-function getIssuesVer() { return issVer_(); }
+function getIssuesVer() { apiOnly_(); return issVer_(); }
 // several small reads in one round trip (each google.script.run call costs ~0.5–1 s before any work starts).
 // calls = [[name, args]] run in order → [{ v } | { e }]. Only the read functions below; each keeps its own checks.
 var MANY_OK = ['getPulse', 'getDataVers', 'getIssuesVer', 'getIssues', 'getSchedules', 'getBomSummary', 'getStockAlertSummary',
   'getOrderAgeSummary', 'getOrderTrackSummary', 'getNotify', 'getRemainFlags', 'getStockMeta', 'getPendingMeta', 'getOrderApprovalPulse'];
-function getMany(calls) {
+function getMany(calls) { apiOnly_();
   var t0 = Date.now(), G = globalThis;
   var out = (Array.isArray(calls) ? calls : []).slice(0, 20).map(function (c) {
     var n = String(c && c[0] || '');
@@ -252,7 +255,7 @@ function getMany(calls) {
 }
 // Every open browser re-reads the cases when the version or its 5-minute bucket changes (issVer_), so the rows are
 // cached under that same stamp: browsers in one 5-minute window share one sheet read. Writes bump the version → new key.
-function getIssues(token) {
+function getIssues(token) { apiOnly_();
   var t0 = Date.now(), admin = isAdmin_(token), key = 'issrows_' + (admin ? 'A' : 'U') + issVer_().replace(/[^\w]/g, '_');
   var hit = ordCacheGet_(key); if (hit) { perf_('getIssues (cache)', t0); return hit; }
   var s = ss_().getSheetByName(CONFIG.ISSUES);
@@ -272,7 +275,7 @@ function getIssues(token) {
   return rows;
 }
 // one case with its full chat (archived cases arrive without it, see getIssues)
-function getIssueFull(token, id) {
+function getIssueFull(token, id) { apiOnly_();
   var s = ss_().getSheetByName(CONFIG.ISSUES), k = String(id || '').trim(); if (!s || !k || s.getLastRow() < 2) return null;
   var hit = s.getRange(2, 1, s.getLastRow() - 1, 1).createTextFinder(k).matchEntireCell(true).findNext();
   if (!hit) return null;
@@ -290,7 +293,7 @@ function getIssueFull(token, id) {
   } catch (e) { console.warn('getIssueFull chat', e); }
   return r;
 }
-function getSchedules() {
+function getSchedules() { apiOnly_();
   var s = ss_().getSheetByName(CONFIG.SCHEDULES);
   var rows = !s || s.getLastRow() < 2 ? [] : s.getRange(2, 1, s.getLastRow() - 1, 11).getDisplayValues();
   ordCachePut_(schedCacheKey_(), rows, 600);
@@ -311,7 +314,7 @@ function bootCfg_() {
   return out;
 }
 function bootCfgClear_() { try { CacheService.getScriptCache().remove('boot_cfg'); } catch (e) {} }
-function getSettings() {
+function getSettings() { apiOnly_();
   var s = ss_().getSheetByName(CONFIG.SETTINGS);
   if (!s) return {};
   try { return JSON.parse(s.getRange('A1').getValue()) || {}; } catch (e) { return {}; }
@@ -329,7 +332,7 @@ function nextId_(sh) {
   return 'ISS-' + year + ('00' + (max + 1)).slice(-3);
 }
 
-function createIssue(issue) {
+function createIssue(issue) { apiOnly_();
   var t0 = Date.now();
   clean_(issue); rateLimit_(issue);
   issue.files = persistFiles_(issue.files);                     // Drive uploads happen outside the lock
@@ -456,7 +459,7 @@ function mergeUser_(cur, inc) {
 }
 
 // One read + one write per call (fast even for bulk Archive / bulk status change).
-function upsertIssues(list, token) {
+function upsertIssues(list, token) { apiOnly_();
   var t0 = Date.now(), notify = [];
   var out = withLock_(function () {
     var admin = isAdmin_(token);
@@ -520,7 +523,7 @@ function upsertIssues(list, token) {
 // cannot write them back, and the ID number is never handed out again. Attached files stay in Drive.
 var ISS_DEL_MAX = 500, ISS_BIN = 'DeletedIssues';
 function issDeleted_() { try { return JSON.parse(schedProp_('ISS_DELETED') || '[]') || []; } catch (e) { return []; } }
-function deleteIssues(token, ids) {
+function deleteIssues(token, ids) { apiOnly_();
   requireAdmin_(token);
   var want = {};
   (Array.isArray(ids) ? ids : [ids]).slice(0, 200).forEach(function (x) { var k = String(x == null ? '' : x).trim(); if (k) want[k] = 1; });
@@ -554,7 +557,7 @@ function deleteIssues(token, ids) {
 }
 
 // Admin: connection / permission self-test (run from Settings → ตรวจสอบการเชื่อมต่อ, or from the editor)
-function diagnose(token) {
+function diagnose(token) { apiOnly_();
   requireAdmin_(token);
   return diagnoseRun_();
 }
@@ -634,7 +637,7 @@ function admTokens_(u, add) {                          // tokens of one account,
   c.remove(k);
 }
 // → { token, user, name, names } · { first: true, name } (must send newPass too) · { err }
-function adminLogin(user, pass, newPass) {
+function adminLogin(user, pass, newPass) { apiOnly_();
   if (pass === undefined) return '';                  // page from before accounts existed → ask to reload
   var u = admKey_(user), c = CacheService.getScriptCache(), fk = 'admfail_' + u;
   if (!u || pass == null || pass === '') return { err: 'กรอกชื่อผู้ใช้และรหัสผ่าน' };
@@ -688,23 +691,23 @@ function setAdminPassword_(user, pw) {
   console.log('ตั้งรหัสผ่านของ ' + u + ' (' + name + ') แล้ว — เข้าเว็บด้วยชื่อผู้ใช้ ' + u + ' ได้เลย');
   return u;
 }
-function setupAdminFromProperty() {
+function setupAdminFromProperty() { trustEntry_();
   var P = PropertiesService.getScriptProperties(), raw = String(P.getProperty('SETUP_ADMIN') || ''), i = raw.indexOf(':');
   if (i < 1) throw new Error('ไม่พบ Script property SETUP_ADMIN = user:password');
   try { return setAdminPassword_(raw.substring(0, i), raw.substring(i + 1)); } finally { P.deleteProperty('SETUP_ADMIN'); }
 }
 // editor helper: every Script property name with its length (values hidden) — the settings page lists only 50
-function showScriptProperties() {
+function showScriptProperties() { trustEntry_();
   var P = PropertiesService.getScriptProperties().getProperties(), k = Object.keys(P).sort();
   console.log(k.length + ' properties:\n' + k.map(function (x) { return x + '  (' + String(P[x]).length + ' ตัวอักษร)'; }).join('\n'));
 }
 function admMe_(token) { try { return JSON.parse(CacheService.getScriptCache().get('adm_' + token) || '{}') || {}; } catch (e) { return {}; } }
 // Admin: account list (never the password) · add / rename · remove · reset password · change own password
-function getAdminUsers(token) {
+function getAdminUsers(token) { apiOnly_();
   requireAdmin_(token);
   return { me: admMe_(token).u || '', min: ADM_PASS_MIN, users: admUsers_().map(function (a) { return { user: a.u, name: a.n, hasPass: !!(a.h || a.p), last: a.t || '' }; }) };
 }
-function saveAdminUser(token, user, name) {
+function saveAdminUser(token, user, name) { apiOnly_();
   requireAdmin_(token);
   var u = admKey_(user), n = String(name == null ? '' : name).replace(/[\r\n<>"]/g, ' ').trim().substring(0, 40);
   if (u.length < 3) throw new Error('ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัว (a–z, 0–9, จุด, ขีด)');
@@ -718,7 +721,7 @@ function saveAdminUser(token, user, name) {
   });
   return getAdminUsers(token);
 }
-function removeAdminUser(token, user) {
+function removeAdminUser(token, user) { apiOnly_();
   requireAdmin_(token);
   var u = admKey_(user); if (u === admMe_(token).u) throw new Error('ลบบัญชีที่กำลังใช้อยู่ไม่ได้');
   withLock_(function () {
@@ -730,7 +733,7 @@ function removeAdminUser(token, user) {
   admTokens_(u);
   return getAdminUsers(token);
 }
-function resetAdminPassword(token, user) {
+function resetAdminPassword(token, user) { apiOnly_();
   requireAdmin_(token);
   var u = admKey_(user); if (u === admMe_(token).u) throw new Error('บัญชีของตัวเองให้ใช้ "เปลี่ยนรหัสผ่าน"');
   withLock_(function () {
@@ -741,7 +744,7 @@ function resetAdminPassword(token, user) {
   admTokens_(u); try { CacheService.getScriptCache().remove('admfail_' + u); } catch (e) {}
   return getAdminUsers(token);
 }
-function changeAdminPassword(token, oldPass, newPass) {
+function changeAdminPassword(token, oldPass, newPass) { apiOnly_();
   requireAdmin_(token);
   var u = admMe_(token).u; if (!u) throw new Error('กรุณาเข้าสู่ระบบใหม่');
   withLock_(function () {
@@ -753,7 +756,7 @@ function changeAdminPassword(token, oldPass, newPass) {
   return true;
 }
 
-function saveAllIssues(token, issues, baseVer) {
+function saveAllIssues(token, issues, baseVer) { apiOnly_();
   requireAdmin_(token);
   if (baseVer != null) { var cf = verConflict_('ISS', baseVer, verWho_(token)); if (cf) throw new Error('CONFLICT: มีผู้อื่นบันทึกเคสเมื่อ ' + cf + ' หลังจากที่คุณโหลดข้อมูล — กรุณารีเฟรชหน้าแล้วลองใหม่ (ระบบไม่ได้เขียนทับ)'); }
   try { backupRun_('ก่อนเขียนทับ Issues'); } catch (e) { console.warn(e); }
@@ -786,7 +789,7 @@ function saveAllIssues(token, issues, baseVer) {
 }
 
 // NOTE: overwrites the whole sheet. If Q_SchedulesForUpdate is a QUERY()/ImportRange formula sheet, do not use this.
-function saveAllSchedules(token, schedules, baseVer) {
+function saveAllSchedules(token, schedules, baseVer) { apiOnly_();
   requireAdmin_(token);
   if (baseVer != null) { var cf = verConflict_('SCHED', baseVer, verWho_(token)); if (cf) throw new Error('CONFLICT: มีการแก้ไข/ซิงค์ตารางงานเมื่อ ' + cf + ' หลังจากที่คุณโหลดข้อมูล — กรุณารีเฟรชหน้าแล้วลองใหม่ (ระบบไม่ได้เขียนทับ)'); }
   try { backupRun_('ก่อนเขียนทับ Schedules'); } catch (e) { console.warn(e); }
@@ -807,7 +810,7 @@ function saveAllSchedules(token, schedules, baseVer) {
   });
 }
 
-function saveSettings(token, patch) {
+function saveSettings(token, patch) { apiOnly_();
   requireAdmin_(token);
   return withLock_(function () {
     var cur = getSettings();
@@ -1143,7 +1146,7 @@ function dateOf_(s) {
   var y = +m[3]; if (y > 2400) y -= 543;
   return new Date(y, +m[2] - 1, +m[1]);
 }
-function dailyReminder() {                     // run by a daily trigger
+function dailyReminder() { trustEntry_();                     // run by a daily trigger
   var days = Number((settings_().admin || {}).reminderDays) || 7, now = Date.now(), list = [];
   getIssues('').forEach(function (r) {
     var d = dateOf_(r[7]);
@@ -1178,7 +1181,7 @@ function sampleIssue_() {
     priority: 'Urgent', status: 'In Progress', reportedDate: '09/10/2026 09:15:00', closedDate: '', assignee: 'Neung',
     description: 'เครื่องพิมพ์ฉลากที่สายการผลิต 2 ไม่ตอบสนองตั้งแต่เช้า ลองรีสตาร์ตแล้วยังไม่หาย กระทบการติดฉลากตู้ควบคุม\nรบกวนตรวจสอบด่วนครับ', chat: [] };
 }
-function sendTestEmails(token, to) {
+function sendTestEmails(token, to) { apiOnly_();
   requireAdmin_(token);
   to = String(to || '').trim();
   if (!/^[^@\s]+@[^@\s]+$/.test(to)) throw new Error('รูปแบบอีเมลไม่ถูกต้อง');
@@ -1195,7 +1198,7 @@ function sendTestEmails(token, to) {
   return out;
 }
 // ── Admin e-mail editor API (Settings → แก้ไขรูปแบบอีเมล) ─────────────────
-function getEmailConfig(token) {
+function getEmailConfig(token) { apiOnly_();
   requireAdmin_(token);
   var general = EMAIL_VARS.slice();
   var keys = Object.keys(EMAIL_DEFAULTS).map(function (k) {
@@ -1207,7 +1210,7 @@ function getEmailConfig(token) {
   });
   return { keys: keys, overrides: emailStore_(), defaultBrand: EMAIL_BASE, defaultFooter: EMAIL_FOOTER_DEFAULT, roster: emailStore_().roster };
 }
-function saveEmailTemplates(token, payload) {
+function saveEmailTemplates(token, payload) { apiOnly_();
   requireAdmin_(token);
   return withLock_(function () {
     var T = {}, src = (payload && payload.templates) || {};
@@ -1224,8 +1227,8 @@ function saveEmailTemplates(token, payload) {
   });
 }
 // Recipient roster (single list used by every To/Cc picker; selection itself is stored in Settings → admin.adminEmails / ccEmails)
-function getEmailRoster(token) { requireAdmin_(token); return emailStore_().roster; }
-function saveEmailRoster(token, roster) {
+function getEmailRoster(token) { apiOnly_(); requireAdmin_(token); return emailStore_().roster; }
+function saveEmailRoster(token, roster) { apiOnly_();
   requireAdmin_(token);
   return withLock_(function () {
     __emailStore = null;
@@ -1256,12 +1259,12 @@ function buildSample_(key, draft, opts) {
   if (key === 'reply_reporter') { extra.message = 'รับเรื่องแล้วครับ ช่างจะเข้าไปตรวจสอบเครื่องพิมพ์ภายในวันนี้'; extra.messageLabel = 'ข้อความจากทีมงาน'; }
   return renderEmail_(key, i, extra, d);
 }
-function previewEmail(token, key, draft, opts) {
+function previewEmail(token, key, draft, opts) { apiOnly_();
   requireAdmin_(token);
   var m = buildSample_(key, draft, opts);
   return { subject: m.subject, html: m.html, enabled: m.enabled, extraTo: m.extraTo, extraCc: m.extraCc };
 }
-function sendTestEmail(token, key, draft, to, opts) {
+function sendTestEmail(token, key, draft, to, opts) { apiOnly_();
   requireAdmin_(token);
   to = String(to || '').trim();
   if (!/^[^@\s]+@[^@\s]+$/.test(to)) throw new Error('รูปแบบอีเมลไม่ถูกต้อง');
@@ -1293,7 +1296,7 @@ function cleanReportTpl_(o) {
   ['showKpi', 'showAnalysis', 'showTable', 'land', 'full', 'logOn', 'showLogo', 'showSign', 'showReporter'].forEach(function (k) { if (typeof o[k] === 'boolean') r[k] = o[k]; });
   return r;
 }
-function getPublicTemplates() { return { issue: readJsonCell_('C1'), report: readJsonCell_('D1'), categories: readJsonCell_('E1') }; }
+function getPublicTemplates() { apiOnly_(); return { issue: readJsonCell_('C1'), report: readJsonCell_('D1'), categories: readJsonCell_('E1') }; }
 function cleanNameList_(list) {
   var seen = {}, out = [];
   (Array.isArray(list) ? list : []).forEach(function (v) {
@@ -1302,15 +1305,15 @@ function cleanNameList_(list) {
   });
   return out;
 }
-function saveCategories(token, list) {
+function saveCategories(token, list) { apiOnly_();
   requireAdmin_(token);
   return withLock_(function () { var L = cleanNameList_(list); if (!L.length) throw new Error('ต้องมีหมวดหมู่อย่างน้อย 1 รายการ'); writeJsonCell_('E1', L); audit_([['Admin', 'แก้ไขหมวดหมู่ปัญหา', '', L.join(', ')]]); return L; });
 }   // read by every user
-function saveIssueTemplates(token, list) {
+function saveIssueTemplates(token, list) { apiOnly_();
   requireAdmin_(token);
   return withLock_(function () { var L = cleanIssueTpls_(list); writeJsonCell_('C1', L); audit_([['Admin', 'แก้ไขแม่แบบปัญหา', '', L.length + ' รายการ']]); return L; });
 }
-function saveReportTemplate(token, tpl) {
+function saveReportTemplate(token, tpl) { apiOnly_();
   requireAdmin_(token);
   return withLock_(function () { var R = cleanReportTpl_(tpl); writeJsonCell_('D1', R); audit_([['Admin', 'แก้ไขแม่แบบรายงาน', '', '']]); return R; });
 }
@@ -1336,7 +1339,7 @@ function auditDiff_(cur, m, admin, out) {
   var n = (m.chat || []).length - (cur.chat || []).length;
   if (n > 0) out.push([by, 'ข้อความใหม่', m.id, n + ' ข้อความ']);
 }
-function getAuditLog(token, limit) {
+function getAuditLog(token, limit) { trustEntry_();
   requireAdmin_(token);
   var s = ss_().getSheetByName('AuditLog'); if (!s || s.getLastRow() < 2) return [];
   var n = Math.min(Number(limit) || 100, 500), last = s.getLastRow(), from = Math.max(2, last - n + 1);
@@ -1363,9 +1366,9 @@ function backupRun_(why) {
   audit_([['System', 'สำรองข้อมูล', '', info.why + ' · ' + info.name]]);
   return info;
 }
-function dailyBackup() { backupRun_('อัตโนมัติรายวัน'); }   // run by a daily trigger
-function backupNow(token) { requireAdmin_(token); return backupRun_('สั่งสำรองโดย Admin'); }
-function listBackups(token) {
+function dailyBackup() { trustEntry_(); backupRun_('อัตโนมัติรายวัน'); }   // run by a daily trigger
+function backupNow(token) { apiOnly_(); requireAdmin_(token); return backupRun_('สั่งสำรองโดย Admin'); }
+function listBackups(token) { apiOnly_();
   requireAdmin_(token);
   var it = backupFolder_().getFiles(), out = [];
   while (it.hasNext()) { var f = it.next(); out.push({ name: f.getName(), url: f.getUrl(), t: f.getDateCreated().getTime() }); }
@@ -1390,7 +1393,7 @@ var CFG_KEYS = (function () {
    'SCHED_SYNC_HOURS STOCK_SYNC_HOURS PO_SYNC_HOURS RT_SYNC_HOURS DOC_SYNC_HOURS ' +
    'SCHED_SYNC_LAST STOCK_SYNC_LAST PO_SYNC_LAST RT_SYNC_LAST DOC_SYNC_LAST ' +
    'BOM_EXP_LAST LAST_BACKUP SA_MAIL_LAST BOM_SHORT_MAIL PO_POST_LAST STOCK_POST_LAST STOCK_META RS_HIST_START RS_SAVED_AGG ' +
-   'BACKUP_FOLDER_ID BOM_EXP_FOLDER_ID ORDER_FOLDER_ID ORDER_TPL_ID ORDER_TPL_SRC ISS_DELETED').split(' ').forEach(function (k) { o[k] = 1; });
+   'BACKUP_FOLDER_ID BOM_EXP_FOLDER_ID ORDER_FOLDER_ID ORDER_TPL_ID ORDER_TPL_SRC ISS_DELETED AUTH_CFG').split(' ').forEach(function (k) { o[k] = 1; });
   return o;
 })();
 function cfgIs_(k) { return CFG_KEYS[k] === 1 || /^BOM_TPL_/.test(String(k)); }
@@ -1608,13 +1611,13 @@ function syncSchedulesInner_(why, force) {
   schedProp_('SCHED_SYNC_LAST', JSON.stringify(info));
   return info;
 }
-function scheduleAutoSync() { if (schedProp_('SCHED_SRC_URL')) syncSchedulesRun_('อัตโนมัติ', false); }   // time trigger
-function getScheduleSource(token) {
+function scheduleAutoSync() { trustEntry_(); if (schedProp_('SCHED_SRC_URL')) syncSchedulesRun_('อัตโนมัติ', false); }   // time trigger
+function getScheduleSource(token) { apiOnly_();
   requireAdmin_(token);
   var hrs = 0; ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'scheduleAutoSync') hrs = Number(schedProp_('SCHED_SYNC_HOURS') || 1); });
   return { url: schedProp_('SCHED_SRC_URL') || '', hours: hrs, last: schedSyncInfo_() };
 }
-function setScheduleSource(token, url, hours) {
+function setScheduleSource(token, url, hours) { apiOnly_();
   requireAdmin_(token);
   url = String(url || '').trim();
   if (url && !/^https:\/\/[^\s]+$/i.test(url)) throw new Error('ลิงก์ต้องขึ้นต้นด้วย https://');
@@ -1630,10 +1633,10 @@ function setScheduleSource(token, url, hours) {
   audit_([['Admin', 'ตั้งค่าซิงค์ตารางงาน', '', (url ? 'ตั้งลิงก์แล้ว' : 'ลบลิงก์') + ' · ' + syncLabel_(hours)]]);
   return getScheduleSource(token);
 }
-function syncSchedulesNow(token) { requireAdmin_(token); return syncSchedulesRun_('สั่งโดย Admin', true); }
+function syncSchedulesNow(token) { apiOnly_(); requireAdmin_(token); return syncSchedulesRun_('สั่งโดย Admin', true); }
 
 // ══ System health (Admin → สุขภาพระบบ) ══
-function installTriggers(token) {
+function installTriggers(token) { apiOnly_();
   requireAdmin_(token);
   var have = {};
   ScriptApp.getProjectTriggers().forEach(function (t) { have[t.getHandlerFunction()] = 1; });
@@ -1643,7 +1646,7 @@ function installTriggers(token) {
   audit_([['Admin', 'ติดตั้ง Trigger', '', made.join(', ') || 'มีครบแล้ว']]);
   return made;
 }
-function getSystemHealth(token) {
+function getSystemHealth(token) { apiOnly_();
   requireAdmin_(token);
   var h = { checkedAt: nowStr_(), warn: [] };
   try { h.mailQuota = MailApp.getRemainingDailyQuota(); } catch (e) { h.mailQuota = null; }
@@ -1675,13 +1678,13 @@ function getSystemHealth(token) {
   h.audit = getAuditLog(token, 30);
   return h;
 }
-function installDailyReminder() {              // run ONCE manually from the editor
+function installDailyReminder() { trustEntry_();              // run ONCE manually from the editor
   ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'dailyReminder') ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('dailyReminder').timeBased().everyDays(1).atHour(8).create();
 }
 
 // ── Schedules CSV import (chunked: temp sheet → swap in one final call) ──
-function importScheduleRows(token, header, rows, first, last, mode) {
+function importScheduleRows(token, header, rows, first, last, mode) { apiOnly_();
   requireAdmin_(token);
   return withLock_(function () {
     var TMP = 'Schedules_Import_Tmp', book = ss_(), tmp = book.getSheetByName(TMP);
@@ -1719,7 +1722,7 @@ function ensureRows_(sh, needed) {
 }
 // ── Run this ONCE from the Apps Script editor (select it → ▶ Run) to authorize external requests
 //    and to see exactly what OneDrive returns for each download method (View → Logs / Execution log).
-function testScheduleSync() {
+function testScheduleSync() { trustEntry_();
   var url = schedProp_('SCHED_SRC_URL');
   if (!url) { Logger.log('✗ ยังไม่ได้บันทึกลิงก์ในหน้า ตารางงานการผลิต → การ์ด ☁ ซิงค์ตารางงานจาก OneDrive'); return; }
   Logger.log('ลิงก์ที่บันทึกไว้: ' + url);
@@ -1932,7 +1935,7 @@ function stockData_() {
   return rows;
 }
 // time trigger every ~5 h keeps the cache warm so nobody hits the slow path (installed by setStockSource)
-function stockKeepWarm() { try { stockData_(); stockBundle_(); } catch (e) {} }
+function stockKeepWarm() { trustEntry_(); try { stockData_(); stockBundle_(); } catch (e) {} }
 
 // ── Browser-side search bundle ───────────────────────────────────────
 // Public columns only (0–7: CODE…LastOfRequest_By). LASTCOST / Requisition No never leave the server.
@@ -1959,10 +1962,10 @@ function stockBundle_() {
   return { hash: hash, b64: b64, v: STOCK_FMT };
 }
 // public: gzip+base64 of public columns; the page stores it in IndexedDB keyed by hash
-function getStockBundle() { return stockBundle_(); }
+function getStockBundle() { apiOnly_(); return stockBundle_(); }
 
 // public: LASTCOST / Requisition No for the rows on screen (keys = ["CODE|LOCATION", ...], max 200)
-function getStockCosts(token, costCode, keys) {
+function getStockCosts(token, costCode, keys) { apiOnly_();
   var admin = isAdmin_(token), cost = admin || stockCostOk_(costCode);
   if (!cost && !admin) return { cost: false, admin: false, map: {} };
   var want = {}, codes = {};
@@ -1978,7 +1981,7 @@ function getStockCosts(token, costCode, keys) {
   return { cost: cost, admin: admin, map: map };
 }
 
-function stockAutoSync() { if (schedProp_('STOCK_SRC_URL')) syncStockRun_('อัตโนมัติ', false); }   // time trigger
+function stockAutoSync() { trustEntry_(); if (schedProp_('STOCK_SRC_URL')) syncStockRun_('อัตโนมัติ', false); }   // time trigger
 
 // ── after a Stock sync: second stage in its own execution ──
 // Stage 1 (the sync) only downloads, writes the sheet and primes the search cache. This stage recomputes what
@@ -2004,7 +2007,7 @@ function postQueue_(kind, why) {
     try { schedProp_(K[0], null); K[2](why); return 'done'; } catch (e2) { return String(e2 && e2.message || e2); }
   }
 }
-function pendingAfterSync() {                      // trigger handler (one-off)
+function pendingAfterSync() { trustEntry_();                      // trigger handler (one-off)
   try { ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'pendingAfterSync') ScriptApp.deleteTrigger(t); }); } catch (e) {}
   var job = null; try { job = JSON.parse(schedProp_('PO_POST') || 'null'); } catch (e) {}
   if (!job) return;
@@ -2028,7 +2031,7 @@ function pendingPost_(why) {
   perf_('pendingPost_ ' + done.join(', '), t0);
   return info;
 }
-function stockAfterSync() {                        // trigger handler (one-off)
+function stockAfterSync() { trustEntry_();                        // trigger handler (one-off)
   try { ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'stockAfterSync') ScriptApp.deleteTrigger(t); }); } catch (e) {}
   var job = null; try { job = JSON.parse(schedProp_('STOCK_POST') || 'null'); } catch (e) {}
   if (!job) return;
@@ -2057,14 +2060,14 @@ function stockPost_(why) {
   return info;
 }
 // Admin / editor: run the second stage now (e.g. after a sync that stopped at the time limit)
-function stockPostNow(token) { requireAdmin_(token); return syncMutex_('STOCK_POST_LAST', 'สั่งโดย Admin', function () { schedProp_('STOCK_POST', null); return stockPost_('สั่งโดย Admin'); }); }
-function getStockSource(token) {
+function stockPostNow(token) { trustEntry_(); requireAdmin_(token); return syncMutex_('STOCK_POST_LAST', 'สั่งโดย Admin', function () { schedProp_('STOCK_POST', null); return stockPost_('สั่งโดย Admin'); }); }
+function getStockSource(token) { apiOnly_();
   requireAdmin_(token);
   var hrs = 0; ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'stockAutoSync') hrs = Number(schedProp_('STOCK_SYNC_HOURS') || 8); });
   var id = schedProp_('STOCK_SS_ID');
   return { url: schedProp_('STOCK_SRC_URL') || '', hours: hrs, last: stockInfo_(), sheetUrl: id ? 'https://docs.google.com/spreadsheets/d/' + id + '/edit' : '' };
 }
-function setStockSource(token, url, hours) {
+function setStockSource(token, url, hours) { apiOnly_();
   requireAdmin_(token);
   url = String(url || '').trim();
   if (url && !/^https:\/\/[^\s]+$/i.test(url)) throw new Error('ลิงก์ต้องขึ้นต้นด้วย https://');
@@ -2081,11 +2084,11 @@ function setStockSource(token, url, hours) {
   audit_([['Admin', 'ตั้งค่าซิงค์ Item stock', '', (url ? 'ตั้งลิงก์แล้ว' : 'ลบลิงก์') + ' · ' + syncLabel_(hours)]]);
   return getStockSource(token);
 }
-function syncStockNow(token) { requireAdmin_(token); return syncStockRun_('สั่งโดย Admin', true); }
+function syncStockNow(token) { apiOnly_(); requireAdmin_(token); return syncStockRun_('สั่งโดย Admin', true); }
 
 function stockUnitList_(u) { return Object.keys(u).sort(function (a, b) { return u[b] - u[a] || a.localeCompare(b); }).map(function (k) { return [k, u[k]]; }); }
 // public: summary for the page header
-function getStockMeta() {
+function getStockMeta() { apiOnly_();
   var m = stockMeta_() || {}, l = stockInfo_();
   m.hash = (schedProp_('STOCK_HASH') || '').substring(0, 10);
   if (m.rows && !m.bys) {                            // data synced before this list existed → build once
@@ -2103,13 +2106,13 @@ function getStockMeta() {
 function stockCostCode_() { return String(schedProp_('STOCK_COST_CODE') || ''); }
 function stockCostOk_(code) { var c = String(code || ''), real = stockCostCode_(); return !!c && !!real && c === real; }
 // public: user enters the cost code to reveal LASTCOST (case-sensitive)
-function verifyStockCostCode(code) {
+function verifyStockCostCode(code) { apiOnly_();
   var ok = stockCostOk_(code);
   if (!ok) Utilities.sleep(800);                     // slow down guessing
   return { ok: ok };
 }
-function getStockCostCode(token) { requireAdmin_(token); return { code: stockCostCode_() }; }
-function setStockCostCode(token, code) {
+function getStockCostCode(token) { apiOnly_(); requireAdmin_(token); return { code: stockCostCode_() }; }
+function setStockCostCode(token, code) { apiOnly_();
   requireAdmin_(token);
   code = String(code || '').trim();
   if (code.length < 4 || code.length > 40) throw new Error('รหัสต้องยาว 4–40 ตัวอักษร');
@@ -2119,7 +2122,7 @@ function setStockCostCode(token, code) {
 }
 
 // act: '' = all · 'on' = hide codes closed in the Official system (ACTIVE=0) · 'off' = only those
-function searchStock(token, q, field, loc, page, size, by, sort, costCode, act) {
+function searchStock(token, q, field, loc, page, size, by, sort, costCode, act) { apiOnly_();
   var admin = isAdmin_(token), cost = admin || stockCostOk_(costCode);
   size = Math.min(Math.max(Number(size) || 50, 10), 100); page = Math.max(1, Number(page) || 1);
   q = String(q || '').toLowerCase().replace(/\s+/g, ' ').trim().substring(0, 80);
@@ -2175,7 +2178,7 @@ function searchStock(token, q, field, loc, page, size, by, sort, costCode, act) 
 }
 
 // Run ONCE from the editor (▶ Run) after saving the link, to authorize and see timing in the log.
-function testStockSync() {
+function testStockSync() { trustEntry_();
   if (!schedProp_('STOCK_SRC_URL')) { Logger.log('✗ ยังไม่ได้บันทึกลิงก์ในหน้า Item stock → การ์ด ☁ ซิงค์ Item stock'); return; }
   var r = syncStockRun_('ทดสอบจาก Editor', true);
   Logger.log((r.ok ? '✓ ' : '✗ ') + r.msg);
@@ -2301,21 +2304,21 @@ function pendingBundle_(rebuild) {
   return { hash: hash.substring(0, 10), b64: b64 };
 }
 // public: summary + data hash (the page keeps the data in IndexedDB keyed by hash)
-function getPendingMeta() {
+function getPendingMeta() { apiOnly_();
   var l = poInfo_();
   return { hash: (schedProp_('PO_HASH') || '').substring(0, 10), rows: l && l.ok ? l.rows : (l && l.rows) || 0,
     updated: l && l.ok ? l.time : '', lastOk: l ? !!l.ok : null };
 }
-function getPendingBundle() { return pendingBundle_(false); }
+function getPendingBundle() { apiOnly_(); return pendingBundle_(false); }
 
-function pendingAutoSync() { if (schedProp_('PO_SRC_URL')) syncPendingRun_('อัตโนมัติ', false); }   // time trigger
-function getPendingSource(token) {
+function pendingAutoSync() { trustEntry_(); if (schedProp_('PO_SRC_URL')) syncPendingRun_('อัตโนมัติ', false); }   // time trigger
+function getPendingSource(token) { apiOnly_();
   requireAdmin_(token);
   var hrs = 0; ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'pendingAutoSync') hrs = Number(schedProp_('PO_SYNC_HOURS') || 4); });
   var id = schedProp_('STOCK_SS_ID');
   return { url: schedProp_('PO_SRC_URL') || '', hours: hrs, last: poInfo_(), sheetUrl: id ? 'https://docs.google.com/spreadsheets/d/' + id + '/edit' : '' };
 }
-function setPendingSource(token, url, hours) {
+function setPendingSource(token, url, hours) { apiOnly_();
   requireAdmin_(token);
   url = String(url || '').trim();
   if (url && !/^https:\/\/[^\s]+$/i.test(url)) throw new Error('ลิงก์ต้องขึ้นต้นด้วย https://');
@@ -2331,10 +2334,10 @@ function setPendingSource(token, url, hours) {
   audit_([['Admin', 'ตั้งค่าซิงค์ Pending Order', '', (url ? 'ตั้งลิงก์แล้ว' : 'ลบลิงก์') + ' · ' + syncLabel_(hours)]]);
   return getPendingSource(token);
 }
-function syncPendingNow(token) { requireAdmin_(token); return syncPendingRun_('สั่งโดย Admin', true); }
+function syncPendingNow(token) { apiOnly_(); requireAdmin_(token); return syncPendingRun_('สั่งโดย Admin', true); }
 
 // Run ONCE from the editor after saving the link, to authorize and check the result in the log.
-function testPendingSync() {
+function testPendingSync() { trustEntry_();
   if (!schedProp_('PO_SRC_URL')) { Logger.log('✗ ยังไม่ได้บันทึกลิงก์ในหน้า Pending Order → การ์ด ☁ ซิงค์ Pending Order'); return; }
   var r = syncPendingRun_('ทดสอบจาก Editor', true);
   Logger.log((r.ok ? '✓ ' : '✗ ') + r.msg);

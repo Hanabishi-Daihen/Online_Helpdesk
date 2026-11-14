@@ -88,7 +88,7 @@ function bomExpLog_(rec) {
 
 // ── public: rows for the preview ────────────────────────────────────
 // kind = 'stock' | 'project' · prefix = override for By Project (default from the project number)
-function bomExportPrep(token, project, kind, prefix) {
+function bomExportPrep(token, project, kind, prefix) { apiOnly_();
   var t0 = Date.now(), key = bomKey_(project); kind = bomKind_(kind);
   var p = bomProjects_().filter(function (x) { return x.project === key; })[0];
   if (!p) throw new Error('ไม่พบโปรเจกต์ ' + key);
@@ -125,7 +125,7 @@ function bomExportPrep(token, project, kind, prefix) {
     stockTime: (stockInfo_() || {}).time || '', last: bomExpLast_()[key] || [], admin: isAdmin_(token) };
 }
 // public: search Item stock to add a row in the preview (CODE prefix or words in the description)
-function bomExportLookup(token, q) {
+function bomExportLookup(token, q) { apiOnly_();
   q = String(q || '').trim().toUpperCase(); if (q.length < 3) return [];
   var kq = ordCodeKey_(q), words = q.split(/\s+/).filter(String), n = 0;
   var st = bomStockIdx_(function () { return true; }), out = [];
@@ -141,7 +141,7 @@ function bomExportLookup(token, q) {
 
 // ── public: fill the requisition form → PDF / Excel ─────────────────
 // req = { project, kind, docNo, date, job, fmt: 'pdf'|'xlsx'|'both', height: 'auto'|'min'|'max', close, rows: [{ code, material, store, pk, qty, unit }] }
-function exportBomForm(token, req) {
+function exportBomForm(token, req) { apiOnly_();
   var t0 = Date.now(); req = req || {};
   var kind = bomKind_(req.kind), K = BOM_KIND[kind], key = bomKey_(req.project), admin = isAdmin_(token);
   var p = bomProjects_().filter(function (x) { return x.project === key; })[0];
@@ -295,7 +295,7 @@ function bomFetchExport_(ssId, fmt) {
 
 // ── public: shortage report (PDF) ───────────────────────────────────
 // opt = { project: '' (all active) | 'PP1024D01', late: true → include "ของเข้าไม่ทัน" }
-function exportBomShortReport(token, opt) {
+function exportBomShortReport(token, opt) { apiOnly_();
   var t0 = Date.now(); opt = opt || {};
   var admin = isAdmin_(token), snap = bomSnapGet_() || bomSnapBuild_(), want = opt.project ? bomKey_(opt.project) : '';
   var withLate = opt.late !== false, unit = String(opt.by || '').trim().toUpperCase();          // unit '' = every orderer · '-' = not stated
@@ -427,15 +427,15 @@ function bomShortMail_(opt) {
   return { subject: subject, html: h.join(''), text: text, list: L };
 }
 // public: units that have short CODEs (+ the addresses used last time for each)
-function getBomShortMailCfg(token) {
+function getBomShortMailCfg(token) { apiOnly_();
   var d = bomShortFor_(''), units = {}, last = {};
   d.list.forEach(function (x) { units[x.by] = (units[x.by] || 0) + 1; });
   try { last = JSON.parse(schedProp_(BOM_MAIL_LAST) || '{}') || {}; } catch (e) {}
   var q = null; try { q = MailApp.getRemainingDailyQuota(); } catch (e) {}
   return { units: Object.keys(units).sort().map(function (k) { return [k, units[k]]; }), last: isAdmin_(token) ? last : {}, quota: q, admin: isAdmin_(token) };
 }
-function previewBomShortMail(token, opt) { var m = bomShortMail_(opt); return { subject: m.subject, html: m.html, n: m.list.length }; }
-function sendBomShortMail(token, opt) {
+function previewBomShortMail(token, opt) { apiOnly_(); var m = bomShortMail_(opt); return { subject: m.subject, html: m.html, n: m.list.length }; }
+function sendBomShortMail(token, opt) { apiOnly_();
   requireAdmin_(token);
   opt = opt || {};
   var to = uniq_(emailList_(opt.to)), cc = uniq_(emailList_(opt.cc)).filter(function (x) { return to.map(function (y) { return y.toLowerCase(); }).indexOf(x.toLowerCase()) < 0; });

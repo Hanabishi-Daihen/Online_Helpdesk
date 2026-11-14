@@ -11,7 +11,7 @@ const cache={adm_TOK:'{"u":"a","n":"Admin"}'};
 const ctx={console:{log(){},warn(){}},JSON,Math,Date,String,Number,Array,Object,Error,RegExp,
  PropertiesService:{getScriptProperties:()=>({getProperty:()=>null,setProperty(){}})},Utilities:{formatDate:()=>'13/11/2026 10:00:00'},
  SpreadsheetApp:{openById:()=>SS},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},CacheService:{getScriptCache:()=>({get:k=>cache[k]||null,put(){}})}};
-ctx.globalThis=ctx;vm.createContext(ctx);vm.runInContext(src,ctx);ctx.persistFiles_=f=>f||[];ctx.audit_=()=>{};
+ctx.globalThis=ctx;vm.createContext(ctx);vm.runInContext(src,ctx);ctx.__trusted=true;ctx.persistFiles_=f=>f||[];ctx.audit_=()=>{};
 let ok=0,bad=0;const T=(n,c,x)=>{c?ok++:bad++;console.log((c?'PASS ':'FAIL ')+n+(c?'':' → '+JSON.stringify(x)))};
 const it=n=>Array.from({length:n},(_,i)=>({code:'3694',material:'ITEM '+(i+1),qty:'1',unit:'PCS'}));
 const base={des:'C.Premwit',delivery:'30/11/2026',issueDate:'13/11/2026',otype:'project',prodNo:'PP1044D',name:'LCC'};

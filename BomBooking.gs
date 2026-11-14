@@ -29,7 +29,7 @@ function bomCfg_() {
     formCode: c.formCode != null ? String(c.formCode) : BOM_DEF.formCode, formRev: c.formRev != null ? String(c.formRev) : BOM_DEF.formRev,
     orderBy: c.orderBy ? String(c.orderBy) : BOM_DEF.orderBy };
 }
-function saveBomCfg(token, cfg) {
+function saveBomCfg(token, cfg) { apiOnly_();
   requireAdmin_(token);
   cfg = cfg || {};
   var a = Number(cfg.autoClose);
@@ -72,7 +72,7 @@ function bomItems_() {
 function bomKey_(p) { return String(p || '').toUpperCase().replace(/\s+/g, ''); }
 
 // ── Admin: preview (stock name / onhand for the codes in the files) ──
-function bomPreview(token, codes) {
+function bomPreview(token, codes) { apiOnly_();
   requireAdmin_(token);
   var want = {}, out = {};
   (codes || []).slice(0, 3000).forEach(function (c) { var k = ordCodeKey_(c); if (k) want[k] = 1; });
@@ -90,7 +90,7 @@ function bomPreview(token, codes) {
 
 // ── Admin: import ───────────────────────────────────────────────────
 // list = [{ project, title, rev, file, items: [{ code, qty, material, type, rated, maker, remark, item }] }]
-function importBom(token, list) {
+function importBom(token, list) { apiOnly_();
   requireAdmin_(token);
   list = (list || []).slice(0, 50).map(function (p) {
     var items = {}, order = [];
@@ -136,7 +136,7 @@ function importBom(token, list) {
 
 // ── Admin: project actions ──────────────────────────────────────────
 // action: 'close' | 'reopen' | 'delete' | 'needDate' (value = dd/MM/yyyy or '' to use the schedule)
-function bomProjectAction(token, project, action, value) {
+function bomProjectAction(token, project, action, value) { apiOnly_();
   requireAdmin_(token);
   var key = bomKey_(project);
   if (action === 'needDate' && value && !/^\d{2}\/\d{2}\/\d{4}$/.test(value)) throw new Error('วันที่ต้องเป็นรูปแบบ วว/ดด/ปปปป');
@@ -329,7 +329,7 @@ function bomSnapGet_() {
   try { return JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(b64), 'application/x-gzip')).getDataAsString()); } catch (e) { return null; }
 }
 // menu badge: CODEs that are "ไม่พอ" (Onhand + incoming < all bookings) — same rule as the CODE tab filter
-function getBomSummary() {
+function getBomSummary() { apiOnly_();
   return wsCached_('bomsum', ['bom'], '', function () {
     var s = bomSnapGet_() || {}, out = { short: 0, late: 0, projects: 0 };
     (s.codes || []).forEach(function (c) { if (c.short) out.short++; });
@@ -348,7 +348,7 @@ function bomView_(snap) {
 }
 
 // ── public: everything the page needs (everyone can view; Admin edits) ──
-function getBom(token) {
+function getBom(token) { apiOnly_();
   var t0 = Date.now(), snap = bomSnapGet_();
   if (snap && snap.v !== BOM_SNAP_VER) snap = null;
   if (!snap) snap = ss_().getSheetByName(BOM_PROJ_SHEET) ? bomSnapBuild_() : { projects: [], codes: [], cfg: bomCfg_() };
@@ -402,12 +402,12 @@ function bomOrdersFor_(keys) {
   return out;
 }
 // one project (e.g. a closed one) · token first, like every cached page call
-function getBomProjOrders(token, project) {
+function getBomProjOrders(token, project) { apiOnly_();
   var key = bomKey_(project);
   return wsCached_('bomord', ['po', 'stock'], key + '|' + bomProjPrefix_(key) + '|' + bomCfg_().orderBy, function () { return bomOrdersFor_([key])[key]; });
 }
 // every active project at once — the Booking BOM page loads this in the background so a card opens instantly
-function getBomOrdersAll(token) { return bomOrdersAllC_(); }
+function getBomOrdersAll(token) { apiOnly_(); return bomOrdersAllC_(); }
 function bomOrdersAllC_() {
   return wsCached_('bomordall', ['po', 'stock', 'bom'], String(bomCfg_().orderBy), function () {
     return bomOrdersFor_(bomProjects_().filter(function (p) { return p.status === 'active'; }).map(function (p) { return p.project; }));

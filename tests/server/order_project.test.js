@@ -2,7 +2,7 @@ const vm=require('vm'),fs=require('fs');
 const ROOT=require('path').resolve(__dirname,'../..');
 const src=fs.readdirSync(ROOT).filter(f=>f.endsWith('.gs')).map(f=>fs.readFileSync(require('path').join(ROOT,f),'utf8')).join('\n');
 const ctx={console,JSON,Math,Date,String,Number,Array,Object,Error,RegExp,PropertiesService:{getScriptProperties:()=>({getProperty:()=>null})},Utilities:{formatDate:()=>'13/11/2026'}};
-ctx.globalThis=ctx;vm.createContext(ctx);vm.runInContext(src,ctx);ctx.persistFiles_=f=>f||[];
+ctx.globalThis=ctx;vm.createContext(ctx);vm.runInContext(src,ctx);ctx.__trusted=true;ctx.persistFiles_=f=>f||[];
 let ok=0,bad=0;const T=(n,c,x)=>{c?ok++:bad++;console.log((c?'PASS ':'FAIL ')+n+(c?'':' → '+JSON.stringify(x)))};
 const base={des:'C.Premwit',delivery:'30/11/2026',issueDate:'13/11/2026',items:[{code:'3694',material:'CARD HOLDER',qty:'4',unit:'PCS'}]};
 const E=o=>{try{ctx.ordClean_(o);return ''}catch(e){return e.message}};

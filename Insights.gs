@@ -17,7 +17,7 @@ var FB_TYPES = { bug: 'ปัญหา', idea: 'ไอเดีย', praise: '�
 function useDev_(d) { var s = String(d || '').replace(/[^A-Za-z0-9]/g, '').substring(0, 16); return s || 'unknown'; }
 
 // ── usage (public, best effort: a busy lock drops this batch instead of waiting) ──
-function logUsage(device, rows) {
+function logUsage(device, rows) { apiOnly_();
   var dev = useDev_(device), now = new Date(), day = Utilities.formatDate(now, 'Asia/Bangkok', 'dd/MM/yyyy'), tm = Utilities.formatDate(now, 'Asia/Bangkok', 'HH:mm');
   var add = (Array.isArray(rows) ? rows : []).slice(0, 200).map(function (r) {
     r = r || {};
@@ -39,7 +39,7 @@ function logUsage(device, rows) {
   } finally { L.releaseLock(); }
   return add.length;
 }
-function getUsageSummary(token, days) {
+function getUsageSummary(token, days) { apiOnly_();
   requireAdmin_(token);
   days = [7, 14, 30, 90].indexOf(Number(days)) >= 0 ? Number(days) : 30;
   var key = 'use_' + days + '_' + Math.floor(Date.now() / 6e5), hit = ordCacheGet_(key);
@@ -76,7 +76,7 @@ function fbSheet_() {
   if (!s) { s = ss_().insertSheet(FB_SHEET); s.getRange(1, 1, 1, FB_HEADER.length).setValues([FB_HEADER]).setFontWeight('bold'); s.setFrozenRows(1); }
   return s;
 }
-function submitFeedback(fb) {
+function submitFeedback(fb) { apiOnly_();
   fb = fb || {};
   var type = FB_TYPES[fb.type] ? fb.type : 'other', msg = ordStr_(fb.message, 2000);
   if (msg.length < 3) throw new Error('กรุณาพิมพ์ข้อความอย่างน้อย 3 ตัวอักษร');
@@ -99,12 +99,12 @@ function fbAll_() {
     return { row: i + 2, id: r[0], time: r[1], type: r[2], message: r[3], name: r[4], page: r[5], device: r[6], status: r[7] || 'new', note: r[8] };
   }).filter(function (x) { return x.id; });
 }
-function getFeedback(token) {
+function getFeedback(token) { apiOnly_();
   requireAdmin_(token);
   var L = fbAll_().reverse();
   return { items: L.slice(0, 300), counts: L.reduce(function (m, x) { m[x.status] = (m[x.status] || 0) + 1; return m; }, {}) };
 }
-function setFeedbackStatus(token, id, status, note) {
+function setFeedbackStatus(token, id, status, note) { apiOnly_();
   requireAdmin_(token);
   if (!FB_STATUS[status]) throw new Error('สถานะไม่ถูกต้อง');
   withLock_(function () {

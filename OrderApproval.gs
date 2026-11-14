@@ -36,8 +36,8 @@ function oaPerson_(role, name) {
   var n = String(name || '').trim().toLowerCase();
   return oaCfg_()[role].filter(function (p) { return p.name.toLowerCase() === n; })[0] || null;
 }
-function getOrderApprovers(token) { requireAdmin_(token); return oaCfg_(); }
-function saveOrderApprovers(token, cfg) {
+function getOrderApprovers(token) { trustEntry_(); requireAdmin_(token); return oaCfg_(); }
+function saveOrderApprovers(token, cfg) { apiOnly_();
   requireAdmin_(token);
   cfg = cfg || {};
   var c = { chk: oaCleanPeople_(cfg.chk), app: oaCleanPeople_(cfg.app), cc: emailList_(cfg.cc).slice(0, 20).join(', ') };
@@ -68,7 +68,7 @@ function oaAgeCfg_() {
   w = w >= 1 && w <= 60 ? Math.round(w) : OA_AGE_DEF.warn; o = o >= 1 && o <= 90 ? Math.round(o) : OA_AGE_DEF.over;
   return { warn: Math.min(w, o), over: o };
 }
-function saveOrderAgeCfg(token, cfg) {
+function saveOrderAgeCfg(token, cfg) { apiOnly_();
   requireAdmin_(token); cfg = cfg || {};
   var w = Number(cfg.warn), o = Number(cfg.over);
   if (!(w >= 1 && w <= 60) || !(o >= 1 && o <= 90)) throw new Error('จำนวนวันต้องอยู่ระหว่าง 1–60 (เตือน) และ 1–90 (เกินกำหนด)');
@@ -87,7 +87,7 @@ function oaWorkDays_(stamp) {
   return n;
 }
 // public: counts for the menu badge (cached per approval / order version)
-function getOrderAgeSummary() {
+function getOrderAgeSummary() { apiOnly_();
   return wsCached_('oaage', ['oa', 'ord'], schedProp_('OA_AGE_CFG') || '', function () {
     var cfg = oaAgeCfg_(), out = { warn: 0, over: 0, wait: 0, cfg: cfg };
     ordAll_().forEach(function (o) {
@@ -113,7 +113,7 @@ function oaBump_() {
   var v = String(Date.now());
   schedProp_('ORD_AP_VER', v); CacheService.getScriptCache().put('oa_ver', v, 21600);
 }
-function getOrderApprovalPulse(ver) {
+function getOrderApprovalPulse(ver) { apiOnly_();
   var v = oaVer_();
   return String(ver || '') === v ? { ver: v } : { ver: v, orders: ordPubRecent_() };
 }
@@ -161,7 +161,7 @@ function oaEveryone_(a) {
 // ── public: DES submits (or re-submits) an order for approval ───────
 // req = { chk: name, app: name, email: requester e-mail, message }
 // token (optional): an Admin may tick "ไม่ส่งอีเมลให้ CHK" (req.silent) and approve from the "รอการอนุมัติ" tab instead
-function submitOrderApproval(id, req, token) {
+function submitOrderApproval(id, req, token) { apiOnly_();
   req = req || {};
   var silent = !!req.silent && isAdmin_(token);
   var email = ordStr_(req.email, 120).trim(), msg = ordStr_(req.message, 500);
@@ -199,7 +199,7 @@ function submitOrderApproval(id, req, token) {
 //       'final'  = sign off every remaining step up to APP; one e-mail to the requester only
 //       'reject' = reject (reason required); one e-mail to the requester only
 // The e-mail links already sent stop working because the step key is replaced / cleared.
-function adminActOrderApproval(token, id, mode, comment) {
+function adminActOrderApproval(token, id, mode, comment) { apiOnly_();
   requireAdmin_(token);
   comment = ordStr_(comment, 500).trim();
   if (mode !== 'step' && mode !== 'final' && mode !== 'reject') throw new Error('คำสั่งไม่ถูกต้อง');
@@ -250,7 +250,7 @@ function oaView_(o, a, k) {
   return { order: x, role: role, roleLabel: OA_ROLES[role] || '', you: role ? a[role].name : '', state: a.state || '',
     stateLabel: OA_STATE_TH[a.state || ''] || '' };
 }
-function getOrderApprovalView(id, k) {
+function getOrderApprovalView(id, k) { trustEntry_();
   var o = ordFind_(String(id || ''));
   if (!o) throw new Error('ไม่พบใบสั่ง ' + id + ' (อาจถูกลบไปแล้ว)');
   var a = oaOf_(o), v = oaView_(o, a, String(k || ''));
@@ -258,7 +258,7 @@ function getOrderApprovalView(id, k) {
   return v;
 }
 // action = 'approve' | 'reject'
-function actOrderApproval(id, k, action, comment) {
+function actOrderApproval(id, k, action, comment) { trustEntry_();
   comment = ordStr_(comment, 500).trim();
   if (action !== 'approve' && action !== 'reject') throw new Error('คำสั่งไม่ถูกต้อง');
   if (action === 'reject' && !comment) throw new Error('กรุณาระบุเหตุผลที่ไม่อนุมัติ');

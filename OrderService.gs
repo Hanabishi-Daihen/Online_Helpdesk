@@ -48,15 +48,15 @@ function kitTplList_() {
   return kitTplRows_().map(function (r) { var k = null; try { k = JSON.parse(r[3]); } catch (e) {} return r[0] && k ? { name: r[0], by: r[1], at: r[2], n: (k.groups || []).length, cab: k.cab || '' } : null; }).filter(Boolean);
 }
 // public: names of the shared sets (the set itself loads on demand)
-function getKitTemplates() { return kitTplList_(); }
-function getKitTemplate(name) {
+function getKitTemplates() { apiOnly_(); return kitTplList_(); }
+function getKitTemplate(name) { apiOnly_();
   name = ordStr_(name, 60); var r = kitTplRows_().filter(function (x) { return x[0] === name; })[0];
   if (!r) throw new Error('ไม่พบชุด "' + name + '"');
   var k = ordKitClean_(JSON.parse(r[3])); if (!k) throw new Error('ชุด "' + name + '" ว่าง');
   return k;
 }
 // public (like saving an order): a set with the same name is replaced only when replace = true
-function saveKitTemplate(name, kit, by, replace) {
+function saveKitTemplate(name, kit, by, replace) { apiOnly_();
   name = ordStr_(name, 60); if (!name) throw new Error('ตั้งชื่อชุดก่อน');
   var k = ordKitClean_(kit); if (!k) throw new Error('ชุดนี้ยังไม่มีรายการ');
   k.pages = 0;
@@ -69,7 +69,7 @@ function saveKitTemplate(name, kit, by, replace) {
     return { ok: true, list: kitTplList_() };
   });
 }
-function deleteKitTemplate(token, name) {
+function deleteKitTemplate(token, name) { apiOnly_();
   requireAdmin_(token); name = ordStr_(name, 60);
   return withLock_(function () {
     var s = kitTplSheet_(), rows = kitTplRows_(), ix = -1; rows.forEach(function (r, i) { if (r[0] === name) ix = i; });
@@ -170,7 +170,7 @@ function ordCacheGet_(key) {
 function ordDbKey_() { return 'orddb_' + (schedProp_('ORD_DB_VER') || '0'); }
 function ordDbBump_() { schedProp_('ORD_DB_VER', String(Date.now())); }
 // public: whole item database. Cached 10 min (admin edits refresh it at once; force = read the sheet now)
-function getOrderDb(force) {
+function getOrderDb(force) { apiOnly_();
   var key = ordDbKey_();
   if (!force) { var hit = ordCacheGet_(key); if (hit) return hit; }
   var d = ordDbRead_(), sh = d.sheet;
@@ -180,7 +180,7 @@ function getOrderDb(force) {
   return out;
 }
 // admin: add (row = 0) or edit one row. expectCode protects against editing a row that moved.
-function saveOrderDbRow(token, row, values, expectCode) {
+function saveOrderDbRow(token, row, values, expectCode) { apiOnly_();
   requireAdmin_(token);
   var isNew = !Number(row);
   return withLock_(function () {
@@ -205,7 +205,7 @@ function saveOrderDbRow(token, row, values, expectCode) {
 // All or nothing: every row needs a CODE, no CODE may repeat inside the list or exist already. A blank ID column
 // (header "ID" / "NO") is numbered on from the largest number in the sheet. One sheet write for the whole list.
 var ORD_DB_BULK_MAX = 500;
-function saveOrderDbRows(token, list) {
+function saveOrderDbRows(token, list) { apiOnly_();
   requireAdmin_(token);
   list = (Array.isArray(list) ? list : []).filter(function (r) { return Array.isArray(r) && r.join('').trim(); });
   if (!list.length) throw new Error('ไม่มีรายการที่จะเพิ่ม');
@@ -235,7 +235,7 @@ function saveOrderDbRows(token, list) {
     return db;
   });
 }
-function deleteOrderDbRow(token, row, expectCode) {
+function deleteOrderDbRow(token, row, expectCode) { apiOnly_();
   requireAdmin_(token);
   return withLock_(function () {
     var d = ordDbRead_(), ci = d.map.code;
@@ -250,7 +250,7 @@ function deleteOrderDbRow(token, row, expectCode) {
 
 // ── Stock + PendingOrder lookup for the codes on the form ───────────
 var ORD_PO_DONE = /receiv|complete|close|finish|cancel|รับแล้ว|รับครบ|ครบ|ปิด|ยกเลิก/i;
-function orderItemInfo(codes) {
+function orderItemInfo(codes) { apiOnly_();
   var want = {}, out = {};
   (codes || []).slice(0, 20).forEach(function (c) { var k = ordCodeKey_(c); if (k) { want[k] = 1; out[k] = { stock: [], total: null, unit: '', pending: [], pendQty: 0 }; } });
   if (!Object.keys(want).length) return out;
@@ -301,8 +301,8 @@ function ordDupCfg_() {
   var d = c.days == null || c.days === '' ? NaN : Number(c.days);
   return { days: isFinite(d) && d >= 0 ? Math.min(Math.round(d), 3650) : ORD_DUP_DEF.days, rejected: c.rejected === true };
 }
-function getOrderDupCfg(token) { requireAdmin_(token); return ordDupCfg_(); }
-function saveOrderDupCfg(token, cfg) {
+function getOrderDupCfg(token) { trustEntry_(); requireAdmin_(token); return ordDupCfg_(); }
+function saveOrderDupCfg(token, cfg) { apiOnly_();
   requireAdmin_(token);
   cfg = cfg || {};
   var d = Number(cfg.days);
@@ -325,7 +325,7 @@ function ordAgeDays_(dmy) {
   var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String(dmy || ''));
   return m ? (Date.now() - new Date(+m[3], +m[2] - 1, +m[1]).getTime()) / 864e5 : 0;
 }
-function checkOrderDup(codes, excludeId) {
+function checkOrderDup(codes, excludeId) { apiOnly_();
   var want = {}, out = {};
   (codes || []).slice(0, 30).forEach(function (c) { var k = ordCodeKey_(c); if (k) want[k] = String(c); });
   var keys = Object.keys(want); if (!keys.length) return out;
@@ -450,7 +450,7 @@ function ordNext_(yy) {
 }
 
 // public: everything the page needs in one call
-function getOrderBoot(token) {
+function getOrderBoot(token) { apiOnly_();
   var t0 = Date.now(), admin = isAdmin_(token), tpl = null;
   if (admin) { try { tpl = ordTplInfo_(); } catch (e) { tpl = { ok: false, msg: e.message }; } }
   var oi = ordOlderInfo_();
@@ -459,8 +459,8 @@ function getOrderBoot(token) {
   perf_('getOrderBoot', t0);
   return out;
 }
-function getOrders() { return ordPubAll_(); }
-function getOrderNext(yy) { return ordNext_(ordStr_(yy, 2)); }
+function getOrders() { apiOnly_(); return ordPubAll_(); }
+function getOrderNext(yy) { trustEntry_(); return ordNext_(ordStr_(yy, 2)); }
 
 function ordClean_(o) {
   var d = /^\d{2}\/\d{2}\/\d{4}$/;
@@ -515,7 +515,7 @@ function ordSig_(o) {
     (o.revs || []).map(function (r) { return ['rev', 'date', 'person'].map(function (k) { return t((r || {})[k]); }); })
   ]);
 }
-function saveOrder(o) {
+function saveOrder(o) { apiOnly_();
   var base = o && typeof o._base === 'string' ? o._base : '', force = !!(o && o._force);
   var x = ordClean_(o || {});
   return withLock_(function () {
@@ -552,7 +552,7 @@ function saveOrder(o) {
     return { order: ordPub_(x), orders: ordPubRecent_() };
   });
 }
-function deleteOrder(token, id) {
+function deleteOrder(token, id) { apiOnly_();
   requireAdmin_(token);
   return withLock_(function () {
     var o = ordFind_(id); if (!o) throw new Error('ไม่พบใบสั่ง ' + id);
@@ -606,13 +606,13 @@ function ordTplInfo_() {
   if (id) { try { ok = !DriveApp.getFileById(id).isTrashed(); } catch (e) {} }
   return { ok: ok, url: ok ? 'https://docs.google.com/spreadsheets/d/' + id + '/edit' : '', folder: (function () { try { return ordFolder_().getUrl(); } catch (e) { return ''; } })() };
 }
-function getOrderTemplate(token) { requireAdmin_(token); ordTplId_(); return ordTplInfo_(); }
-function resetOrderTemplate(token) {
+function getOrderTemplate(token) { apiOnly_(); requireAdmin_(token); ordTplId_(); return ordTplInfo_(); }
+function resetOrderTemplate(token) { apiOnly_();
   requireAdmin_(token); schedProp_('ORDER_TPL_SRC', 'default:reset');
   ordTplId_(); return ordTplInfo_();
 }
 // admin: replace the template with an uploaded .xlsx (same cell layout as FormOrder_Template.xlsx)
-function uploadOrderTemplate(token, dataUrl) {
+function uploadOrderTemplate(token, dataUrl) { apiOnly_();
   requireAdmin_(token);
   var c = String(dataUrl || '').indexOf(',');
   if (c < 0) throw new Error('ไฟล์ไม่ถูกต้อง');
@@ -742,7 +742,7 @@ function ordFetchExport_(ssId, gid, fmt) {
   throw new Error('Google ปฏิเสธการส่งออกชั่วคราว (ส่งออกถี่เกินไป) กรุณาลองใหม่ในอีกสักครู่');
 }
 // public: fmt = 'pdf' | 'xlsx' | 'both' → files saved in Drive (FormOrder folder) + base64 for direct download
-function exportOrder(id, fmt) {
+function exportOrder(id, fmt) { apiOnly_();
   var o = ordFind_(id); if (!o) throw new Error('ไม่พบใบสั่ง ' + id + ' — กรุณาบันทึกก่อน');
   fmt = { pdf: 'pdf', xlsx: 'xlsx' }[fmt] || 'both';
   var folder = ordFolder_(), base = ((/\d$/.test(o.spec) ? o.spec : o.id) + (/\d$/.test(o.rqn) ? '_' + o.rqn : '') + (o.revs.length ? '_Rev' + o.revs[o.revs.length - 1].rev : '')).replace(/[\\\/:*?"<>|]+/g, '_');
@@ -781,7 +781,7 @@ function exportOrder(id, fmt) {
 // public: a PDF the system exported earlier (FormOrder or FormOrder/BOM_Export only) → base64 for the in-app preview
 // Order Project: the browser appends the helper's drawing pages to the exported form and sends the whole PDF back.
 // It replaces the order's PDF in the FormOrder folder (the form-only copy made a moment ago goes to the trash).
-function saveOrderKitPdf(id, b64, name) {
+function saveOrderKitPdf(id, b64, name) { apiOnly_();
   var o = ordFind_(String(id || '')); if (!o) throw new Error('ไม่พบใบสั่ง ' + id);
   if (!o.kit) throw new Error('ใบสั่งนี้ไม่มีหน้าแบบจากตัวช่วย');
   var bytes = Utilities.base64Decode(String(b64 || ''));
@@ -800,7 +800,7 @@ function saveOrderKitPdf(id, b64, name) {
   });
   return { fmt: 'pdf', name: nm, mime: 'application/pdf', url: url };
 }
-function getExportPdf(url) {
+function getExportPdf(url) { apiOnly_();
   var m = /\/d\/([\w-]+)/.exec(String(url || '')) || /[?&]id=([\w-]+)/.exec(String(url || ''));
   if (!m) throw new Error('ลิงก์ไฟล์ไม่ถูกต้อง');
   var f = DriveApp.getFileById(m[1]), ok = [schedProp_('ORDER_FOLDER_ID'), schedProp_('BOM_EXP_FOLDER_ID')].filter(String), mine = false;
@@ -813,7 +813,7 @@ function getExportPdf(url) {
 }
 
 // Run ONCE from the editor (▶ Run) to authorize Drive/export and create the template sheet.
-function testOrderSetup() {
+function testOrderSetup() { trustEntry_();
   var id = ordTplId_();
   Logger.log('✓ แม่แบบ: https://docs.google.com/spreadsheets/d/' + id + '/edit');
   var d = getOrderDb();

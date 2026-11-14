@@ -120,9 +120,9 @@ function wsP360Cfg_() {
 }
 function wsDeptNames_(s) { var m = {}; String(s || '').split(/[,;\n]+/).forEach(function (p) { var x = /^\s*([A-Za-z])\s*[=:]\s*(.+?)\s*$/.exec(p); if (x) m[x[1].toUpperCase()] = x[2]; }); return m; }
 function wsProcs_(sched) { var m = {}; (sched || []).forEach(function (r) { var p = String(r[8] || '').trim(); if (p) m[p] = (m[p] || 0) + 1; }); return Object.keys(m).sort(); }
-function getP360Cfg(token) { requireAdmin_(token); var sched = []; try { sched = getSchedules(); } catch (e) {} var c = wsP360Cfg_(); return { all: wsProcs_(sched), procs: c.procs, dept: c.dept, deptNames: c.deptNames }; }
+function getP360Cfg(token) { apiOnly_(); requireAdmin_(token); var sched = []; try { sched = getSchedules(); } catch (e) {} var c = wsP360Cfg_(); return { all: wsProcs_(sched), procs: c.procs, dept: c.dept, deptNames: c.deptNames }; }
 // procs: list ([] = all) · opt (optional): { dept: 'C' / 'CF', deptNames: 'C=DS13,F=DS11' }
-function saveP360Cfg(token, procs, opt) {
+function saveP360Cfg(token, procs, opt) { apiOnly_();
   requireAdmin_(token);
   var cur = wsP360Cfg_(), list = procs == null ? cur.procs : (procs || []).map(function (p) { return ordStr_(p, 40).trim(); }).filter(String).slice(0, 80);
   var dept = opt && opt.dept != null ? String(opt.dept).toUpperCase().replace(/[^A-Z]/g, '').slice(0, 10) : cur.dept;
@@ -150,7 +150,7 @@ function wsOrderState_(o) {
 }
 
 // ── Item 360 ─────────────────────────────────────────────────────────
-function getItem360(token, code) {
+function getItem360(token, code) { apiOnly_();
   var t0 = Date.now(), k = ordCodeKey_(code), admin = isAdmin_(token);
   if (!k) throw new Error('CODE ไม่ถูกต้อง');
   var out = { code: String(code).trim(), key: k, found: false, desc: '', comment: '', unit: '', by: '', rqn: '', onhand: 0, locs: [], admin: admin };
@@ -238,7 +238,7 @@ function getItem360(token, code) {
 }
 
 // ── My day (all roles in one call; the browser shows the chosen role) ──
-function getMyDay(token) {
+function getMyDay(token) { apiOnly_();
   var t0 = Date.now(), admin = isAdmin_(token);
   var out = wsMyDayC_(admin);
   perf_('getMyDay', t0);
@@ -319,7 +319,7 @@ function wsMyDay_(admin) {
 // ── Project 360 ─────────────────────────────────────────────────────
 // base = schedule ProjectNo (PP1024); BOM projects are matched by prefix (PP1024D01, PP1024D02)
 function wsBase_(p) { var k = bomKey_(p), m = /^([A-Z]+\d+)[A-Z]/.exec(k); return m ? m[1] : k; }
-function getProjects(token) {
+function getProjects(token) { apiOnly_();
   var t0 = Date.now(), out = wsProjectsC_();
   perf_('getProjects', t0);
   return out;
@@ -351,7 +351,7 @@ function wsProjects_() {
       (a.next == null ? 9e15 : a.next) - (b.next == null ? 9e15 : b.next); });
   return { projects: list.slice(0, 200), built: snap && snap.built || '' };
 }
-function getProject360(token, base) {
+function getProject360(token, base) { apiOnly_();
   var t0 = Date.now(), B = bomKey_(base);
   if (!B) throw new Error('ไม่ระบุโปรเจกต์');
   var out = wsCached_('p360', ['bom', 'sched', 'ord', 'iss', 'po'], B + '|' + (schedProp_('P360_CFG') || ''), function () { return wsProject360_(B); });

@@ -88,14 +88,14 @@ function syncRtInner_(why, force) {
   schedProp_('RT_SYNC_LAST', JSON.stringify(info));
   return info;
 }
-function rtAutoSync() { if (schedProp_('RT_SRC_URL')) syncRtRun_('อัตโนมัติ', false); }   // time trigger
-function getRtSource(token) {
+function rtAutoSync() { trustEntry_(); if (schedProp_('RT_SRC_URL')) syncRtRun_('อัตโนมัติ', false); }   // time trigger
+function getRtSource(token) { apiOnly_();
   requireAdmin_(token);
   var hrs = 0; ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'rtAutoSync') hrs = Number(schedProp_('RT_SYNC_HOURS') || 24); });
   var id = schedProp_('STOCK_SS_ID');
   return { url: schedProp_('RT_SRC_URL') || '', hours: hrs, last: rtInfo_(), sheetUrl: id ? 'https://docs.google.com/spreadsheets/d/' + id + '/edit' : '' };
 }
-function setRtSource(token, url, hours) {
+function setRtSource(token, url, hours) { apiOnly_();
   requireAdmin_(token);
   url = String(url || '').trim();
   if (url && !/^https:\/\/[^\s]+$/i.test(url)) throw new Error('ลิงก์ต้องขึ้นต้นด้วย https://');
@@ -111,8 +111,8 @@ function setRtSource(token, url, hours) {
   audit_([['Admin', 'ตั้งค่าซิงค์ Q_StockRT', '', (url ? 'ตั้งลิงก์แล้ว' : 'ลบลิงก์') + ' · ' + syncLabel_(hours)]]);
   return getRtSource(token);
 }
-function syncRtNow(token) { requireAdmin_(token); return syncRtRun_('สั่งโดย Admin', true); }
-function testRtSync() {
+function syncRtNow(token) { apiOnly_(); requireAdmin_(token); return syncRtRun_('สั่งโดย Admin', true); }
+function testRtSync() { trustEntry_();
   if (!schedProp_('RT_SRC_URL')) { Logger.log('✗ ยังไม่ได้บันทึกลิงก์ในหน้า Stock Alert → การ์ด ☁ ซิงค์ Q_StockRT'); return; }
   var r = syncRtRun_('ทดสอบจาก Editor', true); Logger.log((r.ok ? '✓ ' : '✗ ') + r.msg);
 }
@@ -237,13 +237,13 @@ function saData_(force) {
   var d = saCompute_(); ordCachePut_(key, d, 21600); return d;
 }
 // public: full list for the Stock Alert page
-function getStockAlert(token, force) {
+function getStockAlert(token, force) { apiOnly_();
   var d = saData_(!!force && isAdmin_(token)); d.admin = isAdmin_(token);
   try { d.groups = rsGroups_(); } catch (e) { d.groups = {}; }      // category names for the CODE 4-digit filter (RemainStock.gs)
   return d;
 }
 // public: small summary for the menu badge + dashboard card
-function getStockAlertSummary() {
+function getStockAlertSummary() { apiOnly_();
   var d = saData_(false);
   var top = d.items.filter(function (x) { return x.level === 'high' || x.level === 'mid' || x.level === 'low'; }).slice(0, 6)
     .map(function (x) { return { code: x.code, desc: x.desc, qty: x.qty, unit: x.unit, min: x.min, lt: x.lt, level: x.level, isOut: x.isOut }; });
@@ -251,7 +251,7 @@ function getStockAlertSummary() {
 }
 
 // ── Admin: per-item settings + global config ────────────────────────
-function saveStockAlertItem(token, code, v) {
+function saveStockAlertItem(token, code, v) { apiOnly_();
   requireAdmin_(token);
   code = ordStr_(code, 40); if (!code) throw new Error('ไม่มี CODE');
   v = v || {};
@@ -267,7 +267,7 @@ function saveStockAlertItem(token, code, v) {
     return getStockAlert(token, true);
   });
 }
-function setStockAlertConfig(token, c) {
+function setStockAlertConfig(token, c) { apiOnly_();
   requireAdmin_(token);
   c = c || {};
   var by = ordStr_(c.by, 60) || SA_DEF.by, lo = Number(c.ltLow), hi = Number(c.ltHigh);
@@ -280,7 +280,7 @@ function setStockAlertConfig(token, c) {
 // ── Admin: bulk edit (one call, all-or-nothing, with undo) ───────────
 // list = [{ code, min?, max?, lt?, notUse?, note? }] — a field left out (undefined) keeps the current value, '' clears it
 var SA_BULK_MAX = 3000;
-function saveStockAlertBulk(token, list) {
+function saveStockAlertBulk(token, list) { apiOnly_();
   requireAdmin_(token);
   list = (list || []).slice(0, SA_BULK_MAX + 1);
   if (!list.length) throw new Error('ไม่มีรายการที่แก้ไข');
@@ -323,7 +323,7 @@ function saveStockAlertBulk(token, list) {
     return r;
   });
 }
-function undoStockAlertBulk(token) {
+function undoStockAlertBulk(token) { apiOnly_();
   requireAdmin_(token);
   return withLock_(function () {
     var u = ordCachePut_ && ordCacheGet_('sa_undo'); if (!u || !u.rows) throw new Error('ไม่มีการบันทึกที่ย้อนกลับได้ (เก็บไว้ 6 ชั่วโมง)');
@@ -336,7 +336,7 @@ function undoStockAlertBulk(token) {
     return getStockAlert(token, true);
   });
 }
-function getStockAlertUndo(token) { requireAdmin_(token); var u = ordCacheGet_('sa_undo'); return u ? { time: u.time, n: u.n } : null; }
+function getStockAlertUndo(token) { apiOnly_(); requireAdmin_(token); var u = ordCacheGet_('sa_undo'); return u ? { time: u.time, n: u.n } : null; }
 
 // ── E-mail report to the team (preview first, then send) ────────────
 // opt = { scope:'alert'|'selected', codes:[...], wait:bool, subject:'', note:'', due:'dd/MM/yyyy', to:'a@x,b@y', cc:'', csv:bool, sender:'' }
@@ -410,17 +410,17 @@ function saMailCsv_(list) {
   });
   return Utilities.newBlob('﻿' + [H].concat(rows).map(function (r) { return r.map(e).join(','); }).join('\r\n'), 'text/csv', 'StockAlert_' + ordToday_().replace(/\//g, '-') + '.csv');
 }
-function getStockAlertMailCfg(token) {
+function getStockAlertMailCfg(token) { apiOnly_();
   requireAdmin_(token);
   var last = {}; try { last = JSON.parse(schedProp_('SA_MAIL_LAST') || '{}') || {}; } catch (e) {}
   return { to: last.to || '', cc: last.cc || '', sender: last.sender || '', quota: MailApp.getRemainingDailyQuota() };
 }
-function previewStockAlertEmail(token, opt) {
+function previewStockAlertEmail(token, opt) { apiOnly_();
   requireAdmin_(token);
   var m = saMailBuild_(opt);
   return { subject: m.subject, html: m.html, n: m.list.length, count: m.count };
 }
-function sendStockAlertEmail(token, opt) {
+function sendStockAlertEmail(token, opt) { apiOnly_();
   requireAdmin_(token);
   opt = opt || {};
   var to = uniq_(emailList_(opt.to)), cc = uniq_(emailList_(opt.cc)).filter(function (x) { return to.map(function (y) { return y.toLowerCase(); }).indexOf(x.toLowerCase()) < 0; });

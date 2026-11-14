@@ -29,7 +29,7 @@ function rsCfg_() {
   return { days: n(c.days, RS_DEF.days, 1, 3650), rqnYears: n(c.rqnYears, RS_DEF.rqnYears, 0, 20),
     by: String(c.by || RS_DEF.by).substring(0, 200) };
 }
-function saveRemainCfg(token, cfg) {
+function saveRemainCfg(token, cfg) { apiOnly_();
   requireAdmin_(token);
   cfg = cfg || {};
   var d = Number(cfg.days), y = Number(cfg.rqnYears), by = String(cfg.by || '').replace(/[^A-Za-z0-9,; ]/g, '').trim();
@@ -59,7 +59,7 @@ function rsTags_() {
   return out;
 }
 // tag = 'last' | 'sub' | 'skip' | '' (remove)
-function saveRemainTag(token, code, t) {
+function saveRemainTag(token, code, t) { apiOnly_();
   requireAdmin_(token);
   t = t || {};
   var k = ordCodeKey_(code), tag = String(t.tag || '');
@@ -169,7 +169,7 @@ function rsGroups_() {
   return out;
 }
 // map = { '1001': 'Bolt & Nut', ... } — replaces the whole list (empty name = remove)
-function saveRemainGroups(token, map) {
+function saveRemainGroups(token, map) { apiOnly_();
   requireAdmin_(token);
   var rows = Object.keys(map || {}).filter(function (k) { return /^\d{4}$/.test(k) && String(map[k] || '').trim(); }).sort()
     .map(function (k) { return [k, ordStr_(map[k], 80).replace(/[\r\n]+/g, ' ').trim()]; });
@@ -197,7 +197,7 @@ function rsClaims_(openOnly) {
   });
   return out;
 }
-function claimRemain(code, c) {
+function claimRemain(code, c) { apiOnly_();
   c = c || {};
   var k = ordCodeKey_(code), name = ordStr_(c.name, 60).trim(), purpose = ordStr_(c.purpose, 200).trim(), qty = ordStr_(c.qty, 12).replace(/[^0-9.]/g, '');
   if (!k) throw new Error('CODE ไม่ถูกต้อง');
@@ -214,7 +214,7 @@ function claimRemain(code, c) {
   });
 }
 // status: 'done' | 'cancel'  (Admin)
-function closeRemainClaim(token, id, status) {
+function closeRemainClaim(token, id, status) { apiOnly_();
   requireAdmin_(token);
   if (status !== 'done' && status !== 'cancel') throw new Error('สถานะไม่ถูกต้อง');
   return withLock_(function () {
@@ -349,7 +349,7 @@ function rsView_(snap, admin) {
 }
 
 // ── the list ────────────────────────────────────────────────────────
-function getRemainStock(token) {
+function getRemainStock(token) { apiOnly_();
   var t0 = Date.now(), admin = isAdmin_(token);
   var out = rsView_(rsSnap_(), admin);
   out.claims = rsClaims_(true);
@@ -408,7 +408,7 @@ function rsCompute_(rows, admin) {
 }
 
 // small public map for badges in Item stock: { CODE: 'last' | 'sub' | 'old' }
-function getRemainFlags() {
+function getRemainFlags() { apiOnly_();
   var c = CacheService.getScriptCache(), hit = c.get('rs_flags');
   if (hit) { try { return JSON.parse(hit); } catch (e) {} }
   var m = {};
@@ -421,7 +421,7 @@ function getRemainFlags() {
 // opt = { group: 'prefix4' | 'length' | 'none', scope: 'all' | '8' | '16', why: 'all' | 'still' | 'rqn' | 'last' | 'sub',
 //         claims: true/false (show only items without a claim) }
 // Everyone can export; cost / value columns appear only for Admin (same data the page gets).
-function exportRemainReport(token, opt) {
+function exportRemainReport(token, opt) { apiOnly_();
   var t0 = Date.now(); opt = opt || {};
   var d = getRemainStock(token), admin = d.admin, claims = d.claims || {};
   var group = { prefix4: 1, length: 1, none: 1 }[opt.group] ? opt.group : 'prefix4';

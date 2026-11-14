@@ -1,0 +1,33 @@
+<script>
+/* sign-in ON: a small fake of Auth.gs on top of the mock server (made-up accounts only) */
+(function () {
+  var G = window.google.script, d = Object.getOwnPropertyDescriptor(G, 'run'), base = function () { return d.get.call(G); };
+  window.__M.authInfo = { on: true, approve: true, domains: ['example.co.th'], days: 30 };
+  var TOK = 'T'.repeat(64), user = { email: 'somchai@example.co.th', name: 'S.Somchai', dept: 'DS13' };
+  var F = {
+    authInfo: function () { return window.__M.authInfo; },
+    authLogin: function (id, pw) { return pw === 'Passw0rd99' ? { token: TOK, expires: Date.now() + 864e5, user: user } : { err: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' }; },
+    authRegisterStart: function () { return { sent: true, minutes: 15 }; },
+    authRegisterVerify: function (e, c) { return c === '123456' ? { pending: true, name: 'New User' } : { err: 'รหัสไม่ถูกต้อง (เหลือ 4 ครั้ง)' }; },
+    authForgotStart: function () { return { sent: true, minutes: 15 }; },
+    authForgotReset: function (e, c, p) { return c === '654321' ? { token: TOK, expires: Date.now() + 864e5, user: user } : { err: 'รหัสไม่ถูกต้อง' }; },
+    authMe: function (t) { return t === TOK ? { user: user, on: true } : { none: true, on: true }; },
+    authLogout: function () { return { ok: true }; },
+    authChangePassword: function () { return { ok: true }; }
+  };
+  Object.defineProperty(G, 'run', { configurable: true, get: function () {
+    var inner = base(), ok = function () {}, bad = function () {};
+    var w = {
+      withSuccessHandler: function (f) { ok = f; inner.withSuccessHandler(f); return w; },
+      withFailureHandler: function (f) { bad = f; inner.withFailureHandler(f); return w; },
+      api: function (tok, fn, args) {
+        (window.__apiLog = window.__apiLog || []).push([fn, !!tok]);
+        if (F[fn]) { setTimeout(function () { try { ok(F[fn].apply(null, args || [])); } catch (e) { bad(e); } }, 30); return; }
+        if (tok !== TOK && fn !== 'getAppUrl') { setTimeout(function () { bad(new Error('AUTH_REQUIRED: test')); }, 30); return; }
+        return inner.api(tok, fn, args);
+      }
+    };
+    return w;
+  } });
+})();
+</script>

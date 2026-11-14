@@ -23,7 +23,7 @@ function fcCfg_() {
   var lt = Number(c.lt);
   return { lt: lt >= 1 && lt <= 365 ? Math.round(lt) : FC_DEF.lt };
 }
-function saveFcCfg(token, cfg) {
+function saveFcCfg(token, cfg) { apiOnly_();
   requireAdmin_(token);
   var lt = Number((cfg || {}).lt);
   if (!(lt >= 1 && lt <= 365)) throw new Error('Lead time เริ่มต้นต้องอยู่ระหว่าง 1–365 วัน');
@@ -65,7 +65,7 @@ function fcCode_(onhand, ins, dl, min, lt, ltSrc, today) {
   return r;
 }
 // public: every CODE that will run short (or below Min) — from the Booking BOM snapshot
-function getForecast(token) {
+function getForecast(token) { apiOnly_();
   var t0 = Date.now(), out = fcCached_();
   out.admin = isAdmin_(token);
   perf_('getForecast', t0);
@@ -251,7 +251,7 @@ function trkFillApply_(id, f, why) {
   return { o: o, text: ch.join(' · ') };
 }
 // public: "✓ ใช้เลขนี้ในใบสั่ง" on the tracking card
-function trackFillRef(id) {
+function trackFillRef(id) { apiOnly_();
   return withLock_(function () {
     var x = trkAll_(trkStateGet_()).filter(function (y) { return y.id === id; })[0];
     if (!x || !x.fill) throw new Error('ใบสั่งนี้มีเลข RQN / Spec ครบแล้ว หรือยังไม่พบ PR ที่จับคู่ได้');
@@ -276,7 +276,7 @@ function trkCached_() {
   });
 }
 // menu badge: orders not fully received yet (+ how many need chasing)
-function getOrderTrackSummary() {
+function getOrderTrackSummary() { apiOnly_();
   var d = trkCached_(), ac = oaAgeCfg_(), s = { open: 0, issue: 0, st: {} };
   (d.orders || []).forEach(function (o) {
     if (/^(done|rejected|cancel)$/.test(o.stage)) return;
@@ -285,7 +285,7 @@ function getOrderTrackSummary() {
   });
   return s;
 }
-function getOrderTrack(token) {
+function getOrderTrack(token) { apiOnly_();
   var t0 = Date.now(), out = trkCached_();
   out.admin = isAdmin_(token);
   perf_('getOrderTrack', t0);
@@ -384,7 +384,7 @@ function ntfAdd_(rows, ts) {
   var n = sh.getLastRow() - 1; if (n > NTF_MAX) sh.deleteRows(2, n - NTF_KEEP);
 }
 // public: newest 300 notifications (everyone; the browser filters "mine" by the DES'D name it remembers)
-function getNotify() {
+function getNotify() { apiOnly_();
   var key = 'ntf_' + (schedProp_('NTF_VER') || '0'), hit = ordCacheGet_(key);
   if (hit) return hit;
   var out = { ver: schedProp_('NTF_VER') || '', items: [] };
@@ -401,4 +401,4 @@ function getNotify() {
   return out;
 }
 // Admin: rebuild the order-tracking state now (no notifications for this run's first sight)
-function trackScanNow(token) { requireAdmin_(token); return { events: trkScan_('สั่งโดย Admin') }; }
+function trackScanNow(token) { apiOnly_(); requireAdmin_(token); return { events: trkScan_('สั่งโดย Admin') }; }
