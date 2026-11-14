@@ -71,18 +71,19 @@ function authDomains_() { return authCfg_().domains.toLowerCase().split(/[\s,;]+
 function authDomainOk_(email) { var d = String(email).split('@')[1] || '', L = authDomains_(); return L.indexOf(d) >= 0; }
 
 // ── users sheet ──
-var USR_SHEET = 'Users', USR_HEAD = ['Email', 'Name', 'Dept', 'Status', 'Salt', 'Hash', 'Created', 'Last login', 'Note'];
+var USR_SHEET = 'Users', USR_HEAD = ['Email', 'Name', 'Dept', 'Status', 'Salt', 'Hash', 'Created', 'Last login', 'Note', 'Role'];
 function usrSheet_() { var s = sheet_(USR_SHEET, USR_HEAD); if (s.getLastRow() === 0) s.appendRow(USR_HEAD); return s; }
 function usrAll_() {
   var s = usrSheet_(), n = s.getLastRow() - 1;
   return n > 0 ? s.getRange(2, 1, n, USR_HEAD.length).getDisplayValues().map(function (r, i) {
-    return { row: i + 2, e: String(r[0]).trim().toLowerCase(), n: r[1], d: r[2], st: r[3] || 'active', s: r[4], h: r[5], c: r[6], t: r[7], note: r[8] };
+    var role = String(r[9] || '').toLowerCase() === 'admin' ? 'admin' : 'user';
+    return { row: i + 2, e: String(r[0]).trim().toLowerCase(), n: r[1], d: r[2], st: r[3] || 'active', s: r[4], h: r[5], c: r[6], t: r[7], note: r[8], role: role, admin: role === 'admin' };
   }).filter(function (u) { return u.e; }) : [];
 }
 function usrFind_(email) { email = authEmail_(email); return usrAll_().filter(function (u) { return u.e === email; })[0] || null; }
 function usrWrite_(u) {
   var s = usrSheet_(), row = u.row || s.getLastRow() + 1, rg = s.getRange(row, 1, 1, USR_HEAD.length);
-  fmtText_(rg); rg.setValues([[u.e, u.n || '', u.d || '', u.st || 'active', u.s || '', u.h || '', u.c || nowStr_(), u.t || '', u.note || '']]);
+  fmtText_(rg); rg.setValues([[u.e, u.n || '', u.d || '', u.st || 'active', u.s || '', u.h || '', u.c || nowStr_(), u.t || '', u.note || '', u.role === 'admin' ? 'admin' : 'user']]);
   u.row = row; return u;
 }
 function authEmail_(e) { e = String(e || '').trim().toLowerCase(); return /^[^@\s<>"']{1,64}@[a-z0-9.-]{3,190}\.[a-z]{2,24}$/.test(e) ? e : ''; }
@@ -97,6 +98,11 @@ function authPassCheck_(pw, email, name) {
   return pw;
 }
 function authPub_(u) { return { email: u.e, name: u.n, dept: u.d, status: u.st, admin: !!u.admin }; }
+// Admin role from the session: the page turns Admin mode on (token '' — the server trusts the session, see isAdmin_)
+function authAdminInfo_(name) {
+  var names = []; try { names = admUsers_().map(function (a) { return a.n; }).concat(usrAll_().filter(function (u) { return u.admin && u.st === 'active'; }).map(function (u) { return u.n; })); } catch (e) {}
+  return { token: 'session', user: '', name: name, names: names.filter(function (n, i) { return n && names.indexOf(n) === i; }) };
+}
 
 // ── sessions ──
 var SES_SHEET = 'Sessions', SES_HEAD = ['Token hash', 'Email', 'Expires', 'Created', 'Device'];
@@ -207,7 +213,7 @@ function authLogin(id, pass, remember, device, newPass) {
   C.remove(fk);
   withLock_(function () { var x = usrFind_(email); if (x) { x.t = nowStr_(); usrWrite_(x); } });
   var ses = sesNew_(u, !!remember, device);
-  return { token: ses.token, expires: ses.expires, user: authPub_(u) };
+  return { token: ses.token, expires: ses.expires, user: authPub_(u), admin: u.admin ? authAdminInfo_(u.n) : null };
 }
 function authRegisterStart(email, name, dept, pass) {
   email = authEmail_(email); name = authName_(name); dept = String(dept || '').replace(/[^\w .-]/g, '').substring(0, 20);
@@ -257,7 +263,10 @@ function authForgotReset(email, code, pass, remember, device) {
   return { token: s.token, expires: s.expires, user: authPub_(u) };
 }
 // → { user, cfg } for a valid session · { none: true }
-function authMe(tok) { var v = authSession_(tok); return v ? { user: { email: v.e, name: v.n, dept: v.d, admin: !!v.a }, on: authCfg_().on } : { none: true, on: authCfg_().on }; }
+function authMe(tok) {
+  var v = authSession_(tok); if (!v) return { none: true, on: authCfg_().on };
+  return { user: { email: v.e, name: v.n, dept: v.d, admin: !!v.a }, admin: v.a ? authAdminInfo_(v.n) : null, on: authCfg_().on };
+}
 
 // ── signed in ──
 function authLogout(tok, all) {
@@ -293,9 +302,9 @@ function authProfile(tok, name, dept) {
 // ── Admin ──
 function authUsers(token) {
   requireAdmin_(token);
-  return { cfg: authCfg_(), users: usrAll_().map(function (u) { return { email: u.e, name: u.n, dept: u.d, status: u.st, created: u.c, last: u.t }; }) };
+  return { cfg: authCfg_(), users: usrAll_().map(function (u) { return { email: u.e, name: u.n, dept: u.d, status: u.st, role: u.role, created: u.c, last: u.t }; }) };
 }
-// act: approve | disable | enable | reject | delete | reset (→ temporary password) | signout
+// act: approve | disable | enable | reject | delete | reset (→ temporary password) | signout | admin | user (role)
 function authUserAction(token, email, act) {
   requireAdmin_(token); email = authEmail_(email); if (!email) throw new Error('อีเมลไม่ถูกต้อง');
   var temp = '';
@@ -305,13 +314,14 @@ function authUserAction(token, email, act) {
     if (act === 'approve' || act === 'enable') x.st = 'active';
     else if (act === 'disable') x.st = 'disabled';
     else if (act === 'reject') x.st = 'rejected';
+    else if (act === 'admin' || act === 'user') x.role = act;
     else if (act === 'reset') { temp = 'Dh' + Math.random().toString(36).slice(2, 7) + Math.floor(10 + Math.random() * 89); x.s = Utilities.getUuid().replace(/-/g, ''); x.h = admHash_(x.s, temp); }
     else if (act !== 'signout') throw new Error('คำสั่งไม่ถูกต้อง');
     return usrWrite_(x);
   });
   if (!u) throw new Error('ไม่พบผู้ใช้ ' + email);
   if (act !== 'approve' && act !== 'enable') sesRevoke_(email);
-  audit_([['Admin', { approve: 'อนุมัติผู้ใช้', disable: 'ระงับผู้ใช้', enable: 'เปิดใช้ผู้ใช้', reject: 'ปฏิเสธผู้สมัคร', delete: 'ลบผู้ใช้', reset: 'รีเซ็ตรหัสผ่านผู้ใช้', signout: 'ออกจากระบบทุกเครื่อง (ผู้ใช้)' }[act], '', u.n + ' <' + u.e + '>']]);
+  audit_([['Admin', { approve: 'อนุมัติผู้ใช้', disable: 'ระงับผู้ใช้', enable: 'เปิดใช้ผู้ใช้', reject: 'ปฏิเสธผู้สมัคร', delete: 'ลบผู้ใช้', reset: 'รีเซ็ตรหัสผ่านผู้ใช้', signout: 'ออกจากระบบทุกเครื่อง (ผู้ใช้)', admin: 'ตั้งเป็น Admin', user: 'เปลี่ยนเป็นผู้ใช้ทั่วไป' }[act], '', u.n + ' <' + u.e + '>']]);
   var out = authUsers(token); if (temp) out.temp = temp; return out;
 }
 function authSaveCfg(token, c) {

@@ -81,6 +81,16 @@ r=c.api('', 'authLogin',['admin1','whatever',true]);T('Admin user name signs in 
 cache['adm_ADM']=JSON.stringify({u:'admin1',n:'A.Admin'});
 r=c.authUserAction('ADM','malee@example.co.th','reset');T('reset gives a temporary password',/^Dh/.test(r.temp)&&!!c.api('', 'authLogin',['malee@example.co.th',r.temp]).token,r);
 c.authUserAction('ADM','malee@example.co.th','disable');T('disabled cannot sign in',/ระงับ/.test(E(()=>c.api('', 'authLogin',['malee@example.co.th',r.temp]))));
+// ── role: a registered user made Admin ──
+c.authUserAction('ADM','malee@example.co.th','enable');r=c.authUserAction('ADM','malee@example.co.th','admin');
+T('role set to admin',r.users.find(u=>u.email==='malee@example.co.th').role==='admin');
+const pwM=c.authUserAction('ADM','malee@example.co.th','reset').temp;r=c.api('', 'authLogin',['malee@example.co.th',pwM,true]);
+T('Admin role signs in with Admin mode',!!r.token&&r.user.admin===true&&r.admin&&r.admin.token==='session'&&r.admin.names.includes('Malee'),r);
+const tA=r.token;T('Admin role: Admin functions work without an Admin token',(()=>{const x=mk();return Array.isArray(x.api(tA,'authUsers',[''] ).users)})());
+T('authMe gives the role back after reload',(()=>{const m=mk().authMe(tA);return m.user.admin===true&&m.admin.name==='Malee'})());
+const tU=c.api('', 'authLogin',['somchai@example.co.th','NewPass2026',true]).token;
+T('normal user is refused Admin functions',/Admin only/.test(E(()=>mk().api(tU,'authUsers',['']))));
+c.authUserAction('ADM','malee@example.co.th','user');T('back to user: old Admin session signed out',mk().authMe(tA).none===true);
 // ── sign-in off ──
 c.authSaveCfg('ADM',{on:false});c=mk();c.getPulse=()=>({ok:2});T('sign-in off: pages work without a session',c.api('', 'getPulse',[]).ok===2);
 T('sign-in off: console call still refused',/AUTH_REQUIRED/.test(E(()=>mk().getSchedules())));

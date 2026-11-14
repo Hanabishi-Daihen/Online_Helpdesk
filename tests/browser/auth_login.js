@@ -1,79 +1,86 @@
-// sign-in page: held calls, wrong / right password, register + e-mail code, forgot password, remembered session, 3D story
+// sign-in page: first page plays by itself (wheel speeds it up) → "เข้าสู่ระบบ" → forms; held calls; register / forgot;
+// remembered session; role from the account (no separate Admin unlock); phone; CDN blocked
 // prints what it sees; exits 1 when the page throws an error or a check fails
-const OUT = __dirname + '/../out/', fs = require('fs'), path = require('path');
+const OUT = __dirname + '/../out/', fs = require('fs');
 const { chromium } = require('playwright');
 const lib = p => { try { return fs.readFileSync(require.resolve(p), 'utf8'); } catch (e) { return null; } };
+const MAP = [[/three\.js\/r128\/three\.min\.js/, 'three/build/three.min.js'], [/three@0\.128\.0\/(examples\/js\/.*\.js)/, m => 'three/' + m[1]]];
+let libsServed = 0;
+const cdn = r => { const u = r.request().url(); for (const [re, p] of MAP) { const m = re.exec(u); if (m) { const body = lib(typeof p === 'function' ? p(m) : p); if (body) { libsServed++; return r.fulfill({ contentType: 'application/javascript', body }); } } } return r.abort(); };
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const ctx = await b.newContext({ viewport: { width: 1360, height: 860 } });
-  // CDN → local copies (cdnjs / jsDelivr / unpkg are not reachable from the test machine)
-  const MAP = [[/three\.js\/r128\/three\.min\.js/, 'three/build/three.min.js'], [/three@0\.128\.0\/(examples\/js\/.*\.js)/, m => 'three/' + m[1]], [/gsap\/3\.12\.5\/gsap\.min\.js/, 'gsap/dist/gsap.min.js'],
-    [/gsap\/3\.12\.5\/ScrollTrigger\.min\.js/, 'gsap/dist/ScrollTrigger.min.js'], [/lenis@1\.1\.13\/dist\/lenis\.min\.js/, 'lenis/dist/lenis.min.js']];
-  let libsServed = 0;
-  await ctx.route(/cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|unpkg\.com/, r => { const u = r.request().url(); for (const [re, p] of MAP) { const m = re.exec(u); if (m) { const body = lib(typeof p === 'function' ? p(m) : p); if (body) { libsServed++; return r.fulfill({ contentType: 'application/javascript', body }); } } } return r.abort(); });
-  await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+  await ctx.route(/cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|unpkg\.com/, cdn); await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
   const p = await ctx.newPage(), errs = [], fails = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('dialog', d => d.accept());
   const check = (n, c, x) => { console.log((c ? 'PASS ' : 'FAIL ') + n + (c ? '' : ' → ' + JSON.stringify(x))); c || fails.push(n); };
-  const http = require('http'); const srv = http.createServer((q, r) => { r.setHeader('content-type', 'text/html; charset=utf-8'); r.end(fs.readFileSync(OUT + 'auth.html')); }).listen(8832);
-  await p.goto('http://localhost:8832/'); await p.waitForTimeout(1500);
+  const srv = require('http').createServer((q, r) => { r.setHeader('content-type', 'text/html; charset=utf-8'); r.end(fs.readFileSync(OUT + 'auth.html')); }).listen(8832);
+  await p.goto('http://localhost:8832/'); await p.waitForTimeout(3000);
   const A = p.locator('#zq-auth'), des0 = await p.evaluate(() => localStorage.getItem('zqOrDes') || '');
-  check('sign-in page shows without a session', await A.isVisible());
-  const held = await p.evaluate(() => (window.__apiLog || []).filter(x => !/^auth|getAppUrl/.test(x[0])).length);
-  check('page calls wait for sign-in (none sent yet)', held === 0, held);
-  await p.screenshot({ path: OUT + 'auth_hero.png' });
-  // wrong then right password
+  check('first page: intro with the sign-in button', await A.getAttribute('data-mode') === 'intro' && await p.locator('#za-go').isVisible());
+  check('page calls wait for sign-in', await p.evaluate(() => (window.__apiLog || []).filter(x => !/^auth|getAppUrl/.test(x[0])).length) === 0);
+  check('3D libraries served + canvas on', libsServed >= 5 && await p.locator('.za-cv.on').count() === 1, libsServed);
+  const capNow = () => p.locator('.za-cap h3').innerText().catch(() => '');
+  const seen = async ms => { const S = new Set(); const t0 = Date.now(); while (Date.now() - t0 < ms) { S.add(await capNow()); await p.waitForTimeout(150); } return S; };
+  await p.screenshot({ path: OUT + 'auth_intro.png' });
+  const pr0 = await p.evaluate(() => window.zqAuth.progress()); await p.waitForTimeout(2500); const pr1 = await p.evaluate(() => window.zqAuth.progress());
+  console.log('  story progress ' + pr0.toFixed(2) + ' → ' + pr1.toFixed(2) + ' in 2.5 s without input');
+  check('plays by itself', pr1 > pr0, [pr0, pr1]);
+  const sp0 = await p.evaluate(() => window.zqAuth.speed()); await p.mouse.move(600, 500);
+  for (let i = 0; i < 6; i++) { await p.mouse.wheel(0, 240); await p.waitForTimeout(40); }
+  const sp1 = await p.evaluate(() => window.zqAuth.speed()); console.log('  speed ×' + sp0.toFixed(2) + ' → ×' + sp1.toFixed(2) + ' after 6 wheel notches');
+  check('mouse wheel speeds it up (and the page does not scroll)', sp1 > 3 && sp0 < 1.5 && await p.evaluate(() => document.getElementById('zq-auth').scrollTop === 0), [sp0, sp1]);
+  await p.screenshot({ path: OUT + 'auth_part.png' });
+  await p.locator('.za-prog button[data-i="6"]').click(); await p.waitForTimeout(2500);
+  check('progress dot jumps to a part', /แกนเหล็ก/.test(await capNow()), await capNow());
+  // "เข้าสู่ระบบ" → the form slides in
+  await p.click('#za-go'); await p.waitForTimeout(1200);
+  check('form page after the button', await A.getAttribute('data-mode') === 'form' && await p.locator('#za-id').isVisible());
+  await p.screenshot({ path: OUT + 'auth_form.png' });
   await p.fill('#za-id', 'somchai@example.co.th'); await p.fill('#za-pw', 'nope'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(300);
   check('wrong password message', /ไม่ถูกต้อง/.test(await p.locator('.za-msg').innerText()));
-  // register: code view, wrong code, right code → pending
-  await p.click('.za-tabs button:nth-child(2)'); await p.waitForTimeout(100);
-  await p.fill('#za-name', 'New User'); await p.fill('#za-email', 'new@example.co.th'); await p.fill('#za-pw', 'Abcdef12'); await p.fill('#za-pw2', 'Abcdef12');
+  await p.click('.za-tabs button:nth-child(2)'); await p.fill('#za-name', 'New User'); await p.fill('#za-email', 'new@example.co.th'); await p.fill('#za-pw', 'Abcdef12'); await p.fill('#za-pw2', 'Abcdef12');
   check('password rules all green', (await p.locator('.za-rules span.ok').count()) === 3);
   await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(300);
-  check('code boxes shown', (await p.locator('.za-otp input').count()) === 6);
-  await p.locator('.za-otp input').first().fill('111111'); await p.waitForTimeout(80);
-  await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(300);
+  await p.locator('.za-otp input').first().fill('111111'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(300);
   check('wrong code message', /ไม่ถูกต้อง/.test(await p.locator('.za-msg').innerText()));
   await p.locator('.za-otp input').first().fill('123456'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(300);
   check('waits for Admin approval', /รอ Admin อนุมัติ/.test(await p.locator('.za-card').innerText()));
-  // forgot password → new password → signed in
   await p.click('.za-card .za-btn.ghost'); await p.click('text=ลืมรหัสผ่าน?'); await p.fill('#za-email', 'somchai@example.co.th'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(300);
-  await p.locator('.za-otp input').first().fill('654321'); await p.fill('#za-pw', 'Newpass77'); await p.fill('#za-pw2', 'Newpass77');
-  await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(1400);
+  await p.locator('.za-otp input').first().fill('654321'); await p.fill('#za-pw', 'Newpass77'); await p.fill('#za-pw2', 'Newpass77'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(1500);
   check('signed in: page closed', await A.count() === 0);
   const sent = await p.evaluate(() => (window.__apiLog || []).filter(x => !/^auth|getAppUrl/.test(x[0])));
-  check('held calls went out with the session', sent.length > 0 && sent.every(x => x[1]), sent.slice(0, 5));
-  check('user button shows initials', (await p.locator('#zq-me').innerText()) === 'SS');
-  await p.click('#zq-me'); check('account panel', /S\.Somchai/.test(await p.locator('#zq-me-p').innerText()) && /ออกจากระบบ/.test(await p.locator('#zq-me-p').innerText()));
+  check('held calls went out with the session', sent.length > 0 && sent.every(x => x[1]), sent.slice(0, 4));
+  const side = await p.locator('aside').innerText();
+  check('sidebar: user card, no Admin unlock', /S\.Somchai/.test(side) && /ผู้ใช้งาน/.test(side) && !/ปลดล็อค|Admin: Locked/.test(side), side.slice(-160));
+  await p.click('#zq-me'); check('account panel', /ออกจากระบบ/.test(await p.locator('#zq-me-p').innerText()));
   const des1 = await p.evaluate(() => localStorage.getItem('zqOrDes'));
   check('DES name: filled when empty, kept when already set', des0 ? des1 === des0 : des1 === 'S.Somchai', [des0, des1]);
-  // remembered session: reload → straight in
   await p.reload(); await p.waitForTimeout(1500);
   check('remembered session: no sign-in page after reload', await A.count() === 0);
-  // 3D story (signed out again)
-  await p.evaluate(() => { localStorage.removeItem('zqSes'); sessionStorage.removeItem('zqSes'); }); await p.reload(); await p.waitForTimeout(3500);
-  check('3D libraries served', libsServed >= 10, libsServed);
-  check('3D canvas on', await p.locator('.za-cv.on').count() === 1);
-  await p.screenshot({ path: OUT + 'auth_3d_hero.png' });
-  const H = await p.evaluate(() => { const e = document.getElementById('zq-auth'); return { h: e.scrollHeight, v: e.clientHeight }; });
-  for (const [name, f] of [['part1', 0.12], ['part4', 0.45], ['part6', 0.7], ['assembled', 0.995]]) {
-    await p.evaluate(y => { const e = document.getElementById('zq-auth'); e.scrollTop = y; e.dispatchEvent(new Event('scroll')); }, Math.round((H.h - H.v) * f));
-    await p.waitForTimeout(2600); await p.screenshot({ path: OUT + 'auth_3d_' + name + '.png' });
-    console.log('  ' + name + ': panel "' + ((await p.locator('.za-sec.cur h3, .za-end.cur h3').first().innerText().catch(() => '-'))) + '" · dot "' + ((await p.locator('.za-prog button.cur span').innerText().catch(() => '-'))) + '"');
-  }
-  const fps = await p.evaluate(() => new Promise(ok => { let n = 0, t0 = performance.now(); (function f() { n++; performance.now() - t0 < 1000 ? requestAnimationFrame(f) : ok(n); })(); }));
-  console.log('  frames in 1 s (software GL, no GPU): ' + fps);
-  // phone + reduced motion
-  const m = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, reducedMotion: 'reduce', hasTouch: true, isMobile: true });
-  await m.route(/cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|unpkg\.com/, r => { const u = r.request().url(); for (const [re, pp] of MAP) { const mm = re.exec(u); if (mm) { const body = lib(typeof pp === 'function' ? pp(mm) : pp); if (body) return r.fulfill({ contentType: 'application/javascript', body }); } } return r.abort(); });
+  // Admin role from the account
+  await p.evaluate(() => { localStorage.removeItem('zqSes'); sessionStorage.removeItem('zqSes'); }); await p.reload(); await p.waitForTimeout(1500);
+  await p.click('#za-go'); await p.waitForTimeout(800); await p.fill('#za-id', 'admin1'); await p.fill('#za-pw', 'Admin2026x'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(1500);
+  const side2 = await p.locator('aside').innerText();
+  check('Admin account: Admin mode on, no unlock button', /A\.Admin/.test(side2) && /ADMIN/.test(side2) && !/ปลดล็อค/.test(side2), side2.slice(0, 120) + ' … ' + side2.slice(-120));
+  await p.reload(); await p.waitForTimeout(2000);
+  check('Admin mode comes back after reload', /ADMIN/.test(await p.locator('aside').innerText()));
+  await p.screenshot({ path: OUT + 'auth_admin_app.png' });
+  // phone
+  const m = await b.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true }); await m.route(/cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|unpkg\.com/, cdn);
   const pm = await m.newPage(); pm.on('pageerror', e => errs.push('phone: ' + e.message));
-  await pm.goto('http://localhost:8832/'); await pm.waitForTimeout(3000);
-  check('phone: no sideways scroll', !(await pm.evaluate(() => { const e = document.getElementById('zq-auth'); return e.scrollWidth > e.clientWidth; })));
-  await pm.screenshot({ path: OUT + 'auth_phone.png' });
-  // CDN blocked: sign-in still works
+  await pm.goto('http://localhost:8832/'); await pm.waitForTimeout(3000); await pm.screenshot({ path: OUT + 'auth_phone.png' });
+  await pm.click('#za-go'); await pm.waitForTimeout(1200); await pm.screenshot({ path: OUT + 'auth_phone_form.png' });
+  check('phone: form reachable, nothing sideways', await pm.locator('#za-id').isVisible() && !(await pm.evaluate(() => document.documentElement.scrollWidth > innerWidth)));
+  // reduced motion: still picture, buttons work
+  const rm = await b.newContext({ viewport: { width: 1200, height: 800 }, reducedMotion: 'reduce' }); await rm.route(/cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|unpkg\.com/, cdn);
+  const pr = await rm.newPage(); pr.on('pageerror', e => errs.push('reduced: ' + e.message));
+  await pr.goto('http://localhost:8832/'); await pr.waitForTimeout(2500); const c1 = await pr.locator('.za-cap h3').innerText(); await pr.waitForTimeout(3000);
+  check('reduced motion: no autoplay', c1 === await pr.locator('.za-cap h3').innerText(), c1);
+  // CDN blocked
   const n = await b.newContext({ viewport: { width: 1200, height: 800 } }); await n.route(/cdnjs|jsdelivr|unpkg|fonts\./, r => r.abort());
   const pn = await n.newPage(); pn.on('pageerror', e => errs.push('nocdn: ' + e.message));
-  await pn.goto('http://localhost:8832/'); await pn.waitForTimeout(1500);
+  await pn.goto('http://localhost:8832/'); await pn.waitForTimeout(1500); await pn.click('#za-go'); await pn.waitForTimeout(800);
   await pn.fill('#za-id', 'somchai@example.co.th'); await pn.fill('#za-pw', 'Passw0rd99'); await pn.click('.za-card .za-btn[type=submit]'); await pn.waitForTimeout(1200);
   check('CDN blocked: sign-in still works', await pn.locator('#zq-auth').count() === 0);
   console.log('errors:', errs); srv.close(); await b.close(); process.exit(errs.length || fails.length ? 1 : 0);

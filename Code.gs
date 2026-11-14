@@ -83,6 +83,8 @@ function withLock_(fn) {
 // the token of a signed-in Admin maps to { u: user, n: display name } for 6 h; __admName = who is acting in this call
 var __admName = '';
 function isAdmin_(token) {
+  // signed in with an Admin role (Auth.gs) → Admin for every call, whatever token the page sends
+  if (typeof __user !== 'undefined' && __user && __user.a) { __admName = String(__user.n || ''); return true; }
   if (!token) return false;
   var v = CacheService.getScriptCache().get('adm_' + token); if (!v) return false;
   try { var o = JSON.parse(v); if (o && o.n) __admName = String(o.n); } catch (e) {}

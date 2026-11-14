@@ -3,15 +3,16 @@
 (function () {
   var G = window.google.script, d = Object.getOwnPropertyDescriptor(G, 'run'), base = function () { return d.get.call(G); };
   window.__M.authInfo = { on: true, approve: true, domains: ['example.co.th'], days: 30 };
-  var TOK = 'T'.repeat(64), user = { email: 'somchai@example.co.th', name: 'S.Somchai', dept: 'DS13' };
+  var TOK = 'T'.repeat(64), user = { email: 'somchai@example.co.th', name: 'S.Somchai', dept: 'DS13' }, adm = { email: 'admin:admin1', name: 'A.Admin', dept: 'Admin', admin: true };
   var F = {
     authInfo: function () { return window.__M.authInfo; },
-    authLogin: function (id, pw) { return pw === 'Passw0rd99' ? { token: TOK, expires: Date.now() + 864e5, user: user } : { err: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' }; },
+    authLogin: function (id, pw) { if (id === 'admin1' && pw === 'Admin2026x') { try { localStorage.setItem('zqMockAdm', '1'); } catch (e) {} return { token: TOK, expires: Date.now() + 864e5, user: adm, admin: { token: 'session', user: '', name: 'A.Admin', names: ['A.Admin'] } }; }
+      return pw === 'Passw0rd99' ? { token: TOK, expires: Date.now() + 864e5, user: user } : { err: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' }; },
     authRegisterStart: function () { return { sent: true, minutes: 15 }; },
     authRegisterVerify: function (e, c) { return c === '123456' ? { pending: true, name: 'New User' } : { err: 'รหัสไม่ถูกต้อง (เหลือ 4 ครั้ง)' }; },
     authForgotStart: function () { return { sent: true, minutes: 15 }; },
     authForgotReset: function (e, c, p) { return c === '654321' ? { token: TOK, expires: Date.now() + 864e5, user: user } : { err: 'รหัสไม่ถูกต้อง' }; },
-    authMe: function (t) { return t === TOK ? { user: user, on: true } : { none: true, on: true }; },
+    authMe: function (t) { var A = false; try { A = localStorage.getItem('zqMockAdm') === '1'; } catch (e) {} return t === TOK ? (A ? { user: adm, admin: { token: 'session', user: '', name: 'A.Admin', names: ['A.Admin'] }, on: true } : { user: user, on: true }) : { none: true, on: true }; },
     authLogout: function () { return { ok: true }; },
     authChangePassword: function () { return { ok: true }; }
   };
