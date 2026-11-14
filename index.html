@@ -39,6 +39,7 @@
 .za-cap .en{font-size:.68rem;letter-spacing:.18em;text-transform:uppercase;color:var(--za-mute)}
 .za-cap p{color:var(--za-ink2);font-size:.86rem;line-height:1.55;margin:.55rem 0}
 .za-cap .spec{display:inline-block;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.7rem;color:var(--za-ink2);border:1px solid var(--za-line);border-radius:6px;padding:.25rem .5rem;background:var(--za-bg)}
+.za-cap .live{margin-top:.55rem;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.78rem;letter-spacing:.12em;color:#0b5fa8;font-weight:600}
 .za-cap .bar{height:2px;background:var(--za-line);border-radius:2px;margin-top:.7rem;overflow:hidden}.za-cap .bar i{display:block;height:100%;width:0;background:var(--za-acc)}
 /* progress dots */
 .za-prog{position:absolute;right:max(20px,env(safe-area-inset-right,0px));top:50%;transform:translateY(-50%);z-index:4;display:flex;flex-direction:column;gap:12px;transition:opacity .3s}
@@ -194,14 +195,14 @@
 
   /* ── the page ── */
   var PARTS = [
-    ["01", "ถังพักน้ำมัน", "Conservator", "รองรับการขยายตัวของน้ำมันฉนวนเมื่ออุณหภูมิเปลี่ยน พร้อมรีเลย์ตรวจจับก๊าซในน้ำมัน", "Buchholz relay · Silica gel breather"],
-    ["02", "บุชชิ่ง", "Bushings", "นำกระแสแรงดันสูงผ่านฝาถังออกสู่สายภายนอก โดยมีฉนวนกั้นไม่ให้ลัดวงจรลงตัวถัง", "HV × 3 · LV × 4 · ฉนวนพอร์ซเลน"],
-    ["03", "ฝาและตัวถัง", "Tank & cover", "ภาชนะเหล็กปิดผนึกที่บรรจุชุดแกนเหล็ก ขดลวด และน้ำมันฉนวน ผนังมีคานเสริมรับแรงดัน", "Oil-immersed · Vacuum-proof"],
-    ["04", "ระบบระบายความร้อน", "Cooling", "ครีบระบายความร้อนและพัดลมพาความร้อนออกจากน้ำมัน พัดลมเริ่มทำงานตามอุณหภูมิ", "ONAN / ONAF"],
-    ["05", "ตัวเปลี่ยนแทป", "On-load tap changer", "ปรับอัตราส่วนแรงดันขณะจ่ายไฟอยู่ โดยไม่ต้องดับไฟ ตัวเลือกแทปขยับทีละตำแหน่ง", "ตัวอย่าง 17 ตำแหน่ง · ±10%"],
-    ["06", "แกนเหล็กและขดลวด", "Core & windings", "หัวใจของหม้อแปลง แปลงแรงดันผ่านสนามแม่เหล็กในแกนเหล็กซิลิคอน", "แกน 3 ขา · ขดลวดทองแดง HV / LV"],
-    ["07", "ตู้ควบคุม", "Local control cabinet", "รวมอุปกรณ์ป้องกันและสัญญาณเตือน ป้าย Card holder, Annunciator และ Strip marker ในตู้นี้สั่งผ่านตัวช่วยหน้าแบบของระบบนี้", "Annunciator · มิเตอร์ · Terminal"],
-    ["", "ประกอบครบ", "Assembled", "ทุกชิ้นประกอบกลับเข้าที่ พร้อมทดสอบและส่งมอบ", "DAIHEN ELECTRIC"]
+    ["01", "บุชชิ่งแรงสูง", "High-voltage bushings", "นำสาย 132 kV ผ่านฝาถังที่ต่อลงดินโดยไม่เกิดวาบไฟข้าม และปิดผนึกน้ำมันไว้ภายใน", "145 kV class · 3 เฟส + นิวทรัล · LV 33 kV × 3"],
+    ["02", "ถังพักน้ำมัน", "Conservator", "ถังขยายตัวที่ทำให้ตัวถังมีน้ำมันเต็มเสมอเมื่อน้ำมันขยายตัวตามโหลด มีรีเลย์บุคโฮลซ์เฝ้าท่อด้านล่าง", "Rubber-cell · น้ำมัน 18,700 L · Silica gel breather"],
+    ["03", "ครีบระบายความร้อนและพัดลม", "Radiators & fans", "น้ำมันร้อนลอยขึ้นสู่ครีบเหล็กชุบกัลวาไนซ์แล้วจมลงเมื่อเย็นตัว เมื่อโหลดสูงพัดลมเริ่มทำงาน เพิ่มพิกัดได้อีกครึ่งหนึ่ง", "4 ชุดครีบ · พัดลม 4 ตัว · ONAN 30 → ONAF 45 MVA"],
+    ["04", "ตัวถังหลัก", "Main tank", "ถังเหล็กเชื่อมทนสุญญากาศ บรรจุน้ำมันและชุดแกน–ขดลวด การยกตัวถังออกเรียกว่า Untanking", "น้ำหนักรวม 75,500 kg · ติดตั้งกลางแจ้ง"],
+    ["05", "ตัวเปลี่ยนแทปขณะจ่ายโหลด", "On-load tap changer", "เปลี่ยนอัตราส่วนรอบขดลวดทีละขั้นขณะจ่ายโหลดเต็ม เพื่อคุมแรงดันฝั่ง 33 kV ให้นิ่งเมื่อแรงดันกริดเปลี่ยน", "16 ตำแหน่ง · 1.67 % ต่อขั้น · +10 % / −15 %"],
+    ["06", "แกนเหล็กและขดลวด", "Core & windings", "แผ่นเหล็กซิลิคอนเกรนโอเรียนเต็ดนำฟลักซ์แม่เหล็ก ขดลวดทองแดงซ้อนกันแปลง 132 kV เป็น 33 kV", "แกน 3 ขา · HV สตาร์ (YN) / LV เดลต้า · 40,500 kg"],
+    ["07", "ตู้ควบคุม", "Local control cabinet", "รวมอุปกรณ์ป้องกันและสัญญาณเตือน ป้าย Card holder, Annunciator และ Strip marker ในตู้นี้สั่งผ่านตัวช่วยหน้าแบบของระบบนี้", "OTI / WTI · Annunciator · Terminal"],
+    ["", "ประกอบครบ พร้อมจ่ายไฟ", "Assembled · Energized", "ทุกชิ้นกลับเข้าที่ หม้อแปลง 45 MVA พร้อมใช้งาน", "30/45 MVA · 132/33 kV · ONAN/ONAF · 50 Hz"]
   ];
   function show(note, direct) {
     if (!document.body) { document.addEventListener("DOMContentLoaded", function () { show(note, direct); }); return; }
@@ -245,13 +246,14 @@
     setTimeout(function () { try { st.three && st.three.dispose(); } catch (e) {} st.three = null; el.remove(); st.el = null; }, 550);
   }
   var capI = -1;
+  function tapText(n) { return "TAP " + ("0" + n).slice(-2) + " · " + (132 * (1 + (7 - n) * .0167)).toFixed(1) + " kV"; }
   function caption(i) {
     if (!st.cap || i === capI) return; capI = i;
     var p = PARTS[i - 1] || PARTS[7], c = st.cap;
     c.classList.add("hide");
     setTimeout(function () {
       c.innerHTML = ""; c.appendChild(h("div", { class: "no", text: p[0] ? p[0] + " / 07" : "DAIHEN" })); c.appendChild(h("h3", { text: p[1] })); c.appendChild(h("div", { class: "en", text: p[2] }));
-      c.appendChild(h("p", { text: p[3] })); c.appendChild(h("span", { class: "spec", text: p[4] })); c.appendChild(h("div", { class: "bar" }, [h("i")]));
+      c.appendChild(h("p", { text: p[3] })); c.appendChild(h("span", { class: "spec", text: p[4] })); if (i === 5) c.appendChild(h("div", { class: "live", text: tapText(st.tapN ? st.tapN() : 7) })); c.appendChild(h("div", { class: "bar" }, [h("i")]));
       c.classList.remove("hide");
     }, 220);
     [].forEach.call(st.prog.children, function (b) { var k = +b.getAttribute("data-i"); b.classList.toggle("cur", k === i); b.setAttribute("aria-current", k === i ? "step" : "false"); });
@@ -447,62 +449,174 @@
     var pm = new T.PMREMGenerator(R), env = T.RoomEnvironment ? pm.fromScene(new T.RoomEnvironment(), .04).texture : null; scene.environment = env;
     // bright studio: soft sky light, a warm key with soft shadows, a cool fill
     scene.add(new T.HemisphereLight(0xffffff, 0xd9d2c5, .85));
-    var key = new T.DirectionalLight(0xfff6ec, 1.25); key.position.set(4, 9, 6); key.castShadow = !mobile; key.shadow.mapSize.set(1024, 1024); key.shadow.camera.left = -5; key.shadow.camera.right = 5; key.shadow.camera.top = 6; key.shadow.camera.bottom = -4; key.shadow.radius = 6; key.shadow.bias = -.0005; scene.add(key);
+    var key = new T.DirectionalLight(0xfff6ec, 1.25); key.position.set(4, 9, 6); key.castShadow = !mobile; key.shadow.mapSize.set(1024, 1024); key.shadow.camera.left = -5; key.shadow.camera.right = 5; key.shadow.camera.top = 6; key.shadow.camera.bottom = -4; key.shadow.radius = 6; key.shadow.bias = -.0005; key.shadow.normalBias = .02; scene.add(key);
     var fill = new T.DirectionalLight(0xdfeeff, .5); fill.position.set(-6, 3, 3); scene.add(fill);
     var floor = new T.Mesh(new T.PlaneGeometry(60, 60), new T.ShadowMaterial({ opacity: .12 })); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
     var disc = new T.Mesh(new T.CircleGeometry(3.4, 64), new T.MeshBasicMaterial({ color: 0xece5da, transparent: true, opacity: .9, toneMapped: false, fog: false })); disc.rotation.x = -Math.PI / 2; disc.position.y = .001; scene.add(disc);
-    // materials (PBR)
-    var paint = new T.MeshPhysicalMaterial({ color: 0x0a559c, metalness: .2, roughness: .38, clearcoat: .7, clearcoatRoughness: .18, envMapIntensity: .9 });
-    var paintD = new T.MeshPhysicalMaterial({ color: 0x07467f, metalness: .2, roughness: .45, clearcoat: .5, clearcoatRoughness: .25, envMapIntensity: .85 });
-    var steel = new T.MeshStandardMaterial({ color: 0xd3d8de, metalness: 1, roughness: .2 });
-    var dark = new T.MeshStandardMaterial({ color: 0x2a323c, metalness: .5, roughness: .45 });
-    var porcelain = new T.MeshPhysicalMaterial({ color: 0x7a5639, roughness: .2, metalness: 0, clearcoat: 1, clearcoatRoughness: .08 });
-    var copper = new T.MeshStandardMaterial({ color: 0xc8733a, metalness: 1, roughness: .26 });
-    var copper2 = new T.MeshStandardMaterial({ color: 0x9a5528, metalness: 1, roughness: .36 });
-    var core = new T.MeshStandardMaterial({ color: 0x6a737d, metalness: .85, roughness: .32, emissive: 0x0292d8, emissiveIntensity: 0 });
-    var glass = new T.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0, roughness: .05, transmission: .9, transparent: true, opacity: .4 });
+    // materials (PBR) — satin paint and galvanized steel stay rough enough not to streak under the key light
+    var paint = new T.MeshPhysicalMaterial({ color: 0x0f5ea8, metalness: .15, roughness: .5, clearcoat: .35, clearcoatRoughness: .35, envMapIntensity: .6 });
+    var paintD = new T.MeshPhysicalMaterial({ color: 0x0b4d8a, metalness: .15, roughness: .55, clearcoat: .25, clearcoatRoughness: .4, envMapIntensity: .55 });
+    var galv = new T.MeshStandardMaterial({ color: 0xc3c9ce, metalness: .85, roughness: .45, envMapIntensity: .7 });
+    var steel = new T.MeshStandardMaterial({ color: 0xd9dde2, metalness: 1, roughness: .32 });
+    var alu = new T.MeshStandardMaterial({ color: 0xcfd4d8, metalness: .9, roughness: .38 });
+    var dark = new T.MeshStandardMaterial({ color: 0x252b33, metalness: .4, roughness: .5 });
+    var porcelain = new T.MeshPhysicalMaterial({ color: 0x5d3420, roughness: .28, metalness: 0, clearcoat: 1, clearcoatRoughness: .1 });
+    var copper = new T.MeshStandardMaterial({ color: 0xc8733a, metalness: 1, roughness: .3 });
+    var board = new T.MeshStandardMaterial({ color: 0x6b4426, roughness: .75 });                 // pressboard
+    var resin = new T.MeshStandardMaterial({ color: 0xd9cfb6, roughness: .5, metalness: 0 });     // OLTC oil compartment (glass-fibre)
+    var glass = new T.MeshStandardMaterial({ color: 0xcfe6f2, metalness: 0, roughness: .05, transparent: true, opacity: .35 });
+    var gel = new T.MeshStandardMaterial({ color: 0xf08a24, roughness: .85 });
+    function tex(w, hh, draw, rx, ry) { var c = document.createElement("canvas"); c.width = w; c.height = hh; draw(c.getContext("2d"), w, hh); var t = new T.CanvasTexture(c); t.encoding = T.sRGBEncoding; t.anisotropy = 4; if (rx) { t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(rx, ry || 1); } return t; }
+    // windings: kraft paper with the disc gaps and axial spacers showing
+    var paperT = tex(128, 256, function (x, w, hh) { x.fillStyle = "#c9a66f"; x.fillRect(0, 0, w, hh); x.fillStyle = "#9a7845"; for (var j = 0; j < hh; j += 5) x.fillRect(0, j, w, 1); x.fillStyle = "#8a6a3c"; for (var i = 0; i < w; i += 64) x.fillRect(i, 0, 5, hh); }, 4, 1);
+    var paper = new T.MeshStandardMaterial({ map: paperT, roughness: .8 }), paperL = new T.MeshStandardMaterial({ color: 0xc9a66f, roughness: .8 });
+    // core: grain-oriented steel laminations
+    var lamT = tex(64, 64, function (x, w, hh) { for (var i = 0; i < hh; i += 2) { x.fillStyle = i % 4 ? "#79828c" : "#6a737d"; x.fillRect(0, i, w, 2); } }, 1, 4);
+    var core = new T.MeshStandardMaterial({ color: 0xffffff, map: lamT, metalness: .7, roughness: .42, emissive: 0x0292d8, emissiveIntensity: 0 });
     var root = new T.Group(); scene.add(root);
     function M(g, m, x, y, z, p) { var o = new T.Mesh(g, m); o.position.set(x || 0, y || 0, z || 0); (p || root).add(o); return o; }
     function B(w, hh, d, m, x, y, z, p) { return M(new T.BoxGeometry(w, hh, d), m, x, y, z, p); }
-    function C(r, hh, m, x, y, z, p, seg) { return M(new T.CylinderGeometry(r, r, hh, seg || 40), m, x, y, z, p); }
-    var P = [];
-    function part(dx, dy, dz, sec) { var g = new T.Group(); root.add(g); P.push({ g: g, v: new T.Vector3(dx, dy, dz), s: sec }); return g; }
-    var g1 = part(0, 2.2, -.4, 1);
-    C(.34, 2.0, paint, 0, 3.15, -.95, g1).rotation.z = Math.PI / 2;
-    [-.75, .75].forEach(function (x) { C(.05, .9, paintD, x, 2.55, -.95, g1); C(.36, .04, steel, x * 1.33, 3.15, -.95, g1).rotation.z = Math.PI / 2; });
-    C(.04, .5, steel, .3, 2.75, -.55, g1).rotation.x = Math.PI / 2.6; B(.16, .12, .12, dark, .3, 2.55, -.4, g1); C(.08, .28, glass, -.95, 2.85, -.95, g1);
-    var g2 = part(0, 1.6, .2, 2);
-    function bush(x, z, hh, r) { var b = new T.Group(); b.position.set(x, 1.92, z); g2.add(b); C(r * 1.25, .08, steel, 0, 0, 0, b); var n = Math.round(hh / .07); for (var i = 0; i < n; i++) C(r * (i % 2 ? 1.0 : 1.35), .055, porcelain, 0, .07 + i * .07, 0, b, 24); C(r * .45, .12, copper, 0, .1 + n * .07, 0, b, 16); }
-    [-.6, 0, .6].forEach(function (x) { bush(x, .35, 1.0, .085); }); [-.75, -.25, .25, .75].forEach(function (x) { bush(x, -.3, .45, .07); });
-    var g3a = part(0, .95, 0, 3), g3b = part(0, -1.9, 0, 3);
-    B(2.5, .1, 1.5, paint, 0, 1.9, 0, g3a);
-    for (var i = 0; i < 18; i++) { var a = i / 18 * Math.PI * 2; C(.025, .06, steel, Math.cos(a) * 1.22, 1.96, Math.sin(a) * .72, g3a, 8); }
-    [[0, .95, .72, 2.4, 1.7, .05], [0, .95, -.72, 2.4, 1.7, .05], [1.22, .95, 0, .05, 1.7, 1.44], [-1.22, .95, 0, .05, 1.7, 1.44]].forEach(function (w) { B(w[3], w[4], w[5], paint, w[0], w[1], w[2], g3b); });
-    for (var k = -2; k <= 2; k++) { B(.08, 1.6, .06, paintD, k * .48, .95, .76, g3b); B(.08, 1.6, .06, paintD, k * .48, .95, -.76, g3b); }
-    B(2.6, .12, 1.6, dark, 0, .06, 0, g3b);
-    var lp = new T.TextureLoader().load(LOGO, function (tx) { tx.encoding = T.sRGBEncoding; });
-    M(new T.PlaneGeometry(.6, .276), new T.MeshStandardMaterial({ map: lp, roughness: .4, metalness: .1 }), -.15, 1.45, .776, g3b);
-    var g4l = part(-1.25, 0, 0, 4), g4r = part(1.25, 0, 0, 4), fans = [];
-    [[-1, g4l], [1, g4r]].forEach(function (sd) {
-      var s = sd[0], g = sd[1], n = mobile ? 6 : 9, cx = s * (1.42 + (n - 1) * .035);
-      for (var j = 0; j < n; j++) B(.04, 1.35, .5, paintD, s * (1.42 + j * .07), 1.0, 0, g);
-      B(n * .07 + .06, .06, .1, paintD, cx, 1.72, .05, g); B(n * .07 + .06, .06, .1, paintD, cx, .28, .05, g);
-      var fan = new T.Group(); fan.position.set(cx, .45, .42); g.add(fan);
-      M(new T.TorusGeometry(.2, .02, 8, 32), dark, 0, 0, 0, fan); C(.05, .06, steel, 0, 0, 0, fan).rotation.x = Math.PI / 2;
-      var blades = new T.Group(); fan.add(blades); for (var q = 0; q < 5; q++) { var pv = new T.Group(); pv.rotation.z = q / 5 * Math.PI * 2; blades.add(pv); B(.16, .012, .06, steel, .09, 0, 0, pv).rotation.x = .5; }
-      fans.push(blades);
+    function C(r, hh, m, x, y, z, p, seg, r2) { return M(new T.CylinderGeometry(r2 == null ? r : r2, r, hh, seg || 32), m, x, y, z, p); }
+    function X(o) { o.rotation.z = Math.PI / 2; return o; }                                          // lay a cylinder along x
+    function Z(o) { o.rotation.x = Math.PI / 2; return o; }                                          // … along z
+    function pipe(pts, r, m, p) { return M(new T.TubeGeometry(new T.CatmullRomCurve3(pts.map(function (a) { return new T.Vector3(a[0], a[1], a[2]); }), false, "catmullrom", .08), 48, r, 10), m, 0, 0, 0, p); }
+    function rr(w, d, r) { var s = new T.Shape(), x = -w / 2, y = -d / 2; s.moveTo(x + r, y); s.lineTo(x + w - r, y); s.quadraticCurveTo(x + w, y, x + w, y + r); s.lineTo(x + w, y + d - r); s.quadraticCurveTo(x + w, y + d, x + w - r, y + d); s.lineTo(x + r, y + d); s.quadraticCurveTo(x, y + d, x, y + d - r); s.lineTo(x, y + r); s.quadraticCurveTo(x, y, x + r, y); return s; }
+    function slab(w, d, r, hh, m, y, p, hole) { var s = rr(w, d, r); if (hole) s.holes.push(rr(w - 2 * hole, d - 2 * hole, Math.max(.01, r - hole))); var o = M(new T.ExtrudeGeometry(s, { depth: hh, bevelEnabled: false, curveSegments: 6 }), m, 0, y, 0, p); o.rotation.x = -Math.PI / 2; return o; }
+    function bolts(w, d, y, n, p) { var g = new T.CylinderGeometry(.013, .013, .025, 6), I = new T.InstancedMesh(g, steel, n), o = new T.Object3D(), per = 2 * (w + d); for (var i = 0; i < n; i++) { var s = i / n * per, x, z; if (s < w) { x = -w / 2 + s; z = d / 2; } else if (s < w + d) { x = w / 2; z = d / 2 - (s - w); } else if (s < 2 * w + d) { x = w / 2 - (s - w - d); z = -d / 2; } else { x = -w / 2; z = -d / 2 + (s - 2 * w - d); } o.position.set(x, y, z); o.updateMatrix(); I.setMatrixAt(i, o.matrix); } p.add(I); return I; }
+    function wheel(x, y, z, ax, p) { var w = M(new T.TorusGeometry(.035, .007, 6, 18), dark, x, y, z, p); ax === "x" ? (w.rotation.y = Math.PI / 2) : ax === "y" ? (w.rotation.x = Math.PI / 2) : 0; return w; }
+    // a part = a group with way-points: [stop, offset]; the last way-point at or before the current stop decides where it is
+    var P = [], ZERO = new T.Vector3();
+    function part(wp) { var g = new T.Group(); root.add(g); P.push({ g: g, w: wp.map(function (a) { return [a[0], new T.Vector3(a[1], a[2], a[3])]; }) }); return g; }
+    function disp(q, s) { if (s <= 0 || s >= 8) return ZERO; var v = ZERO; q.w.forEach(function (a) { if (a[0] <= s) v = a[1]; }); return v; }
+    var LIFT = 4.6;                                                                                  // the crane takes a finished part up and out of the picture
+    var TL = 2.5, TW = 1.15, TR = .13, COV = 1.66;                                                   // tank: 2.5 × 1.15, cover at 1.66 (1 unit ≈ 2.4 m)
+
+    // ── fixed: skids + bottom tank (bell-type tank: only the bell lifts) ──
+    [-.42, .42].forEach(function (z) { B(TL + .2, .03, .14, dark, 0, .015, z); B(TL + .2, .1, .025, dark, 0, .08, z); B(TL + .2, .03, .14, dark, 0, .145, z); });
+    slab(TL, TW, TR, .14, paintD, .16); slab(TL + .08, TW + .08, TR + .04, .03, paintD, .27);
+    [[-1, -1], [-1, 1], [1, -1], [1, 1]].forEach(function (c) { B(.12, .1, .12, paintD, c[0] * (TL / 2 - .05), .21, c[1] * (TW / 2 + .03)); });    // jacking pads
+
+    // 01 · bushings: HV 145 kV × 3 + neutral on the front of the cover, LV 33 kV × 3 behind
+    var g1 = part([[1, 0, .45, 1.5], [2, 0, .45 + LIFT, 1.5]]);
+    function bushing(x, z, base, len, rc, rb, rs, pitch) {
+      var b = new T.Group(); b.position.set(x, base, z); g1.add(b);
+      C(rc * 1.75, .035, alu, 0, .018, 0, b, 28);
+      var pts = [new T.Vector2(.001, .035), new T.Vector2(rc, .035)], y = .07, i = 0;
+      while (y < len - .14) { var r = i++ % 2 ? rs : rb; pts.push(new T.Vector2(rc, y), new T.Vector2(r, y + pitch * .22), new T.Vector2(r * .96, y + pitch * .36), new T.Vector2(rc, y + pitch * .62)); y += pitch; }
+      pts.push(new T.Vector2(rc, len - .1), new T.Vector2(.001, len - .1));
+      M(new T.LatheGeometry(pts, 36), porcelain, 0, 0, 0, b);
+      C(rc * 1.15, .03, glass, 0, len - .085, 0, b, 24); C(rc * 1.2, .06, alu, 0, len - .04, 0, b, 24, rc * .9); C(rc * .3, .08, alu, 0, len + .03, 0, b, 12);
+      B(.07, .018, .05, alu, 0, len + .07, 0, b);
+    }
+    [-.55, 0, .55].forEach(function (x) { bushing(x, .22, COV + .25, 1.15, .07, .125, .098, .058); });
+    bushing(-.98, .22, COV + .2, .72, .055, .1, .08, .055);
+    [-.45, .05, .55].forEach(function (x) { bushing(x, -.26, COV + .12, .46, .05, .088, .07, .055); });
+    // leads to the bushings belong to the active part, the turrets to the tank (below)
+
+    // 02 · conservator on brackets off the back wall, Buchholz relay in its pipe, silica-gel breather
+    var g2 = part([[2, 0, .7, -.85], [3, 0, .7 + LIFT, -.85]]), cz = -.8, cy = 2.4, cl = 1.5, cx = -.2;
+    X(C(.21, cl, paint, cx, cy, cz, g2, 40)); [-1, 1].forEach(function (s) { var e = M(new T.SphereGeometry(.21, 32, 16), paint, cx + s * cl / 2, cy, cz, g2); e.scale.set(.32, 1, 1); });
+    [-.5, .5].forEach(function (dx) { var t = M(new T.TorusGeometry(.215, .012, 6, 40), paintD, cx + dx, cy, cz, g2); t.rotation.y = Math.PI / 2;
+      B(.06, cy - .21 - .95, .06, paintD, cx + dx, (cy - .21 + .95) / 2, cz, g2); B(.06, .06, .26, paintD, cx + dx, .98, cz + .12, g2); });
+    var dial = tex(64, 64, function (x) { x.fillStyle = "#f4f4ef"; x.beginPath(); x.arc(32, 32, 30, 0, 7); x.fill(); x.strokeStyle = "#111"; x.lineWidth = 2; for (var i = 0; i < 9; i++) { var a = Math.PI * (.8 + i * .175); x.beginPath(); x.moveTo(32 + Math.cos(a) * 22, 32 + Math.sin(a) * 22); x.lineTo(32 + Math.cos(a) * 28, 32 + Math.sin(a) * 28); x.stroke(); } x.strokeStyle = "#c0392b"; x.lineWidth = 3; x.beginPath(); x.moveTo(32, 32); x.lineTo(50, 22); x.stroke(); });
+    var dialM = new T.MeshStandardMaterial({ map: dial, roughness: .4 });
+    var og = C(.07, .03, alu, cx + cl / 2 + .07, cy, cz, g2, 24); og.rotation.z = Math.PI / 2; var of = M(new T.CircleGeometry(.06, 24), dialM, cx + cl / 2 + .086, cy, cz, g2); of.rotation.y = Math.PI / 2;
+    pipe([[.35, cy - .2, cz], [.35, 2.0, cz + .05], [.35, 1.98, -.6], [.35, 1.95, -.42], [.35, COV + .06, -.36]], .025, paintD, g2);
+    B(.13, .12, .11, dark, .35, 1.985, -.6, g2); [-1, 1].forEach(function (s) { X(C(.03, .012, glass, .35 + s * .068, 1.985, -.6, g2, 16)); }); B(.08, .05, .07, paintD, .35, 2.07, -.6, g2);
+    wheel(.35, 2.0, -.7, "z", g2); wheel(.35, 1.95, -.47, "z", g2);
+    pipe([[cx - .62, cy - .2, cz], [cx - .62, 1.6, cz - .02], [cx - .62, 1.25, cz - .02]], .018, paintD, g2);
+    C(.065, .03, alu, cx - .62, 1.24, cz - .02, g2); C(.055, .2, glass, cx - .62, 1.12, cz - .02, g2); C(.045, .18, gel, cx - .62, 1.12, cz - .02, g2, 16); C(.065, .03, alu, cx - .62, 1.0, cz - .02, g2); C(.04, .06, glass, cx - .62, .95, cz - .02, g2);
+
+    // 03 · radiators: 4 galvanized banks (2 per end) with a fan on each (ONAF)
+    var g3l = part([[3, -1.05, 0, 0], [4, -1.05, LIFT, 0]]), g3r = part([[3, 1.05, 0, 0], [4, 1.05, LIFT, 0]]), fans = [];
+    var nF = mobile ? 10 : 15, pitchF = .03, finD = .42, finH = 1.12, yTop = 1.44, yBot = .42;
+    [[-1, g3l], [1, g3r]].forEach(function (sd) {
+      var s = sd[0], g = sd[1], x0 = s * (TL / 2 + .14), xc = x0 + s * finD / 2;
+      var fins = new T.InstancedMesh(new T.BoxGeometry(finD, finH, .012), galv, nF * 2), o = new T.Object3D(), k = 0;
+      [-.29, .29].forEach(function (zc) {
+        for (var j = 0; j < nF; j++) { o.position.set(xc, (yTop + yBot) / 2, zc + (j - (nF - 1) / 2) * pitchF); o.updateMatrix(); fins.setMatrixAt(k++, o.matrix); }
+        var wz = nF * pitchF + .03;
+        [yTop, yBot].forEach(function (y) { Z(C(.032, wz, galv, x0 + s * .05, y, zc, g, 16)); X(C(.026, .16, galv, s * (TL / 2 + .07), y, zc, g, 14)); X(C(.045, .03, steel, s * (TL / 2 + .015), y, zc, g, 18)); });
+        B(.03, finH + .14, .03, galv, xc, (yTop + yBot) / 2, zc - wz / 2, g); B(.03, finH + .14, .03, galv, xc, (yTop + yBot) / 2, zc + wz / 2, g);
+        // fan on the outer face, axis along x
+        var fan = new T.Group(); fan.position.set(x0 + s * (finD + .1), .9, zc); g.add(fan);
+        var ring = M(new T.TorusGeometry(.17, .016, 8, 40), dark, 0, 0, 0, fan); ring.rotation.y = Math.PI / 2;
+        var sleeve = X(C(.172, .06, dark, 0, 0, 0, fan, 40)); sleeve.material = new T.MeshStandardMaterial({ color: 0x252b33, metalness: .4, roughness: .5, side: T.DoubleSide }); sleeve.geometry = new T.CylinderGeometry(.172, .172, .07, 40, 1, true);
+        [.06, .12].forEach(function (r) { var w = M(new T.TorusGeometry(r, .004, 4, 32), steel, s * .045, 0, 0, fan); w.rotation.y = Math.PI / 2; });
+        for (var q = 0; q < 4; q++) { var sp = B(.004, .34, .006, steel, s * .045, 0, 0, fan); sp.rotation.x = q * Math.PI / 4; }
+        X(C(.05, .1, dark, 0, 0, 0, fan, 20));
+        var blades = new T.Group(); fan.add(blades);
+        for (var bq = 0; bq < 5; bq++) { var pv = new T.Group(); pv.rotation.x = bq / 5 * Math.PI * 2; blades.add(pv); var bl = B(.008, .13, .065, alu, 0, .085, 0, pv); bl.rotation.y = .55; }
+        B(.04, .55, .04, galv, x0 + s * (finD + .1), .9 - .33, zc, g).scale.y = .4;
+        fans.push(blades);
+      });
+      fins.castShadow = !mobile; g.add(fins);
     });
-    var g5 = part(0, 0, 1.15, 5);
-    B(.62, .9, .32, paint, .62, 1.25, .9, g5);
-    var sel = new T.Group(); sel.position.set(.62, 1.25, 1.08); g5.add(sel); C(.24, .03, steel, 0, 0, 0, sel).rotation.x = Math.PI / 2;
-    for (var t = 0; t < 17; t++) { var aa = t / 17 * Math.PI * 2; C(.018, .04, copper, Math.cos(aa) * .2, Math.sin(aa) * .2, .02, sel, 8).rotation.x = Math.PI / 2; }
-    var arm = new T.Group(); arm.position.set(.62, 1.25, 1.11); g5.add(arm); B(.2, .025, .02, copper, .1, 0, 0, arm); C(.035, .04, steel, 0, 0, 0, arm).rotation.x = Math.PI / 2;
-    B(.3, .4, .22, paintD, .62, .5, .95, g5);
-    var g6 = part(0, .5, 0, 6);
-    [-.66, 0, .66].forEach(function (x) { B(.2, 1.3, .32, core, x, 1.0, 0, g6); C(.2, 1.0, copper2, x, 1.0, 0, g6, 48); C(.27, .92, copper, x, 1.0, 0, g6, 48); for (var r2 = 0; r2 < 9; r2++) C(.275, .012, copper2, x, .6 + r2 * .1, 0, g6, 48); });
-    B(1.62, .2, .32, core, 0, 1.75, 0, g6); B(1.62, .2, .32, core, 0, .25, 0, g6);
-    var g7 = part(-.35, 0, 1.1, 7);
-    B(.62, 1.0, .36, paint, -.7, .95, .92, g7);
+
+    // 04 · main tank (bell): walls, cover, stiffeners, flanges, turrets, plates, OLTC head + drive shaft, ladder
+    var g4 = part([[4, 0, 2.55, 0], [5, 0, 2.55 + LIFT, 0]]);
+    slab(TL, TW, TR, COV - .3, paint, .3, g4, .03);
+    slab(TL + .08, TW + .08, TR + .04, .03, paint, .3, g4, .07); bolts(TL + .04, TW + .04, .315, mobile ? 40 : 72, g4);
+    slab(TL + .07, TW + .07, TR + .035, .05, paint, COV, g4); bolts(TL + .035, TW + .035, COV + .062, mobile ? 40 : 72, g4);
+    [-1.05, -.35, .35].forEach(function (x) { B(.07, COV - .45, .05, paintD, x, (COV + .45) / 2, TW / 2 + .025, g4); });
+    [-1.0, -.5, 0, .5, 1.0].forEach(function (x) { B(.07, COV - .45, .05, paintD, x, (COV + .45) / 2, -TW / 2 - .025, g4); });
+    B(TL - .3, .05, .04, paintD, 0, .52, TW / 2 + .02, g4);
+    [[-1, -1], [-1, 1], [1, -1], [1, 1]].forEach(function (c) { var l = B(.05, .16, .12, paintD, c[0] * (TL / 2 + .02), COV - .1, c[1] * (TW / 2 - .18), g4); var e = M(new T.TorusGeometry(.03, .012, 6, 14), paintD, c[0] * (TL / 2 + .05), COV - .06, c[1] * (TW / 2 - .18), g4); e.rotation.y = Math.PI / 2; });
+    [-.55, 0, .55].forEach(function (x) { C(.13, .22, paint, x, COV + .14, .22, g4); C(.15, .03, paint, x, COV + .25 - .015, .22, g4); });
+    C(.1, .15, paint, -.98, COV + .12, .22, g4); [-.45, .05, .55].forEach(function (x) { C(.085, .08, paint, x, COV + .08, -.26, g4); });
+    C(.05, .06, paintD, .35, COV + .08, -.36, g4);
+    C(.07, .06, paintD, -.7, COV + .08, -.05, g4); C(.075, .05, dark, -.7, COV + .13, -.05, g4, 20, .04);              // pressure relief device
+    [[.85, -.3], [-.3, -.05]].forEach(function (a) { C(.022, .07, steel, a[0], COV + .085, a[1], g4, 10); });                // thermometer pockets
+    wheel(.75, .42, TW / 2 + .07, "z", g4); Z(C(.03, .07, paintD, .75, .42, TW / 2 + .035, g4, 12));                   // drain valve
+    [.65, .85].forEach(function (x) { B(.025, COV - .5, .025, galv, x, (COV + .5) / 2 + .05, -TW / 2 - .1, g4); }); for (var lr = 0; lr < 8; lr++) B(.2, .015, .015, galv, .75, .62 + lr * .13, -TW / 2 - .1, g4);
+    var lp = new T.TextureLoader().load(LOGO, function (tx) { tx.encoding = T.sRGBEncoding; });
+    var plateM = function (map) { return new T.MeshStandardMaterial({ map: map, roughness: .4, metalness: .1, polygonOffset: true, polygonOffsetFactor: -2 }); };
+    M(new T.PlaneGeometry(.5, .23), plateM(lp), 0, 1.36, TW / 2 + .003, g4);
+    var rate = tex(256, 160, function (x) { x.fillStyle = "#d9dcd6"; x.fillRect(0, 0, 256, 160); x.strokeStyle = "#333"; x.lineWidth = 3; x.strokeRect(4, 4, 248, 152); x.fillStyle = "#111"; x.textAlign = "center"; x.font = "700 17px Arial"; x.fillText("POWER TRANSFORMER", 128, 30);
+      x.font = "13px Arial"; ["30 / 45 MVA   ONAN / ONAF", "132 / 33 kV   50 Hz   YNd1", "OLTC 16 POS  +10 / -15 %", "TOTAL MASS 75,500 kg"].forEach(function (t, i) { x.fillText(t, 128, 58 + i * 24); }); });
+    M(new T.PlaneGeometry(.34, .21), plateM(rate), 0, 1.03, TW / 2 + .003, g4);
+    // OLTC head on the cover, bevel gear box, drive shaft down the front wall to the motor-drive unit
+    var ox0 = 1.1, oz0 = .32;
+    C(.15, .07, paint, ox0, COV + .085, oz0, g4, 32); C(.13, .05, paint, ox0, COV + .14, oz0, g4, 32, .1); B(.08, .07, .07, paintD, ox0, COV + .2, oz0 + .1, g4);
+    Z(C(.012, TW / 2 - oz0 + .03, steel, ox0, COV + .2, (TW / 2 + oz0) / 2 + .07, g4, 8)); B(.06, .06, .06, paintD, ox0, COV + .2, TW / 2 + .07, g4);
+    C(.012, COV + .2 - 1.2, steel, ox0, (COV + .2 + 1.2) / 2, TW / 2 + .07, g4, 8);
+    var mdT = tex(128, 64, function () {}), mdC = mdT.image.getContext("2d");
+    function mdDraw(n) { mdC.fillStyle = "#e9ebe6"; mdC.fillRect(0, 0, 128, 64); mdC.fillStyle = "#111"; mdC.font = "700 34px Arial"; mdC.textAlign = "center"; mdC.fillText(("0" + n).slice(-2), 64, 40); mdC.font = "11px Arial"; mdC.fillText("TAP POSITION", 64, 58); mdT.needsUpdate = true; }
+    var gMD = part([[4, .62, -.74, .95]]);
+    B(.3, .44, .2, paint, ox0, .97, TW / 2 + .13, gMD); B(.34, .03, .24, paintD, ox0, 1.205, TW / 2 + .13, gMD);
+    M(new T.PlaneGeometry(.12, .06), plateM(mdT), ox0, 1.05, TW / 2 + .232, gMD); B(.02, .08, .02, steel, ox0 + .11, .95, TW / 2 + .24, gMD);
+
+    // 05 · OLTC insert (diverter oil compartment + tap selector cage) — hangs inside the tank, lifts out
+    var g5 = part([[5, .15, .25, 1.1], [6, .15, .25 + LIFT, 1.1]]);
+    C(.1, .38, resin, ox0, 1.42, oz0, g5, 32); C(.11, .03, alu, ox0, 1.62, oz0, g5, 32); C(.11, .03, alu, ox0, 1.22, oz0, g5, 32);
+    C(.012, .7, steel, ox0, .87, oz0, g5, 8);
+    for (var cb = 0; cb < 6; cb++) { var ca = cb / 6 * Math.PI * 2; C(.012, .66, board, ox0 + Math.cos(ca) * .1, .87, oz0 + Math.sin(ca) * .1, g5, 8); }
+    C(.115, .025, board, ox0, .55, oz0, g5, 32); C(.115, .025, board, ox0, 1.19, oz0, g5, 32);
+    function tapAng(n) { return (n - 8.5) * (Math.PI * 2 / 18); }
+    for (var tc = 1; tc <= 16; tc++) { var ta = tapAng(tc), st0 = X(C(.011, .045, copper, ox0 + Math.cos(ta) * .1, .7 + tc * .018, oz0 + Math.sin(ta) * .1, g5, 8)); st0.rotation.set(0, -ta, Math.PI / 2); }
+    var arm = new T.Group(); arm.position.set(ox0, .85, oz0); g5.add(arm); B(.1, .016, .022, copper, .05, 0, 0, arm); C(.025, .03, steel, 0, 0, 0, arm, 12);
+
+    // 06 · active part: 3-limb stepped core, clamps, windings (LV inner / HV outer), leads
+    var g6 = part([[6, 0, .2, 0]]);
+    var LX = [-.72, 0, .72], STEP = [[.3, .12], [.25, .22], [.18, .28], [.1, .31]];
+    STEP.forEach(function (sd) { B(1.78, .2, sd[1], core, 0, .42, 0, g6); B(1.78, .2, sd[1], core, 0, 1.52, 0, g6);
+      LX.forEach(function (x) { B(sd[0], .9, sd[1], core, x, .97, 0, g6); }); });
+    [-1, 1].forEach(function (s) { [.42, 1.52].forEach(function (y) { B(1.9, .22, .035, paintD, 0, y, s * .175, g6); }); [-.93, .93].forEach(function (x) { C(.012, 1.1, steel, x, .97, s * .175, g6, 8); }); });
+    LX.forEach(function (x) {
+      var w = new T.Group(); w.position.set(x, .97, 0); g6.add(w);
+      M(new T.CylinderGeometry(.33, .33, .84, 48, 1, true), paper, 0, 0, 0, w);
+      var inn = M(new T.CylinderGeometry(.25, .25, .84, 40, 1, true), paper, 0, 0, 0, w); inn.material = new T.MeshStandardMaterial({ map: paperT, roughness: .8, side: T.BackSide });
+      [-.43, .43].forEach(function (y) { var rg = M(new T.RingGeometry(.2, .35, 48), board, 0, y, 0, w); rg.rotation.x = y > 0 ? -Math.PI / 2 : Math.PI / 2; });
+      var cu = M(new T.RingGeometry(.205, .245, 40), copper, 0, .435, 0, w); cu.rotation.x = -Math.PI / 2;
+      for (var bk = 0; bk < 8; bk++) { var ba = bk / 8 * Math.PI * 2; B(.04, .05, .04, board, Math.cos(ba) * .3, .455, Math.sin(ba) * .3, w).rotation.y = -ba; }
+    });
+    [-.55, 0, .55].forEach(function (bx, i) { pipe([[LX[i] + .2, 1.41, .2], [LX[i] + .12, 1.5, .26], [bx, 1.6, .24], [bx, COV + .2, .22]], .016, paperL, g6); });
+    pipe([[.72 + .3, 1.0, .1], [.95, 1.05, .25], [ox0 - .05, 1.0, oz0 - .06]], .012, copper, g6);
+
+    // 07 · local control cabinet — unbolted with the tank lift, set down in front; its door opens on its own stop
+    var g7 = part([[4, -.35, -.5, 1.0]]), cw = .5, chh = .8, cd = .28, cxp = -.75, cyp = .95, czp = TW / 2 + cd / 2;
+    B(cw, chh, cd, paint, cxp, cyp, czp, g7); var hood = B(cw + .06, .03, cd + .08, paintD, cxp, cyp + chh / 2 + .03, czp + .02, g7); hood.rotation.x = .12;
+    B(.08, .05, cd, paintD, cxp - .17, cyp - chh / 2 - .025, czp, g7); B(.08, .05, cd, paintD, cxp + .17, cyp - chh / 2 - .025, czp, g7);
     var face = document.createElement("canvas"); face.width = 256; face.height = 410; var fx = face.getContext("2d");
     fx.fillStyle = "#d6d8d3"; fx.fillRect(0, 0, 256, 410); fx.fillStyle = "#111"; fx.font = "700 15px Arial"; fx.textAlign = "center"; fx.fillText("LOCAL CONTROL CABINET", 128, 26);
     for (var r3 = 0; r3 < 3; r3++) for (var c3 = 0; c3 < 6; c3++) { fx.fillStyle = r3 ? "#fde8c8" : "#fbd9de"; fx.fillRect(18 + c3 * 37, 44 + r3 * 26, 33, 22); }
@@ -510,21 +624,27 @@
     ["#2aa65a", "#d93a3a", "#2aa65a", "#d93a3a", "#e7a91a"].forEach(function (cc, i) { fx.fillStyle = cc; fx.beginPath(); fx.arc(36 + i * 46, 252, 11, 0, 7); fx.fill(); fx.fillStyle = "#111"; fx.fillRect(22 + i * 46, 228, 28, 8); });
     fx.fillStyle = "#2b333c"; fx.fillRect(16, 300, 224, 90); for (var tb = 0; tb < 24; tb++) { fx.fillStyle = "#bfbaad"; fx.fillRect(20 + tb * 9, 320, 8, 50); fx.fillStyle = "#fff"; fx.fillRect(20 + tb * 9, 338, 8, 10); fx.fillStyle = "#e8792b"; fx.fillRect(21 + tb * 9, 324, 6, 6); }
     var ft = new T.CanvasTexture(face); ft.encoding = T.sRGBEncoding; ft.anisotropy = 4;
-    M(new T.PlaneGeometry(.56, .9), new T.MeshStandardMaterial({ map: ft, roughness: .55, metalness: .05 }), -.7, .95, 1.105, g7);
-    B(.03, .16, .03, steel, -.4, .95, 1.12, g7);
+    M(new T.PlaneGeometry(cw - .04, chh - .04), new T.MeshStandardMaterial({ map: ft, roughness: .55, metalness: .05 }), cxp, cyp, czp + cd / 2 + .002, g7);
+    var door = new T.Group(); door.position.set(cxp - cw / 2, cyp, czp + cd / 2 + .02); g7.add(door);
+    B(cw, chh, .025, paint, cw / 2, 0, 0, door); B(.02, .1, .03, steel, cw - .05, 0, .02, door);
+    [-.1, .1].forEach(function (dx) { var gg = Z(C(.07, .02, alu, cw / 2 + dx, .17, .018, door, 24)); var fc = M(new T.CircleGeometry(.06, 24), dialM, cw / 2 + dx, .17, .029, door); });
+    var cap2 = tex(128, 32, function (x) { x.fillStyle = "#f2f2ee"; x.fillRect(0, 0, 128, 32); x.fillStyle = "#111"; x.font = "700 13px Arial"; x.textAlign = "center"; x.fillText("OTI        WTI", 64, 21); });
+    M(new T.PlaneGeometry(.26, .05), plateM(cap2), cw / 2, .06, .014, door);
+
     root.traverse(function (o) { if (o.isMesh) { o.castShadow = !mobile; o.receiveShadow = !mobile; } });
     // camera stops: 0 = assembled (start), 1…7 = parts, 8 = assembled again (same view as 0, so the loop is seamless)
-    var focus = [[0, 1.35, 0], [0, 5.35, -1.2], [0, 3.8, .25], [0, 1.6, .2], [2.5, 1.0, .2], [.62, 1.25, 2.1], [0, 1.5, 0], [-1.05, .95, 2.05], [0, 1.35, 0]];
-    var off = mobile ? [[0, 1.8, 12.5], [0, .9, 4.6], [0, 1.0, 5.0], [0, 1.6, 7.0], [0, .6, 5.6], [0, .2, 3.4], [0, .5, 4.2], [0, .2, 3.4], [0, 1.8, 12.5]]
-      : [[6.6, 3.1, 7.8], [2.4, .7, 2.6], [2.1, 1.1, 2.6], [3.6, 2.2, 4.6], [2.6, .6, 2.4], [1.0, .2, 1.6], [1.7, .9, 2.3], [-1.0, .3, 1.7], [6.6, 3.1, 7.8]];
+    var focus = [[0, 1.4, 0], [0, 2.95, 1.6], [-.2, 3.0, -1.55], [2.55, .95, 0], [0, 1.7, 0], [ox0 + .15, 1.2, 1.45], [0, 1.15, 0], [-1.1, .45, 1.72], [0, 1.4, 0]];
+    var offD = [[6.9, 3.3, 8.2], [2.8, .5, 3.4], [-3.4, 1.0, -3.3], [3.6, .8, 1.9], [4.6, 1.6, 5.4], [1.9, .55, 2.6], [2.7, 1.2, 3.7], [1.3, .5, 2.6], [6.9, 3.3, 8.2]];
+    var off = mobile ? offD.map(function (o, i) { return i === 0 || i === 8 ? [2.4, 2.4, 12.5] : [o[0] * 1.5, o[1] * 1.4, o[2] * 1.5]; }) : offD;
     var NS = 8, BASE = 1 / 3.6;                                      // 3.6 s per part
     function ease(x) { return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; }
-    function ex(s, q) { return s >= 1 && s <= 7 && q.s <= s ? 1 : 0; }
-    var tT = new T.Vector3(), tO = new T.Vector3(), look = new T.Vector3(0, 1.35, 0);
+    var tT = new T.Vector3(), tO = new T.Vector3(), look = new T.Vector3(0, 1.4, 0), va = new T.Vector3(), glow = 0;
     function pose(p) {
       p = ((p % NS) + NS) % NS;
       var s = Math.floor(p), f = p - s, tt = ease(Math.min(1, f / .55));             // 55 % travel, 45 % hold on the part
-      P.forEach(function (q) { var a = ex(s, q), b = ex(s + 1, q); q.g.position.copy(q.v).multiplyScalar(a + (b - a) * tt); });
+      P.forEach(function (q) { va.copy(disp(q, s)); q.g.position.copy(va).lerp(disp(q, s + 1), tt); });
+      var on = function (k) { return (s === k ? 1 - tt : 0) + (s + 1 === k ? tt : 0); };
+      door.rotation.y = -1.9 * on(7); glow = on(6);
       var A = focus[s], Bf = focus[s + 1], Ao = off[s], Bo = off[s + 1];
       tT.set(A[0] + (Bf[0] - A[0]) * tt, A[1] + (Bf[1] - A[1]) * tt, A[2] + (Bf[2] - A[2]) * tt);
       tO.set(Ao[0] + (Bo[0] - Ao[0]) * tt, Ao[1] + (Bo[1] - Ao[1]) * tt, Ao[2] + (Bo[2] - Ao[2]) * tt);
@@ -536,7 +656,9 @@
     function size() { W = st.el ? st.el.clientWidth : innerWidth; H = st.el ? st.el.clientHeight : innerHeight; R.setSize(W, H, false); cam.aspect = W / H; cam.updateProjectionMatrix(); comp && comp.setSize(W, H); }
     size(); addEventListener("resize", size);
     // play by itself; wheel / swipe / arrow keys speed it up
-    var el = st.el, story = { p: 0 }, cur = 0, boost = 0, settle = false, alive = true, last = performance.now(), tick = 0, slow = 0, tapNext = 0, tapA = 0, lastSec = -1;
+    var el = st.el, story = { p: 0 }, cur = 0, boost = 0, settle = false, alive = true, last = performance.now(), tick = 0, slow = 0, tapNext = 0, tapN = 7, tapD = 1, lastSec = -1;
+    function tapOut() { var o = st.cap && st.cap.querySelector(".live"); if (o) o.textContent = tapText(tapN); }
+    mdDraw(tapN); st.tapN = function () { return tapN; };
     function onWheel(e) { if (st.mode !== "intro") return; e.preventDefault(); boost = Math.min(10, boost + Math.min(120, Math.abs(e.deltaY || e.deltaX || 0)) * .03); }
     var ty = null;
     function onTouch(e) { if (st.mode !== "intro" || !e.touches[0]) return; var y = e.touches[0].clientY; if (ty !== null) boost = Math.min(10, boost + Math.abs(y - ty) * .06); ty = y; }
@@ -563,10 +685,11 @@
       look.lerp(tT, still ? 1 : 1 - Math.pow(.002, dt));
       cam.position.set(look.x + tO.x, look.y + tO.y, look.z + tO.z); cam.lookAt(look);
       // move the model aside: right of the headline on the first page, left of the form on the second
-      oxT = mobile ? 0 : st.mode === "form" ? .17 : -.13; ox += (oxT - ox) * (still ? 1 : Math.min(1, dt * 3));
+      oxT = mobile ? 0 : st.mode === "form" ? .17 : -.24; ox += (oxT - ox) * (still ? 1 : Math.min(1, dt * 3));
       var oyT = mobile && st.mode === "intro" ? -.2 : 0; oy += (oyT - oy) * (still ? 1 : Math.min(1, dt * 3));       // phone: model below the headline
       ox || oy ? cam.setViewOffset(W, H, W * ox, H * oy, W, H) : cam.clearViewOffset();
-      if (!still) { fans.forEach(function (f, i) { f.rotation.z += dt * (9 + i); }); if (now > tapNext) { tapNext = now + 900; tapA += Math.PI * 2 / 17; } arm.rotation.z += (tapA - arm.rotation.z) * Math.min(1, dt * 14); core.emissiveIntensity = .06 + .06 * Math.sin(now / 160); }
+      if (!still) { fans.forEach(function (f, i) { f.rotation.x += dt * (9 + i); }); if (now > tapNext) { tapNext = now + 1100; if (tapN >= 16 || tapN <= 1) tapD = -tapD; tapN += tapD; mdDraw(tapN); tapOut(); } arm.rotation.y += (-tapAng(tapN) - arm.rotation.y) * Math.min(1, dt * 10); }
+      core.emissiveIntensity = glow * (.14 + (still ? 0 : .08 * Math.sin(now / 180)));
       if (ps.sec !== lastSec) { if (ps.sec === 8 && lastSec === 7 && !still) click(); lastSec = ps.sec; caption(ps.sec); }   // the parts lock back together
       var bar = st.cap && st.cap.querySelector(".bar i"); if (bar) bar.style.width = (ps.sec === 8 ? 100 : Math.min(100, ps.f * 100)) + "%";
       if (bokeh) bokeh.uniforms.focus.value = cam.position.distanceTo(look);
