@@ -66,6 +66,18 @@ const cdn = r => { const u = r.request().url(); for (const [re, p] of MAP) { con
   await p.reload(); await p.waitForTimeout(2000);
   check('Admin mode comes back after reload', /ADMIN/.test(await p.locator('aside').innerText()));
   await p.screenshot({ path: OUT + 'auth_admin_app.png' });
+  // sign out: Apps Script nests the page in iframes, so no location.reload() (white page); the app URL opens in the top window
+  await p.evaluate(() => { window.zqApp = window.zqApp || {}; window.zqApp.url = location.origin + '/?signed-out'; });
+  await p.click('#zq-me'); await p.click('#zq-me-p button:has-text("ออกจากระบบ")'); await p.waitForTimeout(2500);
+  check('sign out: app URL opened in the top window, sign-in page shown', /signed-out/.test(p.url()) && await A.count() === 1 && await p.evaluate(() => !localStorage.getItem('zqSes')), p.url());
+  // when the top window cannot be opened: the sign-in page comes up in place and Admin mode is dropped
+  await p.goto('http://localhost:8832/'); await p.waitForTimeout(1200); await p.click('#za-go'); await p.waitForTimeout(500);
+  await p.fill('#za-id', 'admin1'); await p.fill('#za-pw', 'Admin2026x'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(1500);
+  await p.evaluate(() => { window.zqApp = window.zqApp || {}; window.zqApp.url = ''; if (window.__ZQ_BOOT__ && window.__ZQ_BOOT__.r) window.__ZQ_BOOT__.r.getAppUrl = ''; });
+  await p.click('#zq-me'); await p.click('#zq-me-p button:has-text("ออกจากระบบ")'); await p.waitForTimeout(1500);
+  check('sign out without top window: sign-in page in place, Admin mode off', await A.count() === 1 && await A.getAttribute('data-mode') === 'form' && !/ADMIN/.test(await p.locator('aside:not(.za-cap)').innerText()));
+  await p.fill('#za-id', 'somchai@example.co.th'); await p.fill('#za-pw', 'Passw0rd99'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(1800);
+  check('next sign-in after that works', await A.count() === 0 && /S\.Somchai/.test(await p.locator('aside').innerText()));
   // phone
   const m = await b.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true }); await m.route(/cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|unpkg\.com/, cdn);
   const pm = await m.newPage(); pm.on('pageerror', e => errs.push('phone: ' + e.message));
