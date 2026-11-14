@@ -45,6 +45,7 @@ cache['adm_ADM']=JSON.stringify({u:'admin1',n:'A.Admin'});
 T('users list needs Admin',/Admin only/.test(E(()=>c.authUsers('x'))));
 r=c.authUserAction('ADM','somchai@example.co.th','approve');T('approve',r.users[0].status==='active',r);
 r=c.api('', 'authLogin',['somchai@example.co.th','Somchai2026',true,'pc']);
+T('sign-in answer carries the start-up data (settings, templates, schedules, pulse, versions)',!!(r.boot&&r.boot.r&&r.boot.r.getSettings&&r.boot.r.getPublicTemplates&&'getSchedules' in r.boot.r&&r.boot.r.getPulse&&r.boot.v),r.boot&&Object.keys(r.boot.r||{}));
 T('sign in',r.token&&r.user.name==='Somchai K.'&&r.user.email==='somchai@example.co.th',r);
 const tok=r.token;
 T('session hash only in the sheet',!JSON.stringify(sheets.Sessions.rows).includes(tok));

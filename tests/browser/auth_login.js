@@ -51,6 +51,7 @@ const cdn = r => { const u = r.request().url(); for (const [re, p] of MAP) { con
   check('signed in: page closed', await A.count() === 0);
   const sent = await p.evaluate(() => (window.__apiLog || []).filter(x => !/^auth|getAppUrl/.test(x[0])));
   check('held calls went out with the session', sent.length > 0 && sent.every(x => x[1]), sent.slice(0, 4));
+  // forgot-password sign-in carries no start-up data in this fake; the plain sign-in below does → its first calls are answered locally
   const side = await p.locator('aside').innerText();
   check('sidebar: user card, no Admin unlock', /S\.Somchai/.test(side) && /ผู้ใช้งาน/.test(side) && !/ปลดล็อค|Admin: Locked/.test(side), side.slice(-160));
   await p.click('#zq-me'); check('account panel', /ออกจากระบบ/.test(await p.locator('#zq-me-p').innerText()));
@@ -95,5 +96,7 @@ const cdn = r => { const u = r.request().url(); for (const [re, p] of MAP) { con
   await pn.goto('http://localhost:8832/'); await pn.waitForTimeout(1500); await pn.click('#za-go'); await pn.waitForTimeout(800);
   await pn.fill('#za-id', 'somchai@example.co.th'); await pn.fill('#za-pw', 'Passw0rd99'); await pn.click('.za-card .za-btn[type=submit]'); await pn.waitForTimeout(1200);
   check('CDN blocked: sign-in still works', await pn.locator('#zq-auth').count() === 0);
+  await pn.waitForTimeout(800); const sent2 = await pn.evaluate(() => (window.__apiLog || []).map(x => x[0]));
+  check('start-up data came with the sign-in answer: no separate getSettings / getPublicTemplates / getPulse calls', !sent2.some(f => /^(getSettings|getPublicTemplates|getPulse)$/.test(f)) && sent2.length > 1, sent2);
   console.log('errors:', errs); srv.close(); await b.close(); process.exit(errs.length || fails.length ? 1 : 0);
 })();

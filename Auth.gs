@@ -200,7 +200,7 @@ function authLogin(id, pass, remember, device, newPass) {
     if (!r || r.err || r.first) return r || { err: 'เข้าสู่ระบบไม่สำเร็จ' };
     var au = authAdminUser_(r.user), s = sesNew_(au, !!remember, device);
     audit_([['User', 'เข้าสู่ระบบ', '', au.n + ' (Admin)']]);
-    return { token: s.token, expires: s.expires, user: authPub_(au), admin: r };
+    return { token: s.token, expires: s.expires, user: authPub_(au), admin: r, boot: authBoot_() };
   }
   var email = authEmail_(raw); if (!email) return { err: 'รูปแบบอีเมลไม่ถูกต้อง' };
   var fk = 'usrfail_' + email;
@@ -213,7 +213,7 @@ function authLogin(id, pass, remember, device, newPass) {
   C.remove(fk);
   withLock_(function () { var x = usrFind_(email); if (x) { x.t = nowStr_(); usrWrite_(x); } });
   var ses = sesNew_(u, !!remember, device);
-  return { token: ses.token, expires: ses.expires, user: authPub_(u), admin: u.admin ? authAdminInfo_(u.n) : null };
+  return { token: ses.token, expires: ses.expires, user: authPub_(u), admin: u.admin ? authAdminInfo_(u.n) : null, boot: authBoot_() };
 }
 function authRegisterStart(email, name, dept, pass) {
   email = authEmail_(email); name = authName_(name); dept = String(dept || '').replace(/[^\w .-]/g, '').substring(0, 20);
@@ -239,7 +239,7 @@ function authRegisterVerify(email, code, remember, device) {
   audit_([['User', 'สมัครใช้งาน', '', u.n + ' <' + u.e + '>' + (auto ? '' : ' — รอ Admin อนุมัติ')]]);
   if (!auto) return { pending: true, name: u.n };
   var s = sesNew_(u, !!remember, device);
-  return { token: s.token, expires: s.expires, user: authPub_(u) };
+  return { token: s.token, expires: s.expires, user: authPub_(u), boot: authBoot_() };
 }
 // always answers the same way, so the form cannot be used to find out who has an account
 function authForgotStart(email) {
@@ -260,7 +260,7 @@ function authForgotReset(email, code, pass, remember, device) {
   CacheService.getScriptCache().remove('usrfail_' + email);
   audit_([['User', 'ตั้งรหัสผ่านใหม่ (ลืมรหัสผ่าน)', '', u.n + ' <' + u.e + '>']]);
   var s = sesNew_(u, !!remember, device);
-  return { token: s.token, expires: s.expires, user: authPub_(u) };
+  return { token: s.token, expires: s.expires, user: authPub_(u), boot: authBoot_() };
 }
 // → { user, cfg } for a valid session · { none: true }
 function authMe(tok) {
@@ -330,4 +330,17 @@ function authSaveCfg(token, c) {
   schedProp_('AUTH_CFG', JSON.stringify(v));
   audit_([['Admin', 'ตั้งค่าการเข้าสู่ระบบ', '', JSON.stringify(v)]]);
   return authUsers(token);
+}
+
+// Start-up data sent with the sign-in answer. With sign-in on, doGet puts no data into the page source, so these
+// first calls would otherwise each be a separate round trip right after signing in; the page answers them locally
+// (bootCall in index.html, same as the doGet boot). Version stamps first, so the conflict checks stay safe.
+function authBoot_() {
+  var t0 = Date.now(), r = {}, v = null;
+  try { v = getDataVers(); } catch (e) {}
+  [['getPulse', getPulse], ['getSettings', function () { return bootCfg_().settings; }], ['getSchedules', schedCached_],
+   ['getPublicTemplates', function () { return bootCfg_().templates; }]]
+    .forEach(function (f) { try { r[f[0]] = f[1](); } catch (e) { console.warn('authBoot_ ' + f[0], e); } });
+  perf_('authBoot_', t0);
+  return { r: r, v: v };
 }
