@@ -603,6 +603,7 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
   <div class="tw"><table>
     <thead><tr><th>อาการ</th><th>สาเหตุ / วิธีแก้</th></tr></thead>
     <tbody>
+      <tr><td>หน้าเข้าสู่ระบบขึ้น "…api is not a function" หรือ "ไม่พบ Auth.gs"</td><td>หน้าเว็บ (index.html) เป็นเวอร์ชันใหม่แต่ฝั่งเซิร์ฟเวอร์ยังไม่มี Auth.gs: เพิ่มไฟล์ Script ชื่อ Auth แล้ววางโค้ดจาก Auth.gs แทนที่ไฟล์ .gs ทุกไฟล์ บันทึก แล้ว Deploy → Manage deployments → แก้ไข → Version: New version (ทดสอบผ่านลิงก์ /exec ไม่ใช่ /dev)</td></tr>
       <tr><td>"ฝั่งเซิร์ฟเวอร์ยังเป็นเวอร์ชันเก่า" หรือ "… is not defined"</td><td>ยังไม่ได้เพิ่มไฟล์ .gs ใหม่ หรือยังไม่ได้ Deploy New version</td></tr>
       <tr><td>ค้นหาเอกสาร: วางที่อยู่ใน Win+R แล้วเปิดไม่ได้</td><td>เครื่องต้องอยู่ในเครือข่ายบริษัทและมีสิทธิ์เข้าโฟลเดอร์ \\192.168.0.26\electrical-ds (ลองเปิดโฟลเดอร์นี้ใน File Explorer ก่อน) · ใช้นอกบริษัทหรือบนมือถือเปิดไม่ได้</td></tr>
       <tr><td>ค้นหาเอกสาร: หาเลข RQN / DS1 ไม่เจอ</td><td>ชื่อไฟล์อาจพิมพ์เลขผิดรูปแบบ (เช่น RQB, RWN) ลองค้นด้วยเลขอย่างเดียว เช่น 03032 หรือชื่อรายการ</td></tr>
