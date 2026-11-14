@@ -52,6 +52,8 @@ const cdn = r => { const u = r.request().url(); for (const [re, p] of MAP) { con
   // "เข้าสู่ระบบ" → the form slides in
   await p.click('#za-go'); await p.waitForTimeout(1200);
   check('form page after the button', await A.getAttribute('data-mode') === 'form' && await p.locator('#za-id').isVisible());
+  check('form page keeps the details: load / temperature panels and the operator log stay', await p.locator('.za-col.l').evaluate(e => getComputedStyle(e).opacity === '1') && /MVA/.test(await p.locator('.za-col.l').innerText()) && await p.locator('.za-log').evaluate(e => getComputedStyle(e).opacity === '1'));
+  check('sign-in card: dark, first in the right column, big primary button', await p.evaluate(() => { const c = document.querySelector('.za-col.r > .za-gocard'), b = document.getElementById('za-go'); return !!c && c === c.parentNode.firstElementChild && getComputedStyle(c).backgroundColor === 'rgb(20, 20, 19)' && b.getBoundingClientRect().height >= 44; }));
   await p.screenshot({ path: OUT + 'auth_form.png' });
   await p.fill('#za-id', 'somchai@example.co.th'); await p.fill('#za-pw', 'nope'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(300);
   check('wrong password message', /ไม่ถูกต้อง/.test(await p.locator('.za-msg').innerText()));
@@ -62,7 +64,7 @@ const cdn = r => { const u = r.request().url(); for (const [re, p] of MAP) { con
   check('wrong code message', /ไม่ถูกต้อง/.test(await p.locator('.za-msg').innerText()));
   await p.locator('.za-otp input').first().fill('123456'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(300);
   check('waits for Admin approval', /รอ Admin อนุมัติ/.test(await p.locator('.za-card').innerText()));
-  await p.click('.za-card .za-btn.ghost'); await p.click('text=ลืมรหัสผ่าน?'); await p.fill('#za-email', 'somchai@example.co.th'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(300);
+  await p.click('.za-card .za-btn.ghost'); await p.click('.za-card >> text=ลืมรหัสผ่าน?'); await p.fill('#za-email', 'somchai@example.co.th'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(300);
   await p.locator('.za-otp input').first().fill('654321'); await p.fill('#za-pw', 'Newpass77'); await p.fill('#za-pw2', 'Newpass77'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(1500);
   check('signed in: page closed', await A.count() === 0);
   const sent = await p.evaluate(() => (window.__apiLog || []).filter(x => !/^auth|getAppUrl/.test(x[0])));
@@ -106,6 +108,8 @@ const cdn = r => { const u = r.request().url(); for (const [re, p] of MAP) { con
   const pr = await rm.newPage(); pr.on('pageerror', e => errs.push('reduced: ' + e.message));
   await pr.goto('http://localhost:8832/'); await pr.waitForTimeout(2500); const c1 = await pr.locator('.za-mode b').innerText(), t1 = await pr.evaluate(() => window.zqAuth.progress()); await pr.waitForTimeout(3000);
   check('reduced motion: no autoplay', c1 === await pr.locator('.za-mode b').innerText() && t1 === await pr.evaluate(() => window.zqAuth.progress()), c1);
+  await pr.click('.za-gocard .za-gol button'); await pr.waitForTimeout(600);
+  check('sign-in card link: forgot password opens that form', await pr.locator('#zq-auth').getAttribute('data-mode') === 'form' && await pr.locator('#za-email').isVisible() && !(await pr.locator('#za-pw').isVisible()));
   // CDN blocked
   const n = await b.newContext({ viewport: { width: 1200, height: 800 } }); await n.route(/cdnjs|jsdelivr|unpkg|fonts\./, r => r.abort());
   const pn = await n.newPage(); pn.on('pageerror', e => errs.push('nocdn: ' + e.message));

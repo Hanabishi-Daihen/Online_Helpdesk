@@ -27,17 +27,30 @@
 .za-stats small{display:block;font:500 .58rem/1.3 "JetBrains Mono",ui-monospace,monospace;letter-spacing:.16em;color:var(--za-mute);text-transform:uppercase}
 .za-stats b{font:600 .86rem/1.5 "JetBrains Mono",ui-monospace,monospace;color:var(--za-ink);white-space:nowrap}
 .za-stats b.acc,.za-p .acc{color:var(--za-acc)}
-.za-cta{display:flex;gap:8px}
-.za-cta .za-btn{padding:.62rem 1.15rem;font-size:.9rem;width:auto}
 .za-back{font:inherit;font-size:.82rem;font-weight:600;color:var(--za-ink2);background:#fff;border:1px solid var(--za-line);border-radius:999px;padding:.42rem .95rem;cursor:pointer;display:none}
 #zq-auth[data-mode=form] .za-back{display:inline-block}
-#zq-auth[data-mode=form] .za-cta,#zq-auth[data-mode=form] .za-stats{display:none}
+#zq-auth[data-mode=form] .za-stats{display:none}
 .za-back:hover{background:#f5f0e8}.za-back:focus-visible{outline:2px solid var(--za-acc);outline-offset:2px}
 /* panel columns */
 .za-col{position:absolute;z-index:4;top:86px;bottom:104px;width:clamp(232px,19vw,284px);display:flex;flex-direction:column;gap:10px;overflow:hidden;transition:opacity .45s ease,transform .45s ease}
 .za-col.l{left:max(18px,env(safe-area-inset-left,0px))}.za-col.r{right:max(18px,env(safe-area-inset-right,0px))}
-#zq-auth[data-mode=form] .za-col.l{opacity:0;transform:translateX(-24px);pointer-events:none}
-#zq-auth[data-mode=form] .za-col.r,#zq-auth[data-mode=form] .za-mode,#zq-auth[data-mode=form] .za-log,#zq-auth[data-mode=form] .za-lbls,#zq-auth[data-mode=form] .za-cur{opacity:0;pointer-events:none}
+/* the form page keeps the console: the form takes the right column's place */
+#zq-auth[data-mode=form] .za-col.r{opacity:0;transform:translateX(24px);pointer-events:none}
+#zq-auth[data-mode=form] .za-cur{opacity:0}
+#zq-auth[data-mode=form] .za-log{left:calc(clamp(232px,19vw,284px) + 40px);right:min(480px,36vw);width:auto;transform:none}
+/* sign-in card: the strongest thing on the page */
+.za-p.za-gocard{background:#141413;border-color:#141413;color:#fff;padding:16px 16px 14px;box-shadow:0 22px 50px -22px rgba(20,20,19,.7)}
+.za-gocard small{display:block;font:600 .6rem/1.3 "JetBrains Mono",ui-monospace,monospace;letter-spacing:.16em;color:#f0b79f}
+.za-gocard h2{font-family:"Instrument Serif","Newsreader",Georgia,serif;font-weight:400;font-size:1.65rem;line-height:1.1;margin:.3rem 0 .2rem;color:#fff}
+.za-gocard p{font-size:.76rem;color:#c9c4ba;margin:0 0 .8rem;line-height:1.45}
+.za-gocard .za-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:.5rem;font-size:1.05rem;padding:.85rem 1rem;border-radius:12px}
+.za-go1{background:var(--za-acc);box-shadow:0 0 0 0 rgba(204,120,92,.6);animation:za-call 2.4s ease-out infinite}
+.za-go1 i{font-style:normal;transition:transform .25s}.za-go1:hover i{transform:translateX(4px)}
+.za-gocard .za-go2{margin-top:8px;background:transparent;border:1.5px solid rgba(255,255,255,.55);color:#fff;font-size:.95rem;padding:.7rem 1rem}
+.za-gocard .za-go2:hover{background:rgba(255,255,255,.1);border-color:#fff}
+.za-gol{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:.7rem;font-size:.68rem;color:#a8a296}
+.za-gol button{font:inherit;font-size:.72rem;font-weight:600;color:#f0b79f;background:none;border:0;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px}
+@keyframes za-call{0%{box-shadow:0 0 0 0 rgba(204,120,92,.55)}70%{box-shadow:0 0 0 12px rgba(204,120,92,0)}100%{box-shadow:0 0 0 0 rgba(204,120,92,0)}}
 .za-p{background:rgba(255,255,255,.86);border:1px solid var(--za-line);border-radius:12px;padding:10px 12px 11px;box-shadow:0 14px 34px -26px rgba(20,20,19,.35);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);flex:none}
 .za-p>header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font:600 .6rem/1 "JetBrains Mono",ui-monospace,monospace;letter-spacing:.16em;color:var(--za-ink)}
 .za-p>header i{font-style:normal;color:var(--za-mute);font-weight:500}
@@ -106,9 +119,10 @@
 .za-cur.tap:after{animation:za-tap .6s ease-out}
 @keyframes za-tap{0%{opacity:.9;transform:scale(.3)}100%{opacity:0;transform:scale(1.6)}}
 .za-cv{cursor:grab}.za-cv:active{cursor:grabbing}
-@media (max-height:820px){.za-p-sub{display:none}}
-@media (max-height:700px){.za-p-el{display:none}.za-chart{display:none}}
-@media (max-width:1180px) and (min-width:901px){.za-stats{display:none}.za-col{width:220px}.za-mode{left:250px}.za-log{width:calc(100% - 520px)}}
+@media (max-height:940px){.za-p-sub{display:none}}
+@media (max-height:800px){.za-p-el{display:none}}
+@media (max-height:700px){.za-chart{display:none}.za-dial{max-height:80px;width:auto;margin:0 auto}}
+@media (max-width:1180px) and (min-width:901px){.za-stats{display:none}.za-col{width:220px}.za-mode{left:250px}.za-log{width:calc(100% - 520px)}#zq-auth[data-mode=form] .za-log{left:260px}}
 .za-caps{color:#92400e;font-size:.72rem;display:none}.za-caps.on{display:block}
 .za-side{position:absolute;z-index:6;top:0;bottom:0;right:0;width:min(460px,100%);display:flex;align-items:center;padding:76px max(28px,4vw) 28px 12px;overflow-y:auto;transform:translateX(105%);transition:transform .6s cubic-bezier(.2,.8,.2,1)}
 #zq-auth[data-mode=form] .za-side{transform:none}
@@ -165,16 +179,16 @@
 #zq-me-p .m{font-size:.78rem}#zq-me-p .m.err{color:#9f1239}#zq-me-p .m.ok{color:#065f46}
 @media print{#zq-me-p{display:none!important}}
 @media (max-width:900px){
-  .za-top{flex-wrap:wrap;gap:10px;padding:12px 14px 6px}.za-brand img{height:34px}.za-brand small,.za-brand span,.za-stats{display:none}.za-brand h1{font-size:1.3rem;white-space:normal}
-  .za-cta{width:100%}.za-cta .za-btn{flex:1}
+  .za-top{flex-wrap:nowrap;gap:10px;padding:12px 14px 6px}.za-brand{flex:1;min-width:0}.za-top .sp{display:none}.za-back{flex:none}.za-brand img{height:34px}.za-brand small,.za-brand span,.za-stats{display:none}.za-brand>div{min-width:0}.za-brand h1{font-size:1.08rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #zq-auth[data-mode=form] .za-brand h1{font-size:1.05rem}
   .za-col.l{display:none}
-  .za-col.r{top:auto;bottom:86px;left:12px;right:12px;width:auto;gap:0}.za-col.r>.za-p{display:none}.za-col.r>.za-p:nth-child(2){display:block}
+  .za-col.r{top:auto;bottom:86px;left:12px;right:12px;width:auto;gap:0}.za-col.r>.za-p{display:none}.za-col.r>.za-gocard,.za-col.r>.za-p-asm{display:block}.za-col.r>.za-p-asm{margin-top:8px}.za-gocard h2{font-size:1.35rem}.za-gocard p,.za-gol span{display:none}
   .za-asm{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.za-asm .za-chip{flex:none}
   .za-mode{left:16px;right:16px;top:146px;bottom:auto;max-width:none}.za-mode p{display:none}.za-mode b{font-size:1.1rem}
   .za-log{left:12px;right:12px;width:auto;transform:none;bottom:12px;padding:8px 10px}.za-lh.sm span:last-child{display:none}
   .za-side{width:100%;padding:72px 16px 20px;align-items:flex-start}
   #zq-auth[data-mode=form] .za-cv.on{opacity:.25}
+  #zq-auth[data-mode=form] .za-mode,#zq-auth[data-mode=form] .za-log,#zq-auth[data-mode=form] .za-lbls{opacity:0;pointer-events:none}
 @media (max-width:480px){.za-card{padding:20px 16px 16px;border-radius:16px}.za-two{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){#zq-auth *,#zq-auth *:before,#zq-auth *:after{animation:none!important;transition:none!important}}
 </style>
@@ -368,8 +382,8 @@
   function setView(C, patch, act) { var V = C.V, k; for (k in patch) V[k] = patch[k]; if ("k" in patch && patch.k) V.ex = 0; if ("ex" in patch && patch.ex) V.k = 0; C.cam++; take(C, act); }
   function ctlTick(C, dt) {
     var sp = 1 + C.boost; C.boost *= Math.exp(-dt * 1.4);
-    if (C.play && st.mode === "intro") { C.t += dt * sp; if (C.t >= TOUR) C.t -= TOUR; var b = beatAt(C.t); if (b !== C.beat) applyBeat(C, b); }
-    else if (!C.play && C.user && !C.still) { C.idle += dt; if (C.idle > 25 && st.mode === "intro") { C.play = true; C.user = false; C.beat = -1; } }
+    if (C.play) { C.t += dt * sp; if (C.t >= TOUR) C.t -= TOUR; var b = beatAt(C.t); if (b !== C.beat) applyBeat(C, b); }
+    else if (!C.play && C.user && !C.still) { C.idle += dt; if (C.idle > 25) { C.play = true; C.user = false; C.beat = -1; } }
     simStep(C.m, dt, C.still ? dt * 24 / TR.day * .25 : dt * sp * 24 / TR.day);
   }
 
@@ -382,8 +396,6 @@
       h("span", { class: "sp" }),
       h("div", { class: "za-stats" }, [h("div", {}, [h("small", { text: "SIM ID" }), h("b", { text: "TR-4500" })]), h("div", {}, [h("small", { text: "เวลาจำลอง" }), h("b", { "data-v": "clock", text: "08:30" })]),
         h("div", {}, [h("small", { text: "สถานะ" }), h("b", { "data-v": "status", class: "acc", text: "● ONAN" })])]),
-      h("div", { class: "za-cta" }, [h("button", { type: "button", class: "za-btn", id: "za-go", text: "เข้าสู่ระบบ", onclick: function () { form("login"); mode("form"); } }),
-        h("button", { type: "button", class: "za-btn ghost", text: "สมัครใช้งาน", onclick: function () { form("reg"); mode("form"); } })]),
       h("button", { type: "button", class: "za-back", text: "← ภาพรวม", onclick: function () { mode("intro"); } })]);
     el.appendChild(top);
     // left: load · temperature · electrical
@@ -406,10 +418,17 @@
     var subs = h("div", { class: "za-subs" }, [["01", "พัดลมระบายความร้อน", "4 ตัว · ONAF", "fan"], ["02", "รีเลย์บุคโฮลซ์", "ก๊าซในน้ำมัน", "buch"], ["03", "ตัวเปลี่ยนแทป", "AVR 33 kV ± 1.25 %", "oltc"],
       ["04", "ระดับน้ำมัน", "ถังพักน้ำมัน", "oil"], ["05", "Silica gel", "สารดูดความชื้น", "gel"], ["06", "Pressure relief", "ระบายแรงดัน", "prd"]].map(function (r) {
       return h("div", { class: "za-sub" }, [h("i", { text: r[0] }), h("div", {}, [h("b", { text: r[1] }), h("small", { "data-v": r[3] + "s", text: r[2] })]), h("em", { "data-v": r[3], text: "–" })]); }));
-    var R = h("div", { class: "za-col r" }, [
+    var go = function (v) { return function () { form(v); mode("form"); }; };
+    var GO = h("section", { class: "za-p za-gocard", "aria-label": "เข้าสู่ระบบ" }, [h("small", { text: "เริ่มใช้งานที่นี่ · START HERE" }), h("h2", { text: "เข้าสู่ระบบเพื่อใช้งาน" }),
+      h("p", { text: "แจ้งปัญหา · ตารางงานผลิต · ใบสั่ง · ติดตามของเข้า" }),
+      h("button", { type: "button", class: "za-btn za-go1", id: "za-go", onclick: go("login") }, [h("span", { text: "เข้าสู่ระบบ" }), h("i", { text: "→" })]),
+      h("button", { type: "button", class: "za-btn za-go2", onclick: go("reg") }, [h("span", { text: "สมัครใช้งานใหม่" })]),
+      h("div", { class: "za-gol" }, [h("span", { text: "ใช้อีเมลบริษัท หรือชื่อผู้ใช้ Admin" }), h("button", { type: "button", text: "ลืมรหัสผ่าน?", onclick: go("forgot") })])]);
+    var R = h("div", { class: "za-col r" }, [GO,
       P_("04", "TAP CHANGER · OLTC", [h("canvas", { class: "za-dial", width: 440, height: 210, "data-c": "dial" }), h("div", { class: "za-big sm" }, [h("b", { "data-v": "tap", text: "TAP 10" }), h("span", { class: "sp" }), h("b", { "data-v": "tapkv", class: "acc", text: "–" })]),
         h("div", { class: "za-kv" }, [h("span", { text: "AVR ฝั่ง 33 kV" }), h("b", { "data-v": "lv", text: "–" })]), h("div", { class: "za-kv" }, [h("span", { text: "จำนวนครั้งที่เปลี่ยน" }), h("b", { "data-v": "ops", text: "0" })])]),
-      P_("05", "ASSEMBLIES · ชิ้นส่วน", [asm]), P_("06", "DISPLAY · การแสดงผล", [disp]), P_("07", "SUBSYSTEMS · ระบบย่อย", [subs], "za-p-sub")]);
+      P_("05", "ASSEMBLIES · ชิ้นส่วน", [asm], "za-p-asm"), P_("06", "DISPLAY · การแสดงผล", [disp])]);
+    L.appendChild(P_("07", "SUBSYSTEMS · ระบบย่อย", [subs], "za-p-sub"));
     el.appendChild(L); el.appendChild(R);
     el.appendChild(h("div", { class: "za-mode", "aria-live": "polite" }, [h("small", { text: "OPERATING MODE · โหมด" }), h("b", { text: "ENERGIZED" }), h("span", { class: "th", text: "" }), h("p", { text: "" })]));
     // operator log: play / pause, the tour's beats on a bar you can click
@@ -898,14 +917,14 @@
     // input: drag = orbit, click = isolate the part under the pointer, wheel = speed up the tour (ctrl / pinch = zoom), arrow keys = faster
     var el = st.el, ray = new T.Raycaster(), pv = new T.Vector2(), drag = null, tick = 0, slow = 0, lastN = -1, popT = 0;
     function pick(x, y) { var r = cv.getBoundingClientRect(); pv.set((x - r.left) / r.width * 2 - 1, -(y - r.top) / r.height * 2 + 1); ray.setFromCamera(pv, cam); var hit = ray.intersectObjects(root.children, true)[0], o = hit && hit.object; while (o && o.userData.k == null) o = o.parent; return o ? o.userData.k : 0; }
-    function onDown(e) { if (st.mode !== "intro") return; drag = { x: e.clientX, y: e.clientY, moved: 0 }; cv.setPointerCapture && cv.setPointerCapture(e.pointerId); }
+    function onDown(e) { drag = { x: e.clientX, y: e.clientY, moved: 0 }; cv.setPointerCapture && cv.setPointerCapture(e.pointerId); }
     function onMove(e) {
       if (drag) { var dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.moved += Math.abs(dx) + Math.abs(dy); drag.x = e.clientX; drag.y = e.clientY;
         if (drag.moved > 4) { U.yaw -= dx * .0065; U.pit = Math.max(-.5, Math.min(.9, U.pit + dy * .004)); if (!drag.took) { drag.took = 1; take(st.ctl, "ORBIT VIEW"); } } return; }
-      if (st.mode === "intro" && !mobile && ++tick % 3 === 0) { var k = pick(e.clientX, e.clientY); st.ctl.hover = k; cv.style.cursor = k ? "pointer" : "grab"; }
+      if (!mobile && ++tick % 3 === 0) { var k = pick(e.clientX, e.clientY); st.ctl.hover = k; cv.style.cursor = k ? "pointer" : "grab"; }
     }
     function onUp(e) { if (!drag) return; var d = drag; drag = null; if (d.moved <= 4) { var k = pick(e.clientX, e.clientY), C = st.ctl; setView(C, { k: k && C.V.k !== k ? k : 0 }, k ? "ISOLATE " + PARTS[k - 1][2].toUpperCase() : "SHOW WHOLE UNIT"); } }
-    function onWheel(e) { if (st.mode !== "intro") return; e.preventDefault(); if (e.ctrlKey) { U.z = Math.max(.45, Math.min(1.8, U.z * Math.exp(e.deltaY * .004))); st.ctl.user || take(st.ctl, "ZOOM"); return; } st.ctl.boost = Math.min(10, st.ctl.boost + Math.min(120, Math.abs(e.deltaY || e.deltaX || 0)) * .03); }
+    function onWheel(e) { if (e.target.closest && e.target.closest(".za-side,.za-p")) return; e.preventDefault(); if (e.ctrlKey) { U.z = Math.max(.45, Math.min(1.8, U.z * Math.exp(e.deltaY * .004))); st.ctl.user || take(st.ctl, "ZOOM"); return; } st.ctl.boost = Math.min(10, st.ctl.boost + Math.min(120, Math.abs(e.deltaY || e.deltaX || 0)) * .03); }
     var ty = null;
     function onTouch(e) { if (st.mode !== "intro" || !e.touches[0] || e.target !== cv) return; var y = e.touches[0].clientY; if (ty !== null && !drag) st.ctl.boost = Math.min(10, st.ctl.boost + Math.abs(y - ty) * .06); ty = y; }
     function onKey(e) { if (st.mode === "intro" && /Arrow(Down|Right)|PageDown/.test(e.key) && !/INPUT|TEXTAREA|BUTTON/.test(e.target.tagName)) st.ctl.boost = Math.min(10, st.ctl.boost + 2.5); }
@@ -918,7 +937,7 @@
     }
     var pW = new T.Vector3();
     function labels(C) {
-      if (!svg) return; var V = C.V, show = st.mode === "intro" && V.lb, cxs = W / 2;
+      if (!svg) return; var V = C.V, show = V.lb && !(mobile && st.mode === "form"), cxs = W / 2;
       Object.keys(LB).forEach(function (k) {
         var L = LB[k], a = ANC[k], vis = show && (!V.k || V.k === +k) && !(mobile && !V.k);
         if (vis) { L.v.set(a[1][0], a[1][1], a[1][2]); a[0].localToWorld(L.v); pW.copy(L.v).project(cam); vis = pW.z < 1 && Math.abs(pW.x) < 1.05 && Math.abs(pW.y) < 1.05; }
@@ -930,9 +949,9 @@
         L.ln.setAttribute("x1", x); L.ln.setAttribute("y1", y); L.ln.setAttribute("x2", lx); L.ln.setAttribute("y2", ly); L.dot.setAttribute("cx", x); L.dot.setAttribute("cy", y);
       });
     }
-    var FORMV = { k: 0, ex: 0, xr: 0, lb: 0, tt: 1 }, lastMode = "";
+    var lastMode = "";
     function draw(C, dt, now) {
-      var V = st.mode === "form" ? FORMV : C.V;   // the form page shows the whole unit, turning slowly
+      var V = C.V;
       if (st.mode !== lastMode) { lastMode = st.mode; camN = -1; }
       var m = C.m, kk = still ? 1 : 1 - Math.exp(-dt * 3), apart = 0;
       P.forEach(function (q) { var tg = V.ex ? q.ex : V.k === q.k ? q.iso : ZERO; q.g.position.lerp(tg, kk); var L = q.ex.length(); L && (apart = Math.max(apart, q.g.position.length() / L));
@@ -944,14 +963,14 @@
       core.emissiveIntensity = (V.k === 6 || V.xr ? .12 + (still ? 0 : .06 * Math.sin(now / 160)) : 0) * Math.min(1.4, m.s / TR.S + .4);
       if (popT) { popT = Math.max(0, popT - dt * 3); var sc = 1 + .025 * Math.sin(popT * Math.PI); root.scale.set(sc, sc, sc); }
       // camera
-      if (C.cam !== camN) { camN = C.cam; aim(V); if (V === FORMV) { U.yaw = 0; U.pit = 0; U.z = 1; } }
+      if (C.cam !== camN) { camN = C.cam; aim(V); }
       if (V.tt && !still && !drag) U.yaw += dt * .14;
       var ck = still ? 1 : 1 - Math.exp(-dt * 2.2), dy = TG.yaw - CV.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
       CV.f.lerp(TG.f, ck); CV.yaw += dy * ck; CV.pit += (TG.pit - CV.pit) * ck; CV.d += (TG.d - CV.d) * ck;
       var yw = CV.yaw + U.yaw, pt = Math.max(-.2, Math.min(1.25, CV.pit + U.pit)), d = CV.d * U.z;
       cam.position.set(CV.f.x + d * Math.cos(pt) * Math.sin(yw), Math.max(.15, CV.f.y + d * Math.sin(pt)), CV.f.z + d * Math.cos(pt) * Math.cos(yw)); cam.lookAt(CV.f);
       // between the two panel columns on the first page, left of the form on the second, under the header on a phone
-      var oxT = mobile ? 0 : st.mode === "form" ? .17 : 0, oyT = mobile && st.mode === "intro" ? -.06 : 0;
+      var oxT = mobile ? 0 : st.mode === "form" ? .07 : 0, oyT = mobile && st.mode === "intro" ? -.06 : 0;
       ox += (oxT - ox) * (still ? 1 : Math.min(1, dt * 3)); oy += (oyT - oy) * (still ? 1 : Math.min(1, dt * 3));
       ox || oy ? cam.setViewOffset(W, H, W * ox, H * oy, W, H) : cam.clearViewOffset();
       if (bokeh) bokeh.uniforms.focus.value = cam.position.distanceTo(CV.f);
