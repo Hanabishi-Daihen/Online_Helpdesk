@@ -11,47 +11,105 @@
 .za-bg{position:absolute;inset:0;background:radial-gradient(1100px 700px at 68% 30%,#ffffff 0%,rgba(255,255,255,0) 60%),radial-gradient(900px 600px at 15% 95%,rgba(204,120,92,.10),transparent 60%),linear-gradient(180deg,#fbfaf7,#f2ede4);pointer-events:none}
 .za-cv{position:absolute;inset:0;width:100%;height:100%;display:block;opacity:0;transition:opacity 1s ease;touch-action:none}
 .za-cv.on{opacity:1}
-.za-top{position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:12px;padding:16px max(22px,env(safe-area-inset-right,0px)) 14px max(22px,env(safe-area-inset-left,0px))}
-.za-top img{height:26px;width:auto;border-radius:3px;display:block}
-.za-top b{font-size:.78rem;letter-spacing:.22em;font-weight:700;color:var(--za-ink)}
-.za-top .sp{flex:1}
+@keyframes za-cue{0%{opacity:0;transform:translateY(-2px)}40%{opacity:1}100%{opacity:0;transform:translateY(7px)}}
+/* the form panel (second page) */
+/* header: brand + title · live stats · sign-in buttons */
+.za-top{position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:18px;padding:14px max(20px,env(safe-area-inset-right,0px)) 10px max(20px,env(safe-area-inset-left,0px));pointer-events:none}
+.za-top>*{pointer-events:auto}.za-top .sp{flex:1;pointer-events:none}
+.za-brand{display:flex;align-items:center;gap:14px;min-width:0}
+.za-brand img{height:44px;width:auto;border-radius:6px;display:block;box-shadow:0 6px 16px -10px rgba(2,146,216,.8)}
+.za-brand small{display:block;font-size:.62rem;letter-spacing:.22em;color:var(--za-acc);font-weight:700}
+.za-brand h1{font-family:"Instrument Serif","Newsreader",Georgia,serif;font-weight:400;font-size:clamp(1.35rem,2.1vw,1.95rem);line-height:1.05;margin:.1rem 0;white-space:nowrap;color:var(--za-ink)}
+.za-brand h1 em{font-style:italic;color:var(--za-acc)}
+.za-brand span{display:block;font:500 .6rem/1.3 "JetBrains Mono",ui-monospace,monospace;letter-spacing:.14em;color:var(--za-mute)}
+.za-stats{display:flex;gap:0;border-left:1px solid var(--za-line)}
+.za-stats>div{padding:0 16px;border-right:1px solid var(--za-line)}
+.za-stats small{display:block;font:500 .58rem/1.3 "JetBrains Mono",ui-monospace,monospace;letter-spacing:.16em;color:var(--za-mute);text-transform:uppercase}
+.za-stats b{font:600 .86rem/1.5 "JetBrains Mono",ui-monospace,monospace;color:var(--za-ink);white-space:nowrap}
+.za-stats b.acc,.za-p .acc{color:var(--za-acc)}
+.za-cta{display:flex;gap:8px}
+.za-cta .za-btn{padding:.62rem 1.15rem;font-size:.9rem;width:auto}
 .za-back{font:inherit;font-size:.82rem;font-weight:600;color:var(--za-ink2);background:#fff;border:1px solid var(--za-line);border-radius:999px;padding:.42rem .95rem;cursor:pointer;display:none}
 #zq-auth[data-mode=form] .za-back{display:inline-block}
+#zq-auth[data-mode=form] .za-cta,#zq-auth[data-mode=form] .za-stats{display:none}
 .za-back:hover{background:#f5f0e8}.za-back:focus-visible{outline:2px solid var(--za-acc);outline-offset:2px}
-/* intro (first page) */
-.za-intro{position:absolute;z-index:3;left:max(28px,5vw);top:50%;transform:translateY(-55%);max-width:min(520px,44vw);transition:opacity .45s ease,transform .45s ease}
-#zq-auth[data-mode=form] .za-intro{opacity:0;transform:translate(-30px,-55%);pointer-events:none}
-.za-eyebrow{font-size:.72rem;letter-spacing:.24em;color:var(--za-acc);font-weight:700;text-transform:uppercase}
-.za-h1{font-family:"Instrument Serif","Newsreader",Georgia,serif;font-weight:400;font-size:clamp(2.5rem,5vw,4.3rem);line-height:1.02;letter-spacing:-.01em;margin:.55rem 0 .9rem;text-wrap:balance;color:var(--za-ink)}
-.za-h1 em{font-style:italic;color:var(--za-acc)}
-.za-lead{color:var(--za-mute);font-size:1rem;max-width:32rem;line-height:1.65;margin:0}
-.za-acts{display:flex;gap:10px;flex-wrap:wrap;margin-top:1.6rem}
-.za-hint{margin-top:1.3rem;font-size:.76rem;color:var(--za-mute);display:flex;gap:.5rem;align-items:center}
-.za-hint i{width:16px;height:24px;border:1.5px solid var(--za-mute);border-radius:9px;position:relative;flex:none}
-.za-hint i:after{content:"";position:absolute;left:50%;top:5px;width:2px;height:5px;margin-left:-1px;border-radius:2px;background:var(--za-ink2);animation:za-cue 1.6s infinite}
-@keyframes za-cue{0%{opacity:0;transform:translateY(-2px)}40%{opacity:1}100%{opacity:0;transform:translateY(7px)}}
-/* part caption over the model */
-.za-cap{position:absolute;z-index:3;right:max(110px,9vw);bottom:9vh;width:min(340px,30vw);padding:16px 18px;background:rgba(255,255,255,.82);border:1px solid var(--za-line);border-radius:14px;box-shadow:0 18px 40px -24px rgba(20,20,19,.35);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);transition:opacity .35s ease,transform .35s ease}
-.za-cap.hide{opacity:0;transform:translateY(8px)}
-#zq-auth[data-mode=form] .za-cap{opacity:0;pointer-events:none}
-.za-cap .no{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.68rem;color:var(--za-acc);letter-spacing:.16em}
-.za-cap h3{font-family:"Instrument Serif","Newsreader",Georgia,serif;font-weight:400;font-size:1.65rem;margin:.15rem 0 .05rem;line-height:1.1}
-.za-cap .en{font-size:.68rem;letter-spacing:.18em;text-transform:uppercase;color:var(--za-mute)}
-.za-cap p{color:var(--za-ink2);font-size:.86rem;line-height:1.55;margin:.55rem 0}
-.za-cap .spec{display:inline-block;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.7rem;color:var(--za-ink2);border:1px solid var(--za-line);border-radius:6px;padding:.25rem .5rem;background:var(--za-bg)}
-.za-cap .live{margin-top:.55rem;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.78rem;letter-spacing:.12em;color:#0b5fa8;font-weight:600}
-.za-cap .bar{height:2px;background:var(--za-line);border-radius:2px;margin-top:.7rem;overflow:hidden}.za-cap .bar i{display:block;height:100%;width:0;background:var(--za-acc)}
-/* progress dots */
-.za-prog{position:absolute;right:max(20px,env(safe-area-inset-right,0px));top:50%;transform:translateY(-50%);z-index:4;display:flex;flex-direction:column;gap:12px;transition:opacity .3s}
-#zq-auth[data-mode=form] .za-prog{opacity:0;pointer-events:none}
-.za-prog button{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;justify-content:flex-end;font-size:.72rem;color:var(--za-mute)}
-.za-prog button span{opacity:0;transform:translateX(6px);transition:opacity .25s,transform .25s;white-space:nowrap}
-.za-prog button i{width:7px;height:7px;border-radius:50%;border:1.5px solid #b9b2a6;transition:all .3s;flex:none;background:#fff}
-.za-prog button:hover span,.za-prog button.cur span{opacity:1;transform:none}
-.za-prog button.cur{color:var(--za-ink);font-weight:600}
-.za-prog button.cur i{background:var(--za-acc);border-color:var(--za-acc);box-shadow:0 0 0 4px rgba(204,120,92,.18);width:9px;height:9px}
-.za-prog button:focus-visible{outline:2px solid var(--za-acc);outline-offset:3px;border-radius:4px}
-/* the form panel (second page) */
+/* panel columns */
+.za-col{position:absolute;z-index:4;top:86px;bottom:104px;width:clamp(232px,19vw,284px);display:flex;flex-direction:column;gap:10px;overflow:hidden;transition:opacity .45s ease,transform .45s ease}
+.za-col.l{left:max(18px,env(safe-area-inset-left,0px))}.za-col.r{right:max(18px,env(safe-area-inset-right,0px))}
+#zq-auth[data-mode=form] .za-col.l{opacity:0;transform:translateX(-24px);pointer-events:none}
+#zq-auth[data-mode=form] .za-col.r,#zq-auth[data-mode=form] .za-mode,#zq-auth[data-mode=form] .za-log,#zq-auth[data-mode=form] .za-lbls,#zq-auth[data-mode=form] .za-cur{opacity:0;pointer-events:none}
+.za-p{background:rgba(255,255,255,.86);border:1px solid var(--za-line);border-radius:12px;padding:10px 12px 11px;box-shadow:0 14px 34px -26px rgba(20,20,19,.35);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);flex:none}
+.za-p>header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font:600 .6rem/1 "JetBrains Mono",ui-monospace,monospace;letter-spacing:.16em;color:var(--za-ink)}
+.za-p>header i{font-style:normal;color:var(--za-mute);font-weight:500}
+.za-big{display:flex;align-items:baseline;gap:4px}.za-big .sp{flex:1}
+.za-big b{font:600 1.85rem/1.05 "JetBrains Mono",ui-monospace,monospace;letter-spacing:-.02em;color:var(--za-ink)}
+.za-big small{font:500 .7rem "JetBrains Mono",ui-monospace,monospace;color:var(--za-mute)}
+.za-big.sm b{font-size:1.1rem}
+.za-chart,.za-dial{display:block;width:100%;height:auto;margin:6px 0 4px}
+.za-tri{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.za-tri .za-kv{display:block}.za-tri .za-kv span{display:block}
+.za-kv{display:flex;justify-content:space-between;gap:8px;font-size:.72rem;color:var(--za-mute);padding:2px 0}
+.za-kv b{font:600 .74rem "JetBrains Mono",ui-monospace,monospace;color:var(--za-ink);white-space:nowrap}
+.za-tag{color:var(--za-acc)!important}
+.za-sl{display:flex;gap:8px;align-items:center;margin-top:6px}
+.za-sl input{flex:1;accent-color:var(--za-acc);min-width:0}
+.za-bars{display:grid;gap:6px;margin:2px 0 6px}
+.za-bar{display:grid;grid-template-columns:76px 1fr 62px;gap:8px;align-items:center;font-size:.7rem;color:var(--za-mute)}
+.za-bar>div{position:relative;height:8px;border-radius:2px;background:repeating-linear-gradient(90deg,#efe9df 0 9px,transparent 9px 11px)}
+.za-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:var(--za-ink);transition:width .4s ease}
+.za-bar i.hot{background:var(--za-acc)}
+.za-bar u{position:absolute;left:81.6%;top:-3px;bottom:-3px;width:2px;background:var(--za-acc);text-decoration:none}
+.za-bar b{font:600 .72rem "JetBrains Mono",ui-monospace,monospace;color:var(--za-ink);text-align:right}
+.za-chips{display:flex;flex-wrap:wrap;gap:5px}
+.za-chip{font:600 .66rem/1 "JetBrains Mono","Sarabun",ui-monospace,monospace;letter-spacing:.04em;border:1px solid var(--za-line);background:#fff;color:var(--za-ink2);border-radius:6px;padding:.42rem .55rem;cursor:pointer;transition:background .2s,color .2s,border-color .2s}
+.za-chip:hover{border-color:var(--za-acc);color:var(--za-ink)}
+.za-chip.on{background:var(--za-acc);border-color:var(--za-acc);color:#fff}
+.za-chip:focus-visible{outline:2px solid var(--za-acc);outline-offset:2px}
+.za-subs{display:grid;gap:5px}
+.za-sub{display:grid;grid-template-columns:20px 1fr auto;gap:6px;align-items:center}
+.za-sub>i{font:500 .62rem "JetBrains Mono",ui-monospace,monospace;font-style:normal;color:var(--za-mute)}
+.za-sub b{display:block;font-size:.72rem;color:var(--za-ink);line-height:1.2}.za-sub small{display:block;font-size:.62rem;color:var(--za-mute);line-height:1.2}
+.za-sub em{font:600 .58rem/1 "JetBrains Mono",ui-monospace,monospace;font-style:normal;letter-spacing:.06em;padding:.3rem .42rem;border-radius:4px;border:1px solid var(--za-line);color:var(--za-mute);background:#fff}
+.za-sub em.ok{color:#065f46;border-color:#a7dcc4;background:#ecfdf5}.za-sub em.on{color:#fff;background:var(--za-acc);border-color:var(--za-acc)}
+/* mode label, operator log */
+.za-mode{position:absolute;z-index:4;left:calc(clamp(232px,19vw,284px) + 46px);bottom:118px;max-width:min(430px,34vw);pointer-events:none;transition:opacity .4s}
+.za-mode small{font:600 .6rem "JetBrains Mono",ui-monospace,monospace;letter-spacing:.18em;color:var(--za-mute)}
+.za-mode b{display:block;font:700 clamp(1.25rem,2vw,1.85rem)/1.05 "JetBrains Mono",ui-monospace,monospace;letter-spacing:-.01em;color:var(--za-acc);margin:.25rem 0}
+.za-mode .th{display:block;font-size:.8rem;color:var(--za-ink2)}
+.za-mode p{font-size:.76rem;color:var(--za-mute);line-height:1.5;margin:.35rem 0 0}
+.za-log{position:absolute;z-index:5;left:50%;transform:translateX(-50%);bottom:26px;width:min(760px,calc(100% - 2 * clamp(232px,19vw,284px) - 60px));display:flex;gap:12px;align-items:center;background:rgba(255,255,255,.9);border:1px solid var(--za-line);border-radius:14px;padding:10px 14px;box-shadow:0 18px 40px -28px rgba(20,20,19,.4);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:opacity .4s}
+.za-pp{flex:none;width:40px;height:40px;border-radius:50%;border:0;background:var(--za-acc);cursor:pointer;position:relative}
+.za-pp i:before,.za-pp i:after{content:"";position:absolute;top:13px;width:4px;height:14px;background:#fff;border-radius:1px}.za-pp i:before{left:14px}.za-pp i:after{left:22px}
+.za-pp.paused i:before{left:16px;width:0;height:0;background:none;border-left:12px solid #fff;border-top:8px solid transparent;border-bottom:8px solid transparent;top:12px}.za-pp.paused i:after{display:none}
+.za-pp:focus-visible{outline:2px solid var(--za-ink);outline-offset:2px}
+.za-lg{flex:1;min-width:0}
+.za-lh{display:flex;justify-content:space-between;gap:10px;font:600 .58rem/1.4 "JetBrains Mono",ui-monospace,monospace;letter-spacing:.12em;color:var(--za-mute)}
+.za-lh b{color:var(--za-acc);letter-spacing:.08em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.za-lh.sm{font-weight:500;letter-spacing:.06em}
+.za-tl{position:relative;height:16px;margin:4px 0 2px;cursor:pointer}
+.za-tl:before{content:"";position:absolute;left:0;right:0;top:7px;height:2px;background:var(--za-line)}
+.za-tl i{position:absolute;left:0;top:7px;height:2px;background:var(--za-acc)}
+.za-tl u{position:absolute;top:4px;width:2px;height:8px;background:#c9c2b6}
+.za-tl:focus-visible{outline:2px solid var(--za-acc);outline-offset:2px}
+/* 3D labels with leaders */
+.za-lbls{position:absolute;inset:0;z-index:3;pointer-events:none;transition:opacity .3s}
+.za-lbls svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.za-lbls line{stroke:#141413;stroke-width:1;opacity:.55}.za-lbls circle{fill:var(--za-acc)}
+.za-lb{position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;display:flex;gap:6px;align-items:baseline;white-space:nowrap;background:rgba(255,255,255,.92);border:1px solid var(--za-line);border-radius:6px;padding:.28rem .5rem;font-size:.7rem;box-shadow:0 8px 18px -14px rgba(0,0,0,.4)}
+.za-lb i{font:600 .6rem "JetBrains Mono",ui-monospace,monospace;font-style:normal;color:var(--za-acc)}
+.za-lb b{color:var(--za-ink);font-weight:600}.za-lb span{font:500 .64rem "JetBrains Mono",ui-monospace,monospace;color:var(--za-mute)}
+.za-lb.hov{border-color:var(--za-acc);box-shadow:0 0 0 3px rgba(204,120,92,.16)}
+/* the tour's cursor */
+.za-cur{position:absolute;left:0;top:0;z-index:7;width:22px;height:22px;pointer-events:none;opacity:0;transition:transform .7s cubic-bezier(.65,0,.35,1),opacity .3s;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Cpath d='M3 2l14 8-6 1.6L8.5 18z' fill='%23141413' stroke='%23fff' stroke-width='1.4' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat}
+.za-cur.on{opacity:1}
+.za-cur:after{content:"";position:absolute;left:-9px;top:-9px;width:22px;height:22px;border-radius:50%;border:2px solid var(--za-acc);opacity:0}
+.za-cur.tap:after{animation:za-tap .6s ease-out}
+@keyframes za-tap{0%{opacity:.9;transform:scale(.3)}100%{opacity:0;transform:scale(1.6)}}
+.za-cv{cursor:grab}.za-cv:active{cursor:grabbing}
+@media (max-height:820px){.za-p-sub{display:none}}
+@media (max-height:700px){.za-p-el{display:none}.za-chart{display:none}}
+@media (max-width:1180px) and (min-width:901px){.za-stats{display:none}.za-col{width:220px}.za-mode{left:250px}.za-log{width:calc(100% - 520px)}}
+.za-caps{color:#92400e;font-size:.72rem;display:none}.za-caps.on{display:block}
 .za-side{position:absolute;z-index:6;top:0;bottom:0;right:0;width:min(460px,100%);display:flex;align-items:center;padding:76px max(28px,4vw) 28px 12px;overflow-y:auto;transform:translateX(105%);transition:transform .6s cubic-bezier(.2,.8,.2,1)}
 #zq-auth[data-mode=form] .za-side{transform:none}
 .za-card{width:100%;background:var(--za-card);border:1px solid var(--za-line);border-radius:20px;padding:26px 26px 22px;box-shadow:0 30px 70px -34px rgba(20,20,19,.38);display:grid;gap:14px;min-width:0}
@@ -86,7 +144,6 @@
 .za-msg.err{display:block;color:var(--za-bad);background:#fff1f2;border:1px solid #fecdd3}
 .za-msg.ok{display:block;color:var(--za-ok);background:#ecfdf5;border:1px solid #a7f3d0}
 .za-msg.info{display:block;color:var(--za-ink2);background:#f5f0e8;border:1px solid var(--za-line)}
-.za-caps{color:#92400e;font-size:.72rem;display:none}.za-caps.on{display:block}
 .za-rules{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.72rem;color:var(--za-mute)}
 .za-rules span:before{content:"○ "}.za-rules span.ok{color:var(--za-ok)}.za-rules span.ok:before{content:"● "}
 .za-meter{height:4px;border-radius:4px;background:var(--za-bg2);overflow:hidden}.za-meter i{display:block;height:100%;width:0;transition:width .3s,background .3s}
@@ -108,14 +165,16 @@
 #zq-me-p .m{font-size:.78rem}#zq-me-p .m.err{color:#9f1239}#zq-me-p .m.ok{color:#065f46}
 @media print{#zq-me-p{display:none!important}}
 @media (max-width:900px){
-  .za-intro{left:20px;right:20px;top:84px;transform:none;max-width:none}
-  #zq-auth[data-mode=form] .za-intro{transform:translateX(-20px)}
-  .za-h1{font-size:clamp(2.2rem,9vw,3rem)}.za-lead{font-size:.92rem}
-  .za-cap{left:16px;right:16px;width:auto;bottom:16px;padding:12px 14px}.za-cap p{display:none}
-  .za-prog{top:auto;bottom:auto;right:12px;top:30%}.za-prog button span{display:none}
+  .za-top{flex-wrap:wrap;gap:10px;padding:12px 14px 6px}.za-brand img{height:34px}.za-brand small,.za-brand span,.za-stats{display:none}.za-brand h1{font-size:1.3rem;white-space:normal}
+  .za-cta{width:100%}.za-cta .za-btn{flex:1}
+  #zq-auth[data-mode=form] .za-brand h1{font-size:1.05rem}
+  .za-col.l{display:none}
+  .za-col.r{top:auto;bottom:86px;left:12px;right:12px;width:auto;gap:0}.za-col.r>.za-p{display:none}.za-col.r>.za-p:nth-child(2){display:block}
+  .za-asm{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.za-asm .za-chip{flex:none}
+  .za-mode{left:16px;right:16px;top:146px;bottom:auto;max-width:none}.za-mode p{display:none}.za-mode b{font-size:1.1rem}
+  .za-log{left:12px;right:12px;width:auto;transform:none;bottom:12px;padding:8px 10px}.za-lh.sm span:last-child{display:none}
   .za-side{width:100%;padding:72px 16px 20px;align-items:flex-start}
   #zq-auth[data-mode=form] .za-cv.on{opacity:.25}
-  .za-top b{display:none}.za-foot{display:none}.za-hint{display:none}}
 @media (max-width:480px){.za-card{padding:20px 16px 16px;border-radius:16px}.za-two{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){#zq-auth *,#zq-auth *:before,#zq-auth *:after{animation:none!important;transition:none!important}}
 </style>
@@ -202,7 +261,8 @@
   }
   window.zqAuth = { gate: gate, tok: function () { return st.tok; }, lost: lost, open: function (fn) { return !!OPEN[fn]; }, user: function () { return st.user; },
     on: function () { if (st.on !== null) return st.on; var b = window.__ZQ_BOOT__, ai = b && b.r && b.r.authInfo; return !!(ai && ai.on !== false && st.tok); },
-    held: function () { return Date.now() - (st.heldAt || 0) < 5000; }, logout: logout, show: function () { show(); }, menu: function (anchor) { menu(anchor); }, speed: function () { return st.three && st.three.speed ? st.three.speed() : 1; }, progress: function () { return st.three && st.three.progress ? st.three.progress() : 0; } };
+    held: function () { return Date.now() - (st.heldAt || 0) < 5000; }, logout: logout, show: function () { show(); }, menu: function (anchor) { menu(anchor); }, speed: function () { return st.ctl ? 1 + st.ctl.boost : 1; }, progress: function () { return st.ctl ? st.ctl.t : 0; },
+    view: function () { var C = st.ctl; return C ? { k: C.V.k, ex: C.V.ex, xr: C.V.xr, lb: C.V.lb, tt: C.V.tt, play: C.play, user: C.user, n: C.m.n, lv: C.m.lv, to: C.m.to, s: C.m.s } : null; } };
 
   /* ── DOM helpers ── */
   function h(tag, attrs, kids) {
@@ -230,26 +290,13 @@
     var el = st.el = h("div", { id: "zq-auth", role: "dialog", "aria-modal": "true", "aria-label": "เข้าสู่ระบบ DAIHEN Online Helpdesk", "data-mode": "intro" });
     el.appendChild(h("div", { class: "za-bg" }));
     el.appendChild(h("canvas", { class: "za-cv", "aria-hidden": "true" }));
-    el.appendChild(h("header", { class: "za-top" }, [h("img", { src: LOGO, alt: "DAIHEN" }), h("b", { text: "DAIHEN ELECTRIC" }), h("span", { class: "sp" }),
-      h("button", { type: "button", class: "za-back", text: "← ภาพรวม", onclick: function () { mode("intro"); } })]));
-    el.appendChild(h("section", { class: "za-intro" }, [h("div", { class: "za-eyebrow", text: "DAIHEN ELECTRIC · ระบบงานภายใน" }),
-      h("h1", { class: "za-h1", html: "Online Helpdesk<br><em>&amp;</em> Schedule Portal" }),
-      h("p", { class: "za-lead", text: "แจ้งปัญหา ตารางงานการผลิต ใบสั่ง และติดตามของเข้า ของทุกโปรเจกต์หม้อแปลง ในที่เดียว" }),
-      h("div", { class: "za-acts" }, [h("button", { type: "button", class: "za-btn", id: "za-go", text: "เข้าสู่ระบบ", onclick: function () { form("login"); mode("form"); } }),
-        h("button", { type: "button", class: "za-btn ghost", text: "สมัครใช้งาน", onclick: function () { form("reg"); mode("form"); } })]),
-      h("div", { class: "za-hint" }, [h("i"), "หมุนล้อเมาส์เพื่อเร่งภาพ · กดจุดด้านขวาเพื่อดูชิ้นนั้น"])]));
-    var cap = h("aside", { class: "za-cap", "aria-live": "polite" });
-    el.appendChild(cap);
-    var prog = h("nav", { class: "za-prog", "aria-label": "ส่วนประกอบ" });
-    PARTS.forEach(function (p, i) { prog.appendChild(h("button", { type: "button", "data-i": i + 1, "aria-label": p[1], onclick: function () { st.three && st.three.jump(i + 1); } }, [h("span", { text: p[1] }), h("i")])); });
-    el.appendChild(prog);
+    st.ctl = ctl0(reduced(), matchMedia("(max-width: 900px), (pointer: coarse)").matches); hudBuild(el);
     var card = h("div", { class: "za-card" });
     el.appendChild(h("div", { class: "za-side" }, [card]));
     el.appendChild(h("p", { class: "za-foot", text: "ภาพประกอบเพื่อการนำเสนอ ไม่ใช่แบบหรือสเปกของผลิตภัณฑ์จริง" }));
     el.appendChild(h("div", { class: "za-flash" }));
     document.body.appendChild(el);
-    st.card = card; st.cap = cap; st.prog = prog;
-    caption(8);
+    st.card = card; loop();
     form("login"); mode(direct ? "form" : "intro"); note && msg(note, "info");
     el.addEventListener("keydown", function (e) { if (e.key === "Escape" && st.mode === "form") mode("intro"); });
     setTimeout(function () { var b = q(st.mode === "form" ? ".za-card input" : "#za-go"); b && b.focus({ preventScroll: true }); }, 80);
@@ -263,20 +310,188 @@
   function hide() {
     var el = st.el; if (!el) return;
     el.classList.add("za-out");
-    setTimeout(function () { try { st.three && st.three.dispose(); } catch (e) {} st.three = null; el.remove(); st.el = null; }, 550);
+    setTimeout(function () { try { st.three && st.three.dispose(); } catch (e) {} st.three = null; st.ctl = null; el.remove(); st.el = null; }, 550);
   }
-  var capI = -1;
-  function tapText(n) { return "TAP " + ("0" + n).slice(-2) + " · " + (132 * (1 + (7 - n) * .0167)).toFixed(1) + " kV"; }
-  function caption(i) {
-    if (!st.cap || i === capI) return; capI = i;
-    var p = PARTS[i - 1] || PARTS[7], c = st.cap;
-    c.classList.add("hide");
-    setTimeout(function () {
-      c.innerHTML = ""; c.appendChild(h("div", { class: "no", text: p[0] ? p[0] + " / 07" : "DAIHEN" })); c.appendChild(h("h3", { text: p[1] })); c.appendChild(h("div", { class: "en", text: p[2] }));
-      c.appendChild(h("p", { text: p[3] })); c.appendChild(h("span", { class: "spec", text: p[4] })); if (i === 5) c.appendChild(h("div", { class: "live", text: tapText(st.tapN ? st.tapN() : 7) })); c.appendChild(h("div", { class: "bar" }, [h("i")]));
-      c.classList.remove("hide");
-    }, 220);
-    [].forEach.call(st.prog.children, function (b) { var k = +b.getAttribute("data-i"); b.classList.toggle("cur", k === i); b.setAttribute("aria-current", k === i ? "step" : "false"); });
+  /* ══ the transformer's numbers — one model drives the panels, the labels and the 3D (fans, tap selector, glow) ══════
+     30/45 MVA ONAN/ONAF · 132/33 kV · OLTC 16 positions, 1.67 %/step, +10/−15 % (nominal = position 7)
+     losses P0 26 kW, Pk 190 kW at 45 MVA · top-oil rise 52 K at rating (IEC 60076-7 steady state, x = 0.8 ONAN / 0.9 ONAF)
+     hot-spot gradient H·gr = 26 K at 45 MVA, y = 1.3 · a day of load runs in 2 minutes */
+  var TR = { S: 45, Sn: 30, Vh: 132, Vl: 33, P0: 26, Pk: 190, dOr: 52, H: 26, taps: 16, nom: 7, step: .0167, day: 120 };
+  function prof(h) { return .4 + .2 * Math.exp(-Math.pow((h - 11) / 3.2, 2)) + .55 * Math.exp(-Math.pow((h - 19.5) / 2.4, 2)); }   // pu of 45 MVA
+  function amb(h) { return 28 + 5 * Math.sin((h - 9) / 24 * 2 * Math.PI); }
+  function grid(h) { return TR.Vh * (1 + .035 * Math.sin((h - 4) / 24 * 2 * Math.PI) + .012 * Math.sin(h / 2.7 * 2 * Math.PI)); }
+  function ratio(n) { return 1 + (TR.nom - n) * TR.step; }
+  function lvOf(vg, n, s) { return TR.Vl * vg / TR.Vh / ratio(n) * (1 - .055 * s / TR.S); }
+  function tapKv(n) { return TR.Vh * ratio(n); }
+  function tapText(n) { return "TAP " + ("0" + n).slice(-2) + " · " + tapKv(n).toFixed(1) + " kV"; }
+  function sim0(h) { var m = { h: h, s: prof(h) * TR.S, man: null, to: 0, onaf: 0, fan: 0, n: 10, tt: 0, dir: 0, ops: 0, mv: 0, mvT: 0 }; m.to = amb(h) + 30; simStep(m, 0, 0); for (var i = 0; i < 400; i++) simStep(m, .1, 0); m.ops = 0; return m; }
+  function simStep(m, dt, hrs) {
+    m.h = (m.h + hrs + 24) % 24;
+    var pu = m.man != null ? m.man : prof(m.h); m.s += (pu * TR.S - m.s) * Math.min(1, dt * 2);
+    var s = m.s, ta = amb(m.h);
+    if (!m.onaf && (m.to > 65 || s > 31.5)) m.onaf = 1; else if (m.onaf && m.to < 58 && s < 28.5) m.onaf = 0;
+    var K = m.onaf ? s / TR.S : s / TR.Sn, R = TR.Pk / TR.P0, ss = ta + TR.dOr * Math.pow((1 + R * K * K) / (1 + R), m.onaf ? .9 : .8);
+    m.to += (ss - m.to) * Math.min(1, dt / 6);
+    m.hs = m.to + TR.H * Math.pow(s / TR.S, 1.3) * (m.onaf ? 1 : 1.25);
+    m.fan += ((m.onaf ? 1 : 0) - m.fan) * Math.min(1, dt * .8);
+    m.vg = grid(m.h); m.lv = lvOf(m.vg, m.n, s);
+    // AVR: keeps the 33 kV side inside ±1.25 % — one tap step after 0.5 s outside the band (≈ 6 min of the compressed day)
+    var want = m.lv < TR.Vl * .9875 ? 1 : m.lv > TR.Vl * 1.0125 ? -1 : 0;
+    if (want && want === m.dir) { m.tt += dt; if (m.tt > .5 && m.n + want >= 1 && m.n + want <= TR.taps) { m.n += want; m.ops++; m.mv = want; m.mvT = .9; m.tt = 0; m.lv = lvOf(m.vg, m.n, s); } } else { m.tt = 0; m.dir = want; }
+    m.mvT = Math.max(0, m.mvT - dt); if (!m.mvT) m.mv = 0;
+    m.ih = s * 1e3 / (Math.sqrt(3) * m.vg); m.il = s * 1e3 / (Math.sqrt(3) * m.lv);
+    m.loss = TR.P0 + TR.Pk * Math.pow(s / TR.S, 2); m.p = s * .9; m.q = s * Math.sqrt(1 - .81); m.eff = m.p / (m.p + m.loss / 1e3) * 100;
+    m.oil = Math.max(10, Math.min(95, 30 + (m.to - 20) * .7)); m.ta = ta;
+    return m;
+  }
+
+  /* ══ the operator's tour: what the page does by itself; any click / drag / key takes over, 25 s of quiet gives it back ══ */
+  var SHORT = ["บุชชิ่ง", "ถังพักน้ำมัน", "ครีบ + พัดลม", "ตัวถัง", "แทป OLTC", "แกน + ขดลวด", "ตู้ควบคุม"];
+  var BEATS = [   // [s, assembly (0 = whole), exploded, x-ray, labels, turntable, operator action]
+    [0, 0, 0, 0, 1, 1, "OVERVIEW · ENERGIZED"], [7, 1, 0, 0, 1, 0, "ISOLATE BUSHINGS"], [13, 2, 0, 0, 1, 0, "ISOLATE CONSERVATOR"],
+    [19, 3, 0, 0, 1, 0, "ISOLATE COOLING"], [25, 4, 0, 0, 1, 0, "ISOLATE MAIN TANK"], [31, 5, 0, 0, 1, 0, "ISOLATE OLTC"],
+    [37, 6, 0, 0, 1, 0, "ISOLATE CORE & WINDINGS"], [43, 7, 0, 0, 1, 0, "OPEN CONTROL CABINET"], [49, 0, 1, 0, 1, 0, "EXPLODED VIEW"],
+    [56, 0, 0, 1, 1, 1, "X-RAY · ACTIVE PART"], [61, 0, 0, 0, 1, 1, "REASSEMBLE · RE-ENERGIZE"]], TOUR = 66;
+  function beatAt(t) { var b = 0; for (var i = 0; i < BEATS.length; i++) if (BEATS[i][0] <= t) b = i; return b; }
+  function ctl0(still, mobile) {
+    var C = { still: still, mobile: mobile, t: 0, play: !still, boost: 0, idle: 0, acts: 0, beat: -1, user: false, hover: 0,
+      V: { k: 0, ex: 0, xr: 0, lb: 1, tt: 0 }, m: sim0(8.5), act: BEATS[0][6], cam: 0, hudT: 0 };
+    return C;
+  }
+  function applyBeat(C, i, fromUser) {
+    var b = BEATS[i]; C.beat = i; C.V = { k: b[1], ex: b[2], xr: b[3], lb: b[4], tt: C.still ? 0 : b[5] }; C.act = b[6]; C.cam++;
+    if (!fromUser) cursorTo(b[2] ? '[data-d="ex"]' : b[3] ? '[data-d="xr"]' : b[1] ? '[data-k="' + b[1] + '"]' : '[data-k="0"]');
+    if (/REASSEMBLE/.test(b[6])) setTimeout(function () { st.three && st.three.pop && st.three.pop(); }, 1500);
+  }
+  // a hand on the controls: stop the tour, count it, give the tour back after 25 s
+  function take(C, act) { C.play = false; C.user = true; C.idle = 0; C.acts++; if (act) C.act = act; cursorOff(); hudNow(); }
+  function setView(C, patch, act) { var V = C.V, k; for (k in patch) V[k] = patch[k]; if ("k" in patch && patch.k) V.ex = 0; if ("ex" in patch && patch.ex) V.k = 0; C.cam++; take(C, act); }
+  function ctlTick(C, dt) {
+    var sp = 1 + C.boost; C.boost *= Math.exp(-dt * 1.4);
+    if (C.play && st.mode === "intro") { C.t += dt * sp; if (C.t >= TOUR) C.t -= TOUR; var b = beatAt(C.t); if (b !== C.beat) applyBeat(C, b); }
+    else if (!C.play && C.user && !C.still) { C.idle += dt; if (C.idle > 25 && st.mode === "intro") { C.play = true; C.user = false; C.beat = -1; } }
+    simStep(C.m, dt, C.still ? dt * 24 / TR.day * .25 : dt * sp * 24 / TR.day);
+  }
+
+  /* ══ the console (DOM): header stats, left / right panels, mode, operator log, 3D labels ══ */
+  function P_(no, title, body, cls) { return h("section", { class: "za-p " + (cls || "") }, [h("header", {}, [h("span", { text: title }), h("i", { text: no })])].concat(body)); }
+  function row(k, v) { return h("div", { class: "za-kv" }, [h("span", { text: k }), h("b", { "data-v": v, text: "–" })]); }
+  function hudBuild(el) {
+    var C = st.ctl, top = h("header", { class: "za-top" }, [
+      h("div", { class: "za-brand" }, [h("img", { src: LOGO, alt: "DAIHEN" }), h("div", {}, [h("small", { text: "DAIHEN ELECTRIC · ระบบงานภายใน" }), h("h1", { html: "Online Helpdesk <em>&amp;</em> Schedule Portal" }), h("span", { text: "POWER TRANSFORMER 30/45 MVA · FIELD SIMULATOR" })])]),
+      h("span", { class: "sp" }),
+      h("div", { class: "za-stats" }, [h("div", {}, [h("small", { text: "SIM ID" }), h("b", { text: "TR-4500" })]), h("div", {}, [h("small", { text: "เวลาจำลอง" }), h("b", { "data-v": "clock", text: "08:30" })]),
+        h("div", {}, [h("small", { text: "สถานะ" }), h("b", { "data-v": "status", class: "acc", text: "● ONAN" })])]),
+      h("div", { class: "za-cta" }, [h("button", { type: "button", class: "za-btn", id: "za-go", text: "เข้าสู่ระบบ", onclick: function () { form("login"); mode("form"); } }),
+        h("button", { type: "button", class: "za-btn ghost", text: "สมัครใช้งาน", onclick: function () { form("reg"); mode("form"); } })]),
+      h("button", { type: "button", class: "za-back", text: "← ภาพรวม", onclick: function () { mode("intro"); } })]);
+    el.appendChild(top);
+    // left: load · temperature · electrical
+    var slider = h("input", { type: "range", min: 0, max: 120, step: 1, value: 50, "aria-label": "โหลด (% ของ 45 MVA)" });
+    slider.addEventListener("input", function () { C.m.man = slider.value / 100; take(C, "SET LOAD " + slider.value + " %"); });
+    var L = h("div", { class: "za-col l" }, [
+      P_("01", "LOAD · โหลด", [h("div", { class: "za-big" }, [h("b", { "data-v": "mva", text: "0.0" }), h("small", { text: "MVA" }), h("span", { class: "sp" }), h("b", { "data-v": "pct", class: "acc", text: "0" }), h("small", { text: "%" })]),
+        h("canvas", { class: "za-chart", width: 480, height: 120, "data-c": "load" }),
+        h("div", { class: "za-tri" }, [row("P", "p"), row("Q", "q"), row("PF", "pf")]),
+        h("div", { class: "za-sl" }, [slider, h("button", { type: "button", class: "za-chip", "data-v": "auto", text: "AUTO", onclick: function () { C.m.man = null; take(C, "LOAD · DAILY PROFILE"); } })])]),
+      P_("02", "TEMPERATURE · อุณหภูมิ", [h("div", { class: "za-bars" }, [["น้ำมันด้านบน", "to"], ["จุดร้อนขดลวด", "hs"], ["อากาศรอบ", "ta"]].map(function (r) {
+        return h("div", { class: "za-bar" }, [h("span", { text: r[0] }), h("div", {}, [h("i", { "data-b": r[1] })].concat(r[1] === "hs" ? [h("u", { title: "ขีดจำกัด 98 °C" })] : [])), h("b", { "data-v": r[1], text: "–" })]); })),
+        h("div", { class: "za-kv" }, [h("span", { text: "ระบายความร้อน" }), h("b", { "data-v": "cool", class: "za-tag", text: "ONAN" })])]),
+      P_("03", "ELECTRICAL · ไฟฟ้า", [row("HV 132 kV", "hv"), row("LV 33 kV", "lvv"), row("ความสูญเสีย", "loss"), row("ประสิทธิภาพ", "eff")], "za-p-el")]);
+    // right: tap changer · assemblies · display · subsystems
+    var asm = h("div", { class: "za-chips za-asm" }, [h("button", { type: "button", class: "za-chip", "data-k": "0", text: "ทั้งหมด", onclick: function () { setView(C, { k: 0, ex: 0, xr: 0 }, "SHOW WHOLE UNIT"); } })].concat(SHORT.map(function (s, i) {
+      return h("button", { type: "button", class: "za-chip", "data-k": String(i + 1), text: s, onclick: function () { setView(C, { k: C.V.k === i + 1 ? 0 : i + 1 }, "ISOLATE " + PARTS[i][2].toUpperCase()); } }); })));
+    var disp = h("div", { class: "za-chips za-disp" }, [["lb", "ป้ายชื่อ"], ["ex", "แยกชิ้น"], ["xr", "มองทะลุ"], ["tt", "หมุนรอบ"]].map(function (d) {
+      return h("button", { type: "button", class: "za-chip", "data-d": d[0], text: d[1], "aria-pressed": "false", onclick: function () { var p = {}; p[d[0]] = C.V[d[0]] ? 0 : 1; setView(C, p, (p[d[0]] ? "" : "HIDE ") + { lb: "LABELS", ex: "EXPLODED VIEW", xr: "X-RAY", tt: "TURNTABLE" }[d[0]]); } }); }));
+    var subs = h("div", { class: "za-subs" }, [["01", "พัดลมระบายความร้อน", "4 ตัว · ONAF", "fan"], ["02", "รีเลย์บุคโฮลซ์", "ก๊าซในน้ำมัน", "buch"], ["03", "ตัวเปลี่ยนแทป", "AVR 33 kV ± 1.25 %", "oltc"],
+      ["04", "ระดับน้ำมัน", "ถังพักน้ำมัน", "oil"], ["05", "Silica gel", "สารดูดความชื้น", "gel"], ["06", "Pressure relief", "ระบายแรงดัน", "prd"]].map(function (r) {
+      return h("div", { class: "za-sub" }, [h("i", { text: r[0] }), h("div", {}, [h("b", { text: r[1] }), h("small", { "data-v": r[3] + "s", text: r[2] })]), h("em", { "data-v": r[3], text: "–" })]); }));
+    var R = h("div", { class: "za-col r" }, [
+      P_("04", "TAP CHANGER · OLTC", [h("canvas", { class: "za-dial", width: 440, height: 210, "data-c": "dial" }), h("div", { class: "za-big sm" }, [h("b", { "data-v": "tap", text: "TAP 10" }), h("span", { class: "sp" }), h("b", { "data-v": "tapkv", class: "acc", text: "–" })]),
+        h("div", { class: "za-kv" }, [h("span", { text: "AVR ฝั่ง 33 kV" }), h("b", { "data-v": "lv", text: "–" })]), h("div", { class: "za-kv" }, [h("span", { text: "จำนวนครั้งที่เปลี่ยน" }), h("b", { "data-v": "ops", text: "0" })])]),
+      P_("05", "ASSEMBLIES · ชิ้นส่วน", [asm]), P_("06", "DISPLAY · การแสดงผล", [disp]), P_("07", "SUBSYSTEMS · ระบบย่อย", [subs], "za-p-sub")]);
+    el.appendChild(L); el.appendChild(R);
+    el.appendChild(h("div", { class: "za-mode", "aria-live": "polite" }, [h("small", { text: "OPERATING MODE · โหมด" }), h("b", { text: "ENERGIZED" }), h("span", { class: "th", text: "" }), h("p", { text: "" })]));
+    // operator log: play / pause, the tour's beats on a bar you can click
+    var bar = h("div", { class: "za-tl", role: "slider", "aria-label": "ตำแหน่งในทัวร์", tabindex: "0" }, [h("i"), h("b")].concat(BEATS.map(function (b) { return h("u", { style: "left:" + (b[0] / TOUR * 100) + "%" }); })));
+    bar.addEventListener("click", function (e) { var r = bar.getBoundingClientRect(); C.t = Math.max(0, Math.min(TOUR - .01, (e.clientX - r.left) / r.width * TOUR)); C.play = true; C.user = false; applyBeat(C, beatAt(C.t), true); C.acts++; hudNow(); });
+    var pb = h("button", { type: "button", class: "za-pp", "aria-label": "หยุด / เล่นทัวร์", onclick: function () { if (C.play) take(C, "PAUSE TOUR"); else { C.play = true; C.user = false; C.beat = -1; } hudNow(); } }, [h("i")]);
+    el.appendChild(h("div", { class: "za-log" }, [pb, h("div", { class: "za-lg" }, [h("div", { class: "za-lh" }, [h("span", { text: "OPERATOR LOG · บันทึก" }), h("b", { "data-v": "act", text: "" }), h("span", { "data-v": "acts", text: "" })]), bar,
+      h("div", { class: "za-lh sm" }, [h("span", { "data-v": "tl", text: "00:00 / 01:06" }), h("span", { text: "ลากเพื่อหมุน · คลิกชิ้นส่วนเพื่อแยก · หมุนล้อเมาส์เพื่อเร่ง" })])])]));
+    el.appendChild(h("div", { class: "za-lbls", "aria-hidden": "true" }, [document.createElementNS("http://www.w3.org/2000/svg", "svg")]));
+    el.appendChild(h("div", { class: "za-cur", "aria-hidden": "true" }));
+    st.hud = el; hudNow();
+  }
+  function cursorTo(sel) {
+    var c = st.el && st.el.querySelector(".za-cur"), t = st.el && st.el.querySelector(sel);
+    if (!c || !t || !t.offsetParent || st.ctl.still || st.mode !== "intro") return;
+    var r = t.getBoundingClientRect(), o = st.el.getBoundingClientRect();
+    c.classList.add("on"); c.style.transform = "translate(" + (r.left - o.left + r.width * .6) + "px," + (r.top - o.top + r.height * .55) + "px)";
+    clearTimeout(c._t); c._t = setTimeout(function () { c.classList.remove("tap"); void c.offsetWidth; c.classList.add("tap"); }, 650);
+  }
+  function cursorOff() { var c = st.el && st.el.querySelector(".za-cur"); c && c.classList.remove("on"); }
+  var two = function (n) { return ("0" + Math.floor(n)).slice(-2); };
+  function hudNow() { if (st.ctl) st.ctl.hudAt = 0; }
+  function hudUpdate(C, dt) {
+    var now = performance.now(); if (now < (C.hudAt || 0) || !st.el) return; C.hudAt = now + 120;
+    var el = st.el, m = C.m, V = C.V, set = function (k, v) { var x = el.querySelectorAll('[data-v="' + k + '"]'); for (var i = 0; i < x.length; i++) if (x[i].textContent !== v) x[i].textContent = v; };
+    var pct = m.s / TR.S * 100, hh = Math.floor(m.h), mm = Math.floor((m.h - hh) * 60);
+    set("clock", two(hh) + ":" + two(mm)); set("status", "● " + (m.onaf ? "ONAF" : "ONAN") + " · " + pct.toFixed(0) + " %");
+    set("mva", m.s.toFixed(1)); set("pct", pct.toFixed(0)); set("p", m.p.toFixed(1) + " MW"); set("q", m.q.toFixed(1) + " Mvar"); set("pf", "0.90");
+    set("auto", m.man == null ? "AUTO ✓" : "AUTO");
+    var sl = el.querySelector('.za-sl input'); if (sl && document.activeElement !== sl) sl.value = Math.round(pct);
+    set("to", m.to.toFixed(1) + " °C"); set("hs", m.hs.toFixed(1) + " °C"); set("ta", m.ta.toFixed(1) + " °C"); set("cool", m.onaf ? "ONAF · พัดลมทำงาน" : "ONAN · ธรรมชาติ");
+    [["to", m.to], ["hs", m.hs], ["ta", m.ta]].forEach(function (b) { var i = el.querySelector('[data-b="' + b[0] + '"]'); if (i) { i.style.width = Math.max(2, Math.min(100, b[1] / 120 * 100)) + "%"; i.classList.toggle("hot", b[0] === "hs" && b[1] > 98); } });
+    set("hv", m.vg.toFixed(1) + " kV · " + m.ih.toFixed(0) + " A"); set("lvv", m.lv.toFixed(2) + " kV · " + m.il.toFixed(0) + " A"); set("loss", m.loss.toFixed(0) + " kW"); set("eff", m.eff.toFixed(2) + " %");
+    set("tap", "TAP " + two(m.n)); set("tapkv", tapKv(m.n).toFixed(1) + " kV"); set("lv", m.lv.toFixed(2) + " kV"); set("ops", String(m.ops));
+    var chip = function (k, t, c) { set(k, t); var e = el.querySelector('[data-v="' + k + '"]'); e && (e.className = c || ""); };
+    chip("fan", m.fan > .5 ? "RUNNING" : "STANDBY", m.fan > .5 ? "on" : ""); chip("buch", "NORMAL", "ok"); chip("oltc", m.mv ? (m.mv > 0 ? "RAISE" : "LOWER") : "IDLE", m.mv ? "on" : "");
+    chip("oil", m.oil.toFixed(0) + " %", "ok"); chip("gel", "82 %", "ok"); chip("prd", "CLOSED", "ok");
+    set("fans", m.fan > .5 ? "4 ตัว · " + Math.round(m.fan * 100) + " %" : "4 ตัว · หยุด (ONAN)"); set("oltcs", "AVR 33 kV ± 1.25 % · TAP " + two(m.n));
+    // mode · log
+    var md = el.querySelector(".za-mode"), p = V.k ? PARTS[V.k - 1] : null, b = md && md.querySelector("b"), th = md && md.querySelector(".th"), ds = md && md.querySelector("p");
+    var big = V.ex ? "EXPLODED VIEW" : p ? p[2].toUpperCase() : V.xr ? "X-RAY · ACTIVE PART" : "ENERGIZED · " + (m.onaf ? "ONAF" : "ONAN");
+    var sub = V.ex ? "แยกชิ้นทั้งหมด · " + Math.round(C.apart || 0) + " %" : p ? p[1] + " · " + p[4] : V.xr ? "มองทะลุตัวถัง · แกนเหล็กและขดลวด" : "หม้อแปลง 30/45 MVA · 132/33 kV · โหลด " + pct.toFixed(0) + " %";
+    if (b && b.textContent !== big) b.textContent = big; if (th && th.textContent !== sub) th.textContent = sub;
+    var dsc = p ? p[3] + (V.k === 5 ? " · " + tapText(m.n) : "") : ""; if (ds && ds.textContent !== dsc) ds.textContent = dsc;
+    set("act", (C.user ? "USER · " : "OPERATOR · ") + C.act); set("acts", C.user && !C.play ? "ทัวร์อัตโนมัติกลับมาใน " + Math.max(0, Math.ceil(25 - C.idle)) + " วินาที" : C.acts + " USER ACTIONS");
+    set("tl", "00:" + two(C.t) + " / 01:" + two(TOUR - 60)); var tl = el.querySelector(".za-tl i"); tl && (tl.style.width = (C.t / TOUR * 100) + "%");
+    var pp = el.querySelector(".za-pp"); pp && pp.classList.toggle("paused", !C.play);
+    [].forEach.call(el.querySelectorAll(".za-asm .za-chip"), function (c) { var on = +c.getAttribute("data-k") === (V.ex ? -1 : V.k); c.classList.toggle("on", on); c.setAttribute("aria-pressed", String(on)); });
+    [].forEach.call(el.querySelectorAll(".za-disp .za-chip"), function (c) { var on = !!V[c.getAttribute("data-d")]; c.classList.toggle("on", on); c.setAttribute("aria-pressed", String(on)); });
+    chart(el.querySelector('[data-c="load"]'), m); dial(el.querySelector('[data-c="dial"]'), m);
+  }
+  function chart(c, m) {
+    if (!c || !c.offsetParent) return; var x = c.getContext("2d"), w = c.width, hh = c.height, pad = 14, X = function (h) { return pad + h / 24 * (w - 2 * pad); }, Y = function (pu) { return hh - 18 - pu / 1.2 * (hh - 30); };
+    x.clearRect(0, 0, w, hh); x.strokeStyle = "#e6dfd8"; x.lineWidth = 1; x.font = "18px ui-monospace,monospace"; x.fillStyle = "#a8a296";
+    [0, 6, 12, 18, 24].forEach(function (h) { x.beginPath(); x.moveTo(X(h), 6); x.lineTo(X(h), hh - 18); x.stroke(); x.fillText(two(h % 24 === 0 && h ? 24 : h), X(h) - 10, hh - 1); });
+    x.setLineDash([6, 6]); x.strokeStyle = "#c9c2b6"; x.beginPath(); x.moveTo(pad, Y(30 / 45)); x.lineTo(w - pad, Y(30 / 45)); x.stroke(); x.setLineDash([]);
+    x.strokeStyle = "#141413"; x.lineWidth = 2.5; x.beginPath(); for (var i = 0; i <= 96; i++) { var h = i / 4; i ? x.lineTo(X(h), Y(prof(h))) : x.moveTo(X(h), Y(prof(h))); } x.stroke();
+    if (m.man != null) { x.strokeStyle = "#cc785c"; x.lineWidth = 2; x.beginPath(); x.moveTo(pad, Y(m.man)); x.lineTo(w - pad, Y(m.man)); x.stroke(); }
+    x.fillStyle = "#cc785c"; x.beginPath(); x.arc(X(m.h), Y(m.s / TR.S), 7, 0, 7); x.fill(); x.strokeStyle = "rgba(204,120,92,.35)"; x.lineWidth = 2; x.beginPath(); x.moveTo(X(m.h), 6); x.lineTo(X(m.h), hh - 18); x.stroke();
+    x.fillStyle = "#a8a296"; x.fillText("ONAN 30", w - pad - 84, Y(30 / 45) - 6);
+  }
+  function dial(c, m) {
+    if (!c || !c.offsetParent) return; var x = c.getContext("2d"), w = c.width, hh = c.height, cx = w / 2, cy = hh - 22, r = hh - 50, a = function (n) { return Math.PI + (n - 1) / 15 * Math.PI; };
+    x.clearRect(0, 0, w, hh); x.lineCap = "round";
+    x.strokeStyle = "#ece5da"; x.lineWidth = 16; x.beginPath(); x.arc(cx, cy, r, Math.PI, 2 * Math.PI); x.stroke();
+    x.strokeStyle = "rgba(204,120,92,.28)"; x.beginPath(); x.arc(cx, cy, r, a(Math.max(1, m.n - 1)), a(Math.min(16, m.n + 1))); x.stroke();
+    x.font = "17px ui-monospace,monospace"; x.textAlign = "center";
+    for (var n = 1; n <= 16; n++) { var aa = a(n), on = n === m.n; x.strokeStyle = on ? "#cc785c" : n === TR.nom ? "#141413" : "#b9b1a4"; x.lineWidth = on ? 4 : 2;
+      x.beginPath(); x.moveTo(cx + Math.cos(aa) * (r - 22), cy + Math.sin(aa) * (r - 22)); x.lineTo(cx + Math.cos(aa) * (r - 8), cy + Math.sin(aa) * (r - 8)); x.stroke();
+      if (n === 1 || n === 7 || n === 16) { x.fillStyle = "#a8a296"; x.fillText(n === 1 ? "+10%" : n === 7 ? "0" : "−15%", cx + Math.cos(aa) * (r + 2) * 1.0, cy + Math.sin(aa) * (r + 2) - 14); } }
+    var na = a(m.n); x.strokeStyle = "#141413"; x.lineWidth = 4; x.beginPath(); x.moveTo(cx, cy); x.lineTo(cx + Math.cos(na) * (r - 30), cy + Math.sin(na) * (r - 30)); x.stroke();
+    x.fillStyle = "#cc785c"; x.beginPath(); x.arc(cx, cy, 9, 0, 7); x.fill();
+  }
+  /* the loop: tour + model + console; the 3D draws from the same state when it is loaded (the console runs without it) */
+  function loop() {
+    var C = st.ctl, last = performance.now();
+    (function f(now) {
+      if (!st.el || st.ctl !== C) return; requestAnimationFrame(f);
+      var dt = Math.min(.05, (now - last) / 1000); last = now;
+      ctlTick(C, dt); hudUpdate(C, dt);
+      st.three && st.three.draw(C, dt, now);
+    })(last);
   }
 
   /* ── forms ── */
@@ -651,82 +866,104 @@
     var cap2 = tex(128, 32, function (x) { x.fillStyle = "#f2f2ee"; x.fillRect(0, 0, 128, 32); x.fillStyle = "#111"; x.font = "700 13px Arial"; x.textAlign = "center"; x.fillText("OTI        WTI", 64, 21); });
     M(new T.PlaneGeometry(.26, .05), plateM(cap2), cw / 2, .06, .014, door);
 
-    root.traverse(function (o) { if (o.isMesh) { o.castShadow = !mobile; o.receiveShadow = !mobile; } });
-    // camera stops: 0 = assembled (start), 1…7 = parts, 8 = assembled again (same view as 0, so the loop is seamless)
-    var focus = [[0, 1.4, 0], [0, 2.95, 1.6], [-.2, 3.0, -1.55], [2.55, .95, 0], [0, 1.7, 0], [ox0 + .15, 1.2, 1.45], [0, 1.15, 0], [-1.1, .45, 1.72], [0, 1.4, 0]];
-    var offD = [[6.9, 3.3, 8.2], [2.8, .5, 3.4], [-3.4, 1.0, -3.3], [3.6, .8, 1.9], [4.6, 1.6, 5.4], [1.9, .55, 2.6], [2.7, 1.2, 3.7], [1.3, .5, 2.6], [6.9, 3.3, 8.2]];
-    var off = mobile ? offD.map(function (o, i) { return i === 0 || i === 8 ? [2.4, 2.4, 12.5] : [o[0] * 1.5, o[1] * 1.4, o[2] * 1.5]; }) : offD;
-    var NS = 8, BASE = 1 / 3.6;                                      // 3.6 s per part
-    function ease(x) { return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; }
-    var tT = new T.Vector3(), tO = new T.Vector3(), look = new T.Vector3(0, 1.4, 0), va = new T.Vector3(), glow = 0;
-    function pose(p) {
-      p = ((p % NS) + NS) % NS;
-      var s = Math.floor(p), f = p - s, tt = ease(Math.min(1, f / .55));             // 55 % travel, 45 % hold on the part
-      P.forEach(function (q) { va.copy(disp(q, s)); q.g.position.copy(va).lerp(disp(q, s + 1), tt); });
-      var on = function (k) { return (s === k ? 1 - tt : 0) + (s + 1 === k ? tt : 0); };
-      door.rotation.y = -1.9 * on(7); glow = on(6);
-      var A = focus[s], Bf = focus[s + 1], Ao = off[s], Bo = off[s + 1];
-      tT.set(A[0] + (Bf[0] - A[0]) * tt, A[1] + (Bf[1] - A[1]) * tt, A[2] + (Bf[2] - A[2]) * tt);
-      tO.set(Ao[0] + (Bo[0] - Ao[0]) * tt, Ao[1] + (Bo[1] - Ao[1]) * tt, Ao[2] + (Bo[2] - Ao[2]) * tt);
-      var sec = tt >= .5 ? s + 1 : s; return { sec: sec === 0 ? 8 : sec, f: f };
-    }
+    root.traverse(function (o) { if (o.isMesh) { o.castShadow = !mobile; o.receiveShadow = !mobile; o.userData.m0 = o.material; } });
+    // assemblies: 1 bushings · 2 conservator · 3 radiators (2 groups) · 4 tank · 5 OLTC (motor drive + insert) · 6 active part · 7 cabinet
+    // iso = where a part goes when it is isolated, ex = in the exploded view (the tank lifts — untanking — and the wall-mounted units are set down)
+    var KP = [1, 2, 3, 3, 4, 5, 5, 6, 7];
+    P.forEach(function (q, i) { q.k = KP[i]; q.ex = q.w[0][1].clone(); q.iso = q.k === 4 || i === 5 || q.k === 7 ? new T.Vector3() : q.ex.clone(); q.g.userData.k = q.k; q.gh = false; });
+    var GHOST = new T.MeshBasicMaterial({ color: 0x7f9bb8, transparent: true, opacity: .07, depthWrite: false, fog: false });
+    function ghost(q, on) { if (q.gh === on) return; q.gh = on; q.g.traverse(function (o) { if (o.isInstancedMesh) o.visible = !on; else if (o.isMesh) { o.material = on ? GHOST : o.userData.m0; o.castShadow = !on && !mobile; } }); }   // fins / bolts drop out: dozens of see-through layers read as fog
+    // label anchors, in each assembly's own frame (they travel with it)
+    var ANC = { 1: [g1, [0, COV + 1.5, .22]], 2: [g2, [cx + cl / 2 + .05, cy + .2, cz]], 3: [g3r, [TL / 2 + .35, 1.58, .29]], 4: [g4, [-TL / 2 + .1, 1.5, TW / 2]], 5: [g5, [ox0, 1.66, oz0]], 6: [g6, [0, 1.64, .1]], 7: [g7, [cxp + cw / 2, cyp + chh / 2, czp + cd / 2]] };
+    var lbl = st.el.querySelector(".za-lbls"), svg = lbl && lbl.querySelector("svg"), LB = {}, NS = "http://www.w3.org/2000/svg";
+    Object.keys(ANC).forEach(function (k) {
+      var d = document.createElement("div"); d.className = "za-lb"; d.innerHTML = "<i>0" + k + "</i><b></b><span></span>"; d.querySelector("b").textContent = SHORT[k - 1];
+      d.addEventListener("click", function () { st.ctl && setView(st.ctl, { k: st.ctl.V.k === +k ? 0 : +k }, "ISOLATE " + PARTS[k - 1][2].toUpperCase()); });
+      var ln = document.createElementNS(NS, "line"), dot = document.createElementNS(NS, "circle"); dot.setAttribute("r", "3.5");
+      svg.appendChild(ln); svg.appendChild(dot); lbl.appendChild(d); LB[k] = { d: d, ln: ln, dot: dot, v: new T.Vector3() };
+    });
+    function labelText(k, m) { return k == 1 ? m.vg.toFixed(1) + " kV" : k == 2 ? "น้ำมัน " + m.oil.toFixed(0) + " %" : k == 3 ? (m.onaf ? "ONAF · พัดลม " + Math.round(m.fan * 100) + " %" : "ONAN") : k == 4 ? "น้ำมัน " + m.to.toFixed(0) + " °C" : k == 5 ? tapText(m.n) : k == 6 ? "จุดร้อน " + m.hs.toFixed(0) + " °C" : "OTI / WTI"; }
+    // camera presets per view: focus point + offset (→ yaw, pitch, distance); the visitor's drag / zoom adds to it
+    var PRE = { 0: [[0, 1.45, 0], [6.9, 3.3, 8.2]], 1: [[0, 2.95, 1.6], [2.8, .7, 3.6]], 2: [[-.2, 3.0, -1.55], [-3.4, 1.0, -3.3]], 3: [[2.55, .95, 0], [3.6, .9, 2.1]], 4: [[0, 1.0, 0], [4.2, 1.9, 5.0]],
+      5: [[ox0 + .15, 1.15, 1.42], [2.0, .6, 2.7]], 6: [[0, 1.1, 0], [3.9, 1.7, 5.2]], 7: [[cxp, cyp, czp + .3], [1.3, .45, 2.5]], ex: [[0, 1.9, 0], [8.6, 4.4, 10.6]], xr: [[0, 1.2, 0], [5.6, 2.6, 6.6]] };
+    function sph(o) { var d = Math.sqrt(o[0] * o[0] + o[1] * o[1] + o[2] * o[2]); return { yaw: Math.atan2(o[0], o[2]), pit: Math.asin(o[1] / d), d: d * (mobile ? 1.45 : 1) }; }
+    var CV = { f: new T.Vector3(0, 1.45, 0), yaw: 0, pit: 0, d: 10 }, TG = { f: new T.Vector3(), yaw: 0, pit: 0, d: 10 }, U = { yaw: 0, pit: 0, z: 1 }, camN = -1;
+    (function () { var s = sph(PRE[0][1]); CV.yaw = TG.yaw = s.yaw; CV.pit = TG.pit = s.pit; CV.d = TG.d = s.d; TG.f.set(0, 1.45, 0); })();
+    function aim(V) { var p = PRE[V.ex ? "ex" : V.k ? V.k : V.xr ? "xr" : 0], s = sph(p[1]); TG.f.set(p[0][0], p[0][1], p[0][2]); TG.yaw = s.yaw; TG.pit = s.pit; TG.d = s.d; if (!st.ctl.user) { U.yaw = 0; U.pit = 0; U.z = 1; } }
     var comp = null, bokeh = null;
-    if (!mobile && !still && T.EffectComposer && T.BokehPass) { try { comp = new T.EffectComposer(R); comp.addPass(new T.RenderPass(scene, cam)); bokeh = new T.BokehPass(scene, cam, { focus: 8, aperture: .00012, maxblur: .005, width: 1, height: 1 }); comp.addPass(bokeh); } catch (e) { comp = null; } }
-    var W = 1, H = 1, ox = 0, oxT = 0, oy = 0;
+    if (!mobile && !still && T.EffectComposer && T.BokehPass) { try { comp = new T.EffectComposer(R); comp.addPass(new T.RenderPass(scene, cam)); bokeh = new T.BokehPass(scene, cam, { focus: 8, aperture: .00008, maxblur: .004, width: 1, height: 1 }); comp.addPass(bokeh); } catch (e) { comp = null; } }
+    var W = 1, H = 1, ox = 0, oy = 0;
     function size() { W = st.el ? st.el.clientWidth : innerWidth; H = st.el ? st.el.clientHeight : innerHeight; R.setSize(W, H, false); cam.aspect = W / H; cam.updateProjectionMatrix(); comp && comp.setSize(W, H); }
     size(); addEventListener("resize", size);
-    // play by itself; wheel / swipe / arrow keys speed it up
-    var el = st.el, story = { p: 0 }, cur = 0, boost = 0, settle = false, alive = true, last = performance.now(), tick = 0, slow = 0, tapNext = 0, tapN = 7, tapD = 1, lastSec = -1;
-    function tapOut() { var o = st.cap && st.cap.querySelector(".live"); if (o) o.textContent = tapText(tapN); }
-    mdDraw(tapN); st.tapN = function () { return tapN; };
-    function onWheel(e) { if (st.mode !== "intro") return; e.preventDefault(); boost = Math.min(10, boost + Math.min(120, Math.abs(e.deltaY || e.deltaX || 0)) * .03); }
+    // input: drag = orbit, click = isolate the part under the pointer, wheel = speed up the tour (ctrl / pinch = zoom), arrow keys = faster
+    var el = st.el, ray = new T.Raycaster(), pv = new T.Vector2(), drag = null, tick = 0, slow = 0, lastN = -1, popT = 0;
+    function pick(x, y) { var r = cv.getBoundingClientRect(); pv.set((x - r.left) / r.width * 2 - 1, -(y - r.top) / r.height * 2 + 1); ray.setFromCamera(pv, cam); var hit = ray.intersectObjects(root.children, true)[0], o = hit && hit.object; while (o && o.userData.k == null) o = o.parent; return o ? o.userData.k : 0; }
+    function onDown(e) { if (st.mode !== "intro") return; drag = { x: e.clientX, y: e.clientY, moved: 0 }; cv.setPointerCapture && cv.setPointerCapture(e.pointerId); }
+    function onMove(e) {
+      if (drag) { var dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.moved += Math.abs(dx) + Math.abs(dy); drag.x = e.clientX; drag.y = e.clientY;
+        if (drag.moved > 4) { U.yaw -= dx * .0065; U.pit = Math.max(-.5, Math.min(.9, U.pit + dy * .004)); if (!drag.took) { drag.took = 1; take(st.ctl, "ORBIT VIEW"); } } return; }
+      if (st.mode === "intro" && !mobile && ++tick % 3 === 0) { var k = pick(e.clientX, e.clientY); st.ctl.hover = k; cv.style.cursor = k ? "pointer" : "grab"; }
+    }
+    function onUp(e) { if (!drag) return; var d = drag; drag = null; if (d.moved <= 4) { var k = pick(e.clientX, e.clientY), C = st.ctl; setView(C, { k: k && C.V.k !== k ? k : 0 }, k ? "ISOLATE " + PARTS[k - 1][2].toUpperCase() : "SHOW WHOLE UNIT"); } }
+    function onWheel(e) { if (st.mode !== "intro") return; e.preventDefault(); if (e.ctrlKey) { U.z = Math.max(.45, Math.min(1.8, U.z * Math.exp(e.deltaY * .004))); st.ctl.user || take(st.ctl, "ZOOM"); return; } st.ctl.boost = Math.min(10, st.ctl.boost + Math.min(120, Math.abs(e.deltaY || e.deltaX || 0)) * .03); }
     var ty = null;
-    function onTouch(e) { if (st.mode !== "intro" || !e.touches[0]) return; var y = e.touches[0].clientY; if (ty !== null) boost = Math.min(10, boost + Math.abs(y - ty) * .06); ty = y; }
-    function onKey(e) { if (st.mode === "intro" && /Arrow(Down|Right)|PageDown| /.test(e.key) && !/INPUT|TEXTAREA|BUTTON/.test(e.target.tagName)) boost = Math.min(10, boost + 2.5); }
+    function onTouch(e) { if (st.mode !== "intro" || !e.touches[0] || e.target !== cv) return; var y = e.touches[0].clientY; if (ty !== null && !drag) st.ctl.boost = Math.min(10, st.ctl.boost + Math.abs(y - ty) * .06); ty = y; }
+    function onKey(e) { if (st.mode === "intro" && /Arrow(Down|Right)|PageDown/.test(e.key) && !/INPUT|TEXTAREA|BUTTON/.test(e.target.tagName)) st.ctl.boost = Math.min(10, st.ctl.boost + 2.5); }
+    cv.addEventListener("pointerdown", onDown); cv.addEventListener("pointermove", onMove); cv.addEventListener("pointerup", onUp); cv.addEventListener("pointercancel", function () { drag = null; });
+    cv.addEventListener("dblclick", function () { U.yaw = 0; U.pit = 0; U.z = 1; });
     el.addEventListener("wheel", onWheel, { passive: false }); el.addEventListener("touchmove", onTouch, { passive: true }); el.addEventListener("touchend", function () { ty = null; }); el.addEventListener("keydown", onKey);
-    function click() {
-      var fl = el.querySelector(".za-flash"); if (!fl) return; fl.classList.remove("go"); void fl.offsetWidth; fl.classList.add("go"); root.userData.pop = 1;
+    function pop() {
+      var fl = el.querySelector(".za-flash"); if (!fl) return; fl.classList.remove("go"); void fl.offsetWidth; fl.classList.add("go"); popT = 1;
       try { var A = window.__zqAC || (window.__zqAC = new (window.AudioContext || window.webkitAudioContext)()); if (A.state === "running") { var o = A.createOscillator(), g = A.createGain(); o.type = "square"; o.frequency.value = 1900; g.gain.setValueAtTime(.06, A.currentTime); g.gain.exponentialRampToValueAtTime(.0001, A.currentTime + .06); o.connect(g).connect(A.destination); o.start(); o.stop(A.currentTime + .07); } } catch (e) {}
     }
-    function frame(now) {
-      if (!alive) return;
-      requestAnimationFrame(frame);
-      var dt = Math.min(.05, (now - last) / 1000); last = now;
-      if (still) { story.p = st.jumpTo != null ? st.jumpTo : story.p; }
-      else if (st.mode === "intro" && !settle) story.p += dt * BASE * (1 + boost);
-      else { var goal = Math.ceil(story.p / NS - 1e-6) * NS; story.p = Math.min(goal, story.p + dt * 4); }       // form: finish the loop and rest assembled
-      boost *= Math.exp(-dt * 1.4);
-      if (story.p >= NS && st.mode === "intro") { story.p -= NS; cur -= NS; }                                    // seamless loop
-      cur += (story.p - cur) * (still ? 1 : 1 - Math.pow(.0008, dt));
-      var ps = pose(cur);
-      var asm = ps.sec === 8 ? 1 : 0;
-      root.rotation.y += ((asm && !still ? Math.sin(now / 2600) * .45 : 0) - root.rotation.y) * Math.min(1, dt * 1.5);
-      if (root.userData.pop) { root.userData.pop = Math.max(0, root.userData.pop - dt * 3); var sc = 1 + .03 * Math.sin(root.userData.pop * Math.PI); root.scale.set(sc, sc, sc); }
-      look.lerp(tT, still ? 1 : 1 - Math.pow(.002, dt));
-      cam.position.set(look.x + tO.x, look.y + tO.y, look.z + tO.z); cam.lookAt(look);
-      // move the model aside: right of the headline on the first page, left of the form on the second
-      oxT = mobile ? 0 : st.mode === "form" ? .17 : -.24; ox += (oxT - ox) * (still ? 1 : Math.min(1, dt * 3));
-      var oyT = mobile && st.mode === "intro" ? -.2 : 0; oy += (oyT - oy) * (still ? 1 : Math.min(1, dt * 3));       // phone: model below the headline
-      ox || oy ? cam.setViewOffset(W, H, W * ox, H * oy, W, H) : cam.clearViewOffset();
-      if (!still) { fans.forEach(function (f, i) { f.rotation.x += dt * (9 + i); }); if (now > tapNext) { tapNext = now + 1100; if (tapN >= 16 || tapN <= 1) tapD = -tapD; tapN += tapD; mdDraw(tapN); tapOut(); } arm.rotation.y += (-tapAng(tapN) - arm.rotation.y) * Math.min(1, dt * 10); }
-      core.emissiveIntensity = glow * (.14 + (still ? 0 : .08 * Math.sin(now / 180)));
-      if (ps.sec !== lastSec) { if (ps.sec === 8 && lastSec === 7 && !still) click(); lastSec = ps.sec; caption(ps.sec); }   // the parts lock back together
-      var bar = st.cap && st.cap.querySelector(".bar i"); if (bar) bar.style.width = (ps.sec === 8 ? 100 : Math.min(100, ps.f * 100)) + "%";
-      if (bokeh) bokeh.uniforms.focus.value = cam.position.distanceTo(look);
-      comp ? comp.render(dt) : R.render(scene, cam);
-      tick++; slow = slow * .95 + (dt > .024 ? 1 : 0) * .05;
-      if (tick > 90 && slow > .5) { if (comp) { comp = null; bokeh = null; slow = 0; } else if (R.getPixelRatio() > 1) { R.setPixelRatio(1); size(); slow = 0; } }
-      if (still) alive = false;
+    var pW = new T.Vector3();
+    function labels(C) {
+      if (!svg) return; var V = C.V, show = st.mode === "intro" && V.lb, cxs = W / 2;
+      Object.keys(LB).forEach(function (k) {
+        var L = LB[k], a = ANC[k], vis = show && (!V.k || V.k === +k) && !(mobile && !V.k);
+        if (vis) { L.v.set(a[1][0], a[1][1], a[1][2]); a[0].localToWorld(L.v); pW.copy(L.v).project(cam); vis = pW.z < 1 && Math.abs(pW.x) < 1.05 && Math.abs(pW.y) < 1.05; }
+        L.d.style.display = vis ? "" : "none"; L.ln.style.display = L.dot.style.display = vis ? "" : "none"; if (!vis) return;
+        var x = (pW.x + 1) / 2 * W, y = (1 - pW.y) / 2 * H, right = x > cxs, lx = x + (right ? 46 : -46), ly = y - 42;
+        L.d.style.transform = "translate(" + (right ? lx : lx) + "px," + ly + "px) translate(" + (right ? "0" : "-100%") + ",-50%)";
+        L.d.classList.toggle("hov", C.hover === +k || V.k === +k);
+        var sp = L.d.querySelector("span"), t = labelText(k, C.m); sp.textContent !== t && (sp.textContent = t);
+        L.ln.setAttribute("x1", x); L.ln.setAttribute("y1", y); L.ln.setAttribute("x2", lx); L.ln.setAttribute("y2", ly); L.dot.setAttribute("cx", x); L.dot.setAttribute("cy", y);
+      });
     }
-    requestAnimationFrame(frame); requestAnimationFrame(function () { cv.classList.add("on"); });
-    function redraw() { if (still && !alive) { alive = true; requestAnimationFrame(frame); } }
-    if (still) addEventListener("resize", redraw);
+    var FORMV = { k: 0, ex: 0, xr: 0, lb: 0, tt: 1 }, lastMode = "";
+    function draw(C, dt, now) {
+      var V = st.mode === "form" ? FORMV : C.V;   // the form page shows the whole unit, turning slowly
+      if (st.mode !== lastMode) { lastMode = st.mode; camN = -1; }
+      var m = C.m, kk = still ? 1 : 1 - Math.exp(-dt * 3), apart = 0;
+      P.forEach(function (q) { var tg = V.ex ? q.ex : V.k === q.k ? q.iso : ZERO; q.g.position.lerp(tg, kk); var L = q.ex.length(); L && (apart = Math.max(apart, q.g.position.length() / L));
+        ghost(q, !V.ex && ((V.k && V.k !== q.k) || (q.k === 4 && V.xr && V.k !== 4))); });
+      C.apart = apart * 100;
+      door.rotation.y += ((V.k === 7 || V.ex ? -1.9 : 0) - door.rotation.y) * kk;
+      if (!still) fans.forEach(function (f, i) { f.rotation.x += dt * m.fan * (15 + i); });
+      arm.rotation.y += (-tapAng(m.n) - arm.rotation.y) * (still ? 1 : Math.min(1, dt * 8)); if (m.n !== lastN) { lastN = m.n; mdDraw(m.n); }
+      core.emissiveIntensity = (V.k === 6 || V.xr ? .12 + (still ? 0 : .06 * Math.sin(now / 160)) : 0) * Math.min(1.4, m.s / TR.S + .4);
+      if (popT) { popT = Math.max(0, popT - dt * 3); var sc = 1 + .025 * Math.sin(popT * Math.PI); root.scale.set(sc, sc, sc); }
+      // camera
+      if (C.cam !== camN) { camN = C.cam; aim(V); if (V === FORMV) { U.yaw = 0; U.pit = 0; U.z = 1; } }
+      if (V.tt && !still && !drag) U.yaw += dt * .14;
+      var ck = still ? 1 : 1 - Math.exp(-dt * 2.2), dy = TG.yaw - CV.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+      CV.f.lerp(TG.f, ck); CV.yaw += dy * ck; CV.pit += (TG.pit - CV.pit) * ck; CV.d += (TG.d - CV.d) * ck;
+      var yw = CV.yaw + U.yaw, pt = Math.max(-.2, Math.min(1.25, CV.pit + U.pit)), d = CV.d * U.z;
+      cam.position.set(CV.f.x + d * Math.cos(pt) * Math.sin(yw), Math.max(.15, CV.f.y + d * Math.sin(pt)), CV.f.z + d * Math.cos(pt) * Math.cos(yw)); cam.lookAt(CV.f);
+      // between the two panel columns on the first page, left of the form on the second, under the header on a phone
+      var oxT = mobile ? 0 : st.mode === "form" ? .17 : 0, oyT = mobile && st.mode === "intro" ? -.06 : 0;
+      ox += (oxT - ox) * (still ? 1 : Math.min(1, dt * 3)); oy += (oyT - oy) * (still ? 1 : Math.min(1, dt * 3));
+      ox || oy ? cam.setViewOffset(W, H, W * ox, H * oy, W, H) : cam.clearViewOffset();
+      if (bokeh) bokeh.uniforms.focus.value = cam.position.distanceTo(CV.f);
+      comp ? comp.render(dt) : R.render(scene, cam);
+      labels(C);
+      slow = slow * .95 + (dt > .024 ? 1 : 0) * .05;
+      if (++tick > 90 && slow > .5) { if (comp) { comp = null; bokeh = null; slow = 0; } else if (R.getPixelRatio() > 1) { R.setPixelRatio(1); size(); slow = 0; } }
+    }
+    requestAnimationFrame(function () { cv.classList.add("on"); });
     return {
-      mode: function () { redraw(); },
-      speed: function () { return 1 + boost; },
-      progress: function () { return story.p; },
-      jump: function (i) { var p = i >= 8 ? 0 : i - 1 + .6; if (still) { st.jumpTo = p; story.p = p; redraw(); return; } var base = Math.floor(story.p / NS) * NS; story.p = base + p; if (story.p < cur - .01 && i < 8) cur = story.p - .45; },
-      dispose: function () { alive = false; try { removeEventListener("resize", size); el.removeEventListener("wheel", onWheel); scene.traverse(function (o) { if (o.geometry) o.geometry.dispose(); if (o.material) { o.material.map && o.material.map.dispose(); o.material.dispose(); } }); env && env.dispose(); pm.dispose(); R.dispose(); R.forceContextLoss && R.forceContextLoss(); } catch (e) {} }
+      draw: draw, pop: pop, mode: function () {},
+      dispose: function () { try { removeEventListener("resize", size); el.removeEventListener("wheel", onWheel); scene.traverse(function (o) { if (o.geometry) o.geometry.dispose(); if (o.material) { o.material.map && o.material.map.dispose(); o.material.dispose(); } }); env && env.dispose(); pm.dispose(); R.dispose(); R.forceContextLoss && R.forceContextLoss(); } catch (e) {} }
     };
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { info(); }); else info();
