@@ -175,7 +175,7 @@ function getItem360(token, code) { apiOnly_();
   var today = wsToday_(), YEAR = 365 * 864e5, open = [], done = [], lts = [];
   wsPendingRows_(function (kk) { return kk === k; }).forEach(function (g) {
     var due = bomDate_(g[9]) || bomDate_(g[7]), req = bomDate_(g[6]);
-    var rec = { pr: g[1], po: g[2], status: g[4], due: g[9] || g[7], req: g[6], qty: Number(g[13]) || 0, unit: g[14], by: g[12] };
+    var rec = { pr: g[1], spec: g[3], po: g[2], status: g[4], due: g[9] || g[7], req: g[6], qty: Number(g[13]) || 0, unit: g[14], by: g[12] };
     if (ORD_PO_DONE.test(g[4] || '')) { done.push(rec); if (req != null && due != null && due > req) lts.push((due - req) / 864e5); return; }
     if (due != null && Math.abs(due - today) > YEAR) return;
     rec.t = due; open.push(rec);
