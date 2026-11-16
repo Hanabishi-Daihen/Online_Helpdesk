@@ -105,4 +105,11 @@ T('every function the page names is on API_FNS',!miss.length,miss);
 { const w=mk(); const x=w.api('', 'authWarm',[]); T('warm-up: open before sign-in, sends no data',x.ok===1&&Object.keys(x).every(k=>k==='ok'||k==='skip'),x);
   T('warm-up: at most once per 3 minutes',w.api('', 'authWarm',[]).skip===1);
   T('warm-up leaves no signed-in user behind',w.__user===null||w.__user===undefined||!w.__user.a); }
+// ── settings page: the data-source panels travel in one getMany and read the trigger list once ──
+{ const w=mk(); let n=0; w.ScriptApp={getProjectTriggers:()=>{n++;return[{getHandlerFunction:()=>'rtAutoSync'},{getHandlerFunction:()=>'docAutoSync'}]}};
+  w.__trusted=true; w.__user={e:'admin:a',n:'A',a:1};
+  const out=w.getMany(['getRtSource','getStockSource','getPendingSource','getScheduleSource','getDocSource'].map(f=>[f,['session']]));
+  T('source panels: all answered in one batch',out.length===5&&out.every(x=>x&&!('e' in x)&&'hours' in x.v),out.map(x=>x&&(x.e||Object.keys(x.v||{}).join(','))));
+  T('source panels: trigger list read once (was once per panel)',n===1,n);
+  T('source panels: hours follow the triggers',out[0].v.hours===24&&out[4].v.hours===24&&out[1].v.hours===0,out.map(x=>x.v&&x.v.hours)); }
 console.log(ok+' passed, '+bad+' failed');process.exit(bad?1:0);

@@ -91,7 +91,7 @@ function syncRtInner_(why, force) {
 function rtAutoSync() { trustEntry_(); if (schedProp_('RT_SRC_URL')) syncRtRun_('อัตโนมัติ', false); }   // time trigger
 function getRtSource(token) { apiOnly_();
   requireAdmin_(token);
-  var hrs = 0; ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'rtAutoSync') hrs = Number(schedProp_('RT_SYNC_HOURS') || 24); });
+  var hrs = trigHas_('rtAutoSync') ? Number(schedProp_('RT_SYNC_HOURS') || 24) : 0;
   var id = schedProp_('STOCK_SS_ID');
   return { url: schedProp_('RT_SRC_URL') || '', hours: hrs, last: rtInfo_(), sheetUrl: id ? 'https://docs.google.com/spreadsheets/d/' + id + '/edit' : '' };
 }

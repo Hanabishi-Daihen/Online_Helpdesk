@@ -238,7 +238,7 @@ function docLookup(q) { apiOnly_();
 function docAutoSync() { trustEntry_(); if (schedProp_('DOC_SRC_URL')) syncDocsRun_('อัตโนมัติ', false); }   // time trigger
 function getDocSource(token) { apiOnly_();
   requireAdmin_(token);
-  var hrs = 0; ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'docAutoSync') hrs = Number(schedProp_('DOC_SYNC_HOURS') || 24); });
+  var hrs = trigHas_('docAutoSync') ? Number(schedProp_('DOC_SYNC_HOURS') || 24) : 0;
   var id = schedProp_('STOCK_SS_ID');
   return { url: schedProp_('DOC_SRC_URL') || '', hours: hrs, last: docInfo_(), od: docOd_(), sheetUrl: id ? 'https://docs.google.com/spreadsheets/d/' + id + '/edit' : '' };
 }

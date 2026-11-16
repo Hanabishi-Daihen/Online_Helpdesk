@@ -96,7 +96,7 @@ const cdn = r => { const u = r.request().url(); for (const [re, p] of MAP) { con
   await p.click('#zq-me'); await p.click('#zq-me-p button:has-text("ออกจากระบบ")'); await p.waitForTimeout(1500);
   check('sign out without top window: sign-in page in place, Admin mode off', await A.count() === 1 && await A.getAttribute('data-mode') === 'form' && !/ADMIN/.test(await p.locator('aside:not(.za-cap)').innerText()));
   await p.fill('#za-id', 'somchai@example.co.th'); await p.fill('#za-pw', 'Passw0rd99'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(1800);
-  check('next sign-in after that works', await A.count() === 0 && /S\.Somchai/.test(await p.locator('aside').innerText()));
+  const sb3 = await p.locator('aside:not(.za-cap)').innerText().catch(e => 'ERR ' + e.message); check('next sign-in after that works', await A.count() === 0 && /S\.Somchai/.test(sb3), [await A.count(), sb3.slice(-120)]);
   // phone
   const m = await b.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true }); await m.route(/cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|unpkg\.com/, cdn);
   const pm = await m.newPage(); pm.on('pageerror', e => errs.push('phone: ' + e.message));

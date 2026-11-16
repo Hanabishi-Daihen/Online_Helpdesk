@@ -26,16 +26,17 @@ function logUsage(device, rows) { apiOnly_();
     return [day, tm, dev, k, n, String(c), String(Math.max(0, Math.min(6e5, Math.round(Number(r.ms) || 0)))), String(Math.max(0, Math.min(6e5, Math.round(Number(r.mx) || 0))))];
   }).filter(Boolean);
   if (!add.length) return 0;
-  var L = LockService.getScriptLock();
-  if (!L.tryLock(3000)) return -1;
+  // Opening the stock spreadsheet is the slow part (seconds, with retries): do it before taking the script lock, so
+  // every other write in the app does not wait behind a usage log. The lock only covers "find the end, write".
+  var ss = stockSS_(), sh = ss.getSheetByName(USE_SHEET), L = LockService.getScriptLock();
+  if (!L.tryLock(2000)) return -1;
   try {
-    var ss = stockSS_(), sh = ss.getSheetByName(USE_SHEET);
-    if (!sh) { sh = ss.insertSheet(USE_SHEET); sh.getRange(1, 1, 1, USE_HEADER.length).setValues([USE_HEADER]).setFontWeight('bold'); sh.setFrozenRows(1); }
-    fitCols_(sh, USE_HEADER.length);
-    var at = sh.getLastRow() + 1;
-    if (sh.getMaxRows() < at + add.length) sh.insertRowsAfter(sh.getMaxRows(), at + add.length - sh.getMaxRows());
+    if (!sh) sh = ss.getSheetByName(USE_SHEET);
+    if (!sh) { sh = ss.insertSheet(USE_SHEET); sh.getRange(1, 1, 1, USE_HEADER.length).setValues([USE_HEADER]).setFontWeight('bold'); sh.setFrozenRows(1); fitCols_(sh, USE_HEADER.length); }
+    var at = sh.getLastRow() + 1, max = sh.getMaxRows();
+    if (max < at + add.length) sh.insertRowsAfter(max, at + add.length - max + 200);    // grow in steps, not on every call
     var rg = sh.getRange(at, 1, add.length, USE_HEADER.length); rg.setNumberFormat('@'); rg.setValues(add);
-    var n = sh.getLastRow() - 1; if (n > USE_MAX) sh.deleteRows(2, n - USE_KEEP);
+    var n = at + add.length - 2; if (n > USE_MAX) sh.deleteRows(2, n - USE_KEEP);         // trimming is rare (USE_MAX rows)
   } finally { L.releaseLock(); }
   return add.length;
 }

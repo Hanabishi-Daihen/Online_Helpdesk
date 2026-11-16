@@ -120,7 +120,7 @@ function wsP360Cfg_() {
 }
 function wsDeptNames_(s) { var m = {}; String(s || '').split(/[,;\n]+/).forEach(function (p) { var x = /^\s*([A-Za-z])\s*[=:]\s*(.+?)\s*$/.exec(p); if (x) m[x[1].toUpperCase()] = x[2]; }); return m; }
 function wsProcs_(sched) { var m = {}; (sched || []).forEach(function (r) { var p = String(r[8] || '').trim(); if (p) m[p] = (m[p] || 0) + 1; }); return Object.keys(m).sort(); }
-function getP360Cfg(token) { apiOnly_(); requireAdmin_(token); var sched = []; try { sched = getSchedules(); } catch (e) {} var c = wsP360Cfg_(); return { all: wsProcs_(sched), procs: c.procs, dept: c.dept, deptNames: c.deptNames }; }
+function getP360Cfg(token) { apiOnly_(); requireAdmin_(token); var sched = []; try { sched = schedCached_(); } catch (e) {} var c = wsP360Cfg_(); return { all: wsProcs_(sched), procs: c.procs, dept: c.dept, deptNames: c.deptNames }; }
 // procs: list ([] = all) · opt (optional): { dept: 'C' / 'CF', deptNames: 'C=DS13,F=DS11' }
 function saveP360Cfg(token, procs, opt) { apiOnly_();
   requireAdmin_(token);
@@ -327,7 +327,7 @@ function getProjects(token) { apiOnly_();
 function wsProjectsC_() { return wsCached_('projects', ['bom', 'sched'], '', wsProjects_); }
 function wsProjects_() {
   var sched = [], by = {}, today = wsToday_();
-  try { sched = getSchedules(); } catch (e) {}
+  try { sched = schedCached_(); } catch (e) {}
   var get = function (b) { return by[b] || (by[b] = { base: b, customer: '', mva: '', next: null, nextLabel: '', delivery: '', bom: [], total: 0, ready: 0, short: 0, late: 0 }); };
   sched.forEach(function (r) {
     var b = bomKey_(r[0]); if (!b) return;
@@ -387,7 +387,7 @@ function wsProject360_(B) {
   var today = wsToday_(), cfgP = wsP360Cfg_().procs, showP = {};
   cfgP.forEach(function (p) { showP[String(p).toUpperCase()] = 1; });
   var out = { base: B, sched: [], bom: [], short: [], orders: [], exports: [], issues: [], events: [], procFilter: cfgP };
-  var sched = []; try { sched = getSchedules(); } catch (e) {}
+  var sched = []; try { sched = schedCached_(); } catch (e) {}
   sched.forEach(function (r) {
     if (bomKey_(r[0]) !== B) return;
     out.sched.push({ process: String(r[8]).trim(), start: r[9], finish: r[10], mva: r[1], volt: r[2], customer: r[4], purchaser: r[3], delivery: r[7] || r[6] || r[5] });

@@ -49,6 +49,9 @@ function doGet(e) { trustEntry_();
 // ── helpers ─────────────────────────────────────────────────────────
 var __ss = null;                                   // one openById per server call (each call is a fresh execution)
 function ss_() { return __ss || (__ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID)); }
+// handler names of the project's time triggers — ScriptApp.getProjectTriggers() costs ~0.5 s, so read it once per execution
+var __trig = null;
+function trigHas_(name) { if (!__trig) { __trig = {}; try { ScriptApp.getProjectTriggers().forEach(function (t) { __trig[t.getHandlerFunction()] = 1; }); } catch (e) {} } return !!__trig[name]; }
 // timing → Executions log (Apps Script editor → Executions); compare before / after
 function perf_(name, t0) { try { console.log('[perf] ' + name + ' ' + (Date.now() - t0) + ' ms'); } catch (e) {} }
 // A new sheet has 26 columns; Google counts every cell of the grid (empty ones too) toward the 10-million-cell limit
@@ -244,7 +247,9 @@ function getIssuesVer() { apiOnly_(); return issVer_(); }
 // several small reads in one round trip (each google.script.run call costs ~0.5–1 s before any work starts).
 // calls = [[name, args]] run in order → [{ v } | { e }]. Only the read functions below; each keeps its own checks.
 var MANY_OK = ['getPulse', 'getDataVers', 'getIssuesVer', 'getIssues', 'getSchedules', 'getBomSummary', 'getStockAlertSummary',
-  'getOrderAgeSummary', 'getOrderTrackSummary', 'getNotify', 'getRemainFlags', 'getStockMeta', 'getPendingMeta', 'getOrderApprovalPulse'];
+  'getOrderAgeSummary', 'getOrderTrackSummary', 'getNotify', 'getRemainFlags', 'getStockMeta', 'getPendingMeta', 'getOrderApprovalPulse',
+  // settings page (Admin): the data-source panels, e-mail roster, Project 360 settings — small reads, one round trip
+  'getRtSource', 'getStockSource', 'getPendingSource', 'getScheduleSource', 'getDocSource', 'getEmailRoster', 'getP360Cfg'];
 function getMany(calls) { apiOnly_();
   var t0 = Date.now(), G = globalThis;
   var out = (Array.isArray(calls) ? calls : []).slice(0, 20).map(function (c) {
@@ -1616,7 +1621,7 @@ function syncSchedulesInner_(why, force) {
 function scheduleAutoSync() { trustEntry_(); if (schedProp_('SCHED_SRC_URL')) syncSchedulesRun_('อัตโนมัติ', false); }   // time trigger
 function getScheduleSource(token) { apiOnly_();
   requireAdmin_(token);
-  var hrs = 0; ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'scheduleAutoSync') hrs = Number(schedProp_('SCHED_SYNC_HOURS') || 1); });
+  var hrs = trigHas_('scheduleAutoSync') ? Number(schedProp_('SCHED_SYNC_HOURS') || 1) : 0;
   return { url: schedProp_('SCHED_SRC_URL') || '', hours: hrs, last: schedSyncInfo_() };
 }
 function setScheduleSource(token, url, hours) { apiOnly_();
@@ -2065,7 +2070,7 @@ function stockPost_(why) {
 function stockPostNow(token) { trustEntry_(); requireAdmin_(token); return syncMutex_('STOCK_POST_LAST', 'สั่งโดย Admin', function () { schedProp_('STOCK_POST', null); return stockPost_('สั่งโดย Admin'); }); }
 function getStockSource(token) { apiOnly_();
   requireAdmin_(token);
-  var hrs = 0; ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'stockAutoSync') hrs = Number(schedProp_('STOCK_SYNC_HOURS') || 8); });
+  var hrs = trigHas_('stockAutoSync') ? Number(schedProp_('STOCK_SYNC_HOURS') || 8) : 0;
   var id = schedProp_('STOCK_SS_ID');
   return { url: schedProp_('STOCK_SRC_URL') || '', hours: hrs, last: stockInfo_(), sheetUrl: id ? 'https://docs.google.com/spreadsheets/d/' + id + '/edit' : '' };
 }
@@ -2316,7 +2321,7 @@ function getPendingBundle() { apiOnly_(); return pendingBundle_(false); }
 function pendingAutoSync() { trustEntry_(); if (schedProp_('PO_SRC_URL')) syncPendingRun_('อัตโนมัติ', false); }   // time trigger
 function getPendingSource(token) { apiOnly_();
   requireAdmin_(token);
-  var hrs = 0; ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'pendingAutoSync') hrs = Number(schedProp_('PO_SYNC_HOURS') || 4); });
+  var hrs = trigHas_('pendingAutoSync') ? Number(schedProp_('PO_SYNC_HOURS') || 4) : 0;
   var id = schedProp_('STOCK_SS_ID');
   return { url: schedProp_('PO_SRC_URL') || '', hours: hrs, last: poInfo_(), sheetUrl: id ? 'https://docs.google.com/spreadsheets/d/' + id + '/edit' : '' };
 }
