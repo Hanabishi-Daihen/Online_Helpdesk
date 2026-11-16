@@ -55,7 +55,10 @@ const cdn = r => { const u = r.request().url(); for (const [re, p] of MAP) { con
   check('form page keeps the details: load / temperature panels and the operator log stay', await p.locator('.za-col.l').evaluate(e => getComputedStyle(e).opacity === '1') && /MVA/.test(await p.locator('.za-col.l').innerText()) && await p.locator('.za-log').evaluate(e => getComputedStyle(e).opacity === '1'));
   check('sign-in card: dark, first in the right column, big primary button', await p.evaluate(() => { const c = document.querySelector('.za-col.r > .za-gocard'), b = document.getElementById('za-go'); return !!c && c === c.parentNode.firstElementChild && getComputedStyle(c).backgroundColor === 'rgb(20, 20, 19)' && b.getBoundingClientRect().height >= 44; }));
   await p.screenshot({ path: OUT + 'auth_form.png' });
-  await p.fill('#za-id', 'somchai@example.co.th'); await p.fill('#za-pw', 'nope'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(300);
+  await p.fill('#za-id', 'somchai@example.co.th'); await p.fill('#za-pw', 'nope'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(500);
+  check('sign-in ride starts on the button (along the 132 kV line)', await p.locator('.za-trav.on').count() === 1);
+  check('wrong password: the line trips, step 1 red, the reason on screen', /ไม่ถูกต้อง/.test(await p.locator('.za-trav-hd').innerText()) && await p.locator('.za-trav-st span.bad').count() === 1);
+  await p.waitForTimeout(1700);
   check('wrong password message', /ไม่ถูกต้อง/.test(await p.locator('.za-msg').innerText()));
   await p.click('.za-tabs button:nth-child(2)'); await p.fill('#za-name', 'New User'); await p.fill('#za-email', 'new@example.co.th'); await p.fill('#za-pw', 'Abcdef12'); await p.fill('#za-pw2', 'Abcdef12');
   check('password rules all green', (await p.locator('.za-rules span.ok').count()) === 3);
@@ -65,8 +68,8 @@ const cdn = r => { const u = r.request().url(); for (const [re, p] of MAP) { con
   await p.locator('.za-otp input').first().fill('123456'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(300);
   check('waits for Admin approval', /รอ Admin อนุมัติ/.test(await p.locator('.za-card').innerText()));
   await p.click('.za-card .za-btn.ghost'); await p.click('.za-card >> text=ลืมรหัสผ่าน?'); await p.fill('#za-email', 'somchai@example.co.th'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(300);
-  await p.locator('.za-otp input').first().fill('654321'); await p.fill('#za-pw', 'Newpass77'); await p.fill('#za-pw2', 'Newpass77'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(1500);
-  check('signed in: page closed', await A.count() === 0);
+  await p.locator('.za-otp input').first().fill('654321'); await p.fill('#za-pw', 'Newpass77'); await p.fill('#za-pw2', 'Newpass77'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(600); check('a session from forgot-password rides too: step 1 done', await p.locator('.za-trav-st span.done').count() >= 1); await p.waitForTimeout(2600);
+  check('signed in: page closed', await A.count() === 0, await p.evaluate(() => [document.querySelectorAll('#zq-auth').length, (document.querySelector('.za-trav-hd') || {}).innerText, window.__zqNet, window.__zqNetE, (document.querySelector('.za-msg') || {}).innerText]));
   const sent = await p.evaluate(() => (window.__apiLog || []).filter(x => !/^auth|getAppUrl/.test(x[0])));
   check('held calls went out with the session', sent.length > 0 && sent.every(x => x[1]), sent.slice(0, 4));
   // forgot-password sign-in carries no start-up data in this fake; the plain sign-in below does → its first calls are answered locally
@@ -79,7 +82,7 @@ const cdn = r => { const u = r.request().url(); for (const [re, p] of MAP) { con
   check('remembered session: no sign-in page after reload', await A.count() === 0);
   // Admin role from the account
   await p.evaluate(() => { localStorage.removeItem('zqSes'); sessionStorage.removeItem('zqSes'); }); await p.reload(); await p.waitForTimeout(1500);
-  await p.click('#za-go'); await p.waitForTimeout(800); await p.fill('#za-id', 'admin1'); await p.fill('#za-pw', 'Admin2026x'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(1500);
+  await p.click('#za-go'); await p.waitForTimeout(800); await p.fill('#za-id', 'admin1'); await p.fill('#za-pw', 'Admin2026x'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(3200);
   const side2 = await p.locator('aside').innerText();
   check('Admin account: Admin mode on, no unlock button', /A\.Admin/.test(side2) && /ADMIN/.test(side2) && !/ปลดล็อค/.test(side2), side2.slice(0, 120) + ' … ' + side2.slice(-120));
   await p.reload(); await p.waitForTimeout(2000);
@@ -91,11 +94,11 @@ const cdn = r => { const u = r.request().url(); for (const [re, p] of MAP) { con
   check('sign out: app URL opened in the top window, sign-in page shown', /signed-out/.test(p.url()) && await A.count() === 1 && await p.evaluate(() => !localStorage.getItem('zqSes')), p.url());
   // when the top window cannot be opened: the sign-in page comes up in place and Admin mode is dropped
   await p.goto('http://localhost:8832/'); await p.waitForTimeout(1200); await p.click('#za-go'); await p.waitForTimeout(500);
-  await p.fill('#za-id', 'admin1'); await p.fill('#za-pw', 'Admin2026x'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(1500);
+  await p.fill('#za-id', 'admin1'); await p.fill('#za-pw', 'Admin2026x'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(3200);
   await p.evaluate(() => { window.zqApp = window.zqApp || {}; window.zqApp.url = ''; if (window.__ZQ_BOOT__ && window.__ZQ_BOOT__.r) window.__ZQ_BOOT__.r.getAppUrl = ''; });
   await p.click('#zq-me'); await p.click('#zq-me-p button:has-text("ออกจากระบบ")'); await p.waitForTimeout(1500);
   check('sign out without top window: sign-in page in place, Admin mode off', await A.count() === 1 && await A.getAttribute('data-mode') === 'form' && !/ADMIN/.test(await p.locator('aside:not(.za-cap)').innerText()));
-  await p.fill('#za-id', 'somchai@example.co.th'); await p.fill('#za-pw', 'Passw0rd99'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(1800);
+  await p.fill('#za-id', 'somchai@example.co.th'); await p.fill('#za-pw', 'Passw0rd99'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(3400);
   const sb3 = await p.locator('aside:not(.za-cap)').innerText().catch(e => 'ERR ' + e.message); check('next sign-in after that works', await A.count() === 0 && /S\.Somchai/.test(sb3), [await A.count(), sb3.slice(-120)]);
   // phone
   const m = await b.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true }); await m.route(/cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|unpkg\.com/, cdn);
@@ -114,7 +117,7 @@ const cdn = r => { const u = r.request().url(); for (const [re, p] of MAP) { con
   const n = await b.newContext({ viewport: { width: 1200, height: 800 } }); await n.route(/cdnjs|jsdelivr|unpkg|fonts\./, r => r.abort());
   const pn = await n.newPage(); pn.on('pageerror', e => errs.push('nocdn: ' + e.message));
   await pn.goto('http://localhost:8832/'); await pn.waitForTimeout(1500); check('CDN blocked: the console still reads the model (no 3D)', /^\d+\.\d$/.test(await pn.locator('[data-v="mva"]').innerText()) && await pn.locator('.za-cv.on').count() === 0, await pn.locator('[data-v="mva"]').innerText()); await pn.click('#za-go'); await pn.waitForTimeout(800);
-  await pn.fill('#za-id', 'somchai@example.co.th'); await pn.fill('#za-pw', 'Passw0rd99'); await pn.click('.za-card .za-btn[type=submit]'); await pn.waitForTimeout(1200);
+  await pn.fill('#za-id', 'somchai@example.co.th'); await pn.fill('#za-pw', 'Passw0rd99'); await pn.click('.za-card .za-btn[type=submit]'); await pn.waitForTimeout(3200);
   check('CDN blocked: sign-in still works', await pn.locator('#zq-auth').count() === 0);
   await pn.waitForTimeout(800); const log2 = await pn.evaluate(() => window.__apiLog || []), sent2 = log2.map(x => x[0] + (x[2] ? '[' + x[2] + ']' : ''));
   check('start-up data and the first screen came with the sign-in answer: no separate settings / templates / pulse / cases / badge calls', !sent2.some(f => /getSettings|getPublicTemplates|getPulse|getIssues|getBomSummary|getNotify|getOrderAgeSummary|getOrderTrackSummary/.test(f)) && sent2.length > 1, sent2);
