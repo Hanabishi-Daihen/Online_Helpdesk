@@ -46,6 +46,7 @@ T('users list needs Admin',/Admin only/.test(E(()=>c.authUsers('x'))));
 r=c.authUserAction('ADM','somchai@example.co.th','approve');T('approve',r.users[0].status==='active',r);
 r=c.api('', 'authLogin',['somchai@example.co.th','Somchai2026',true,'pc']);
 T('sign-in answer carries the start-up data (settings, templates, schedules, pulse, versions)',!!(r.boot&&r.boot.r&&r.boot.r.getSettings&&r.boot.r.getPublicTemplates&&'getSchedules' in r.boot.r&&r.boot.r.getPulse&&r.boot.v),r.boot&&Object.keys(r.boot.r||{}));
+T('sign-in answer carries the first screen too (cases, My Day, menu badges)',['getIssues','getMyDay','getBomSummary','getNotify'].every(k=>k in r.boot.r),Object.keys(r.boot.r));
 T('sign in',r.token&&r.user.name==='Somchai K.'&&r.user.email==='somchai@example.co.th',r);
 const tok=r.token;
 T('session hash only in the sheet',!JSON.stringify(sheets.Sessions.rows).includes(tok));
@@ -100,4 +101,8 @@ const html=fs.readFileSync(path.join(ROOT,'index.html'),'utf8'),pub=new Set();fs
 const lits=new Set([...html.matchAll(/["']([A-Za-z][A-Za-z0-9]+)["']/g)].map(m=>m[1]));
 const miss=[...pub].filter(f=>lits.has(f)&&!c.API_FNS[f]&&!c.AUTH_OPEN[f]&&!c.AUTH_FNS[f]&&!['doGet','api','getOrderApprovalView','actOrderApproval'].includes(f));
 T('every function the page names is on API_FNS',!miss.length,miss);
+// ── warm-up on the sign-in page ──
+{ const w=mk(); const x=w.api('', 'authWarm',[]); T('warm-up: open before sign-in, sends no data',x.ok===1&&Object.keys(x).every(k=>k==='ok'||k==='skip'),x);
+  T('warm-up: at most once per 3 minutes',w.api('', 'authWarm',[]).skip===1);
+  T('warm-up leaves no signed-in user behind',w.__user===null||w.__user===undefined||!w.__user.a); }
 console.log(ok+' passed, '+bad+' failed');process.exit(bad?1:0);

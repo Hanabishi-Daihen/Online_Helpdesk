@@ -5,9 +5,12 @@
   window.__M.authInfo = { on: true, approve: true, domains: ['example.co.th'], days: 30 };
   var TOK = 'T'.repeat(64), user = { email: 'somchai@example.co.th', name: 'S.Somchai', dept: 'DS13' }, adm = { email: 'admin:admin1', name: 'A.Admin', dept: 'Admin', admin: true };
   // what Auth.gs sends with a sign-in answer (authBoot_)
-  var boot = function () { var M = window.__M; return { r: { getSettings: M.getSettings, getPublicTemplates: M.getPublicTemplates || { issue: null, report: null, categories: null }, getPulse: M.getPulse || { iss: 'm1' }, getSchedules: M.getSchedules || [] }, v: M.getDataVers || { iss: 'm1', sched: 'm1' } }; };
+  var boot = function () { var M = window.__M, r = { getIssues: M.getIssues || [], getSettings: M.getSettings, getPublicTemplates: M.getPublicTemplates || { issue: null, report: null, categories: null }, getPulse: M.getPulse || { iss: 'm1' }, getSchedules: M.getSchedules || [] };
+    ['getIssues', 'getMyDay', 'getBomSummary', 'getStockAlertSummary', 'getOrderAgeSummary', 'getOrderTrackSummary', 'getNotify'].forEach(function (k) { if (M[k] !== undefined) r[k] = M[k]; });
+    return { r: r, v: M.getDataVers || { iss: 'm1', sched: 'm1' } }; };
   var F = {
     authInfo: function () { return window.__M.authInfo; },
+    authWarm: function () { return { ok: 1 }; },
     authLogin: function (id, pw) { if (id === 'admin1' && pw === 'Admin2026x') { try { localStorage.setItem('zqMockAdm', '1'); } catch (e) {} return { token: TOK, expires: Date.now() + 864e5, user: adm, boot: boot(), admin: { token: 'session', user: '', name: 'A.Admin', names: ['A.Admin'] } }; }
       return pw === 'Passw0rd99' ? { token: TOK, expires: Date.now() + 864e5, user: user, boot: boot() } : { err: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' }; },
     authRegisterStart: function () { return { sent: true, minutes: 15 }; },
@@ -24,7 +27,7 @@
       withSuccessHandler: function (f) { ok = f; inner.withSuccessHandler(f); return w; },
       withFailureHandler: function (f) { bad = f; inner.withFailureHandler(f); return w; },
       api: function (tok, fn, args) {
-        (window.__apiLog = window.__apiLog || []).push([fn, !!tok]);
+        (window.__apiLog = window.__apiLog || []).push([fn, !!tok, fn === 'getMany' && args && args[0] ? args[0].map(function (c) { return c[0]; }).join('+') : '']);
         if (F[fn]) { setTimeout(function () { try { ok(F[fn].apply(null, args || [])); } catch (e) { bad(e); } }, 30); return; }
         if (tok !== TOK && fn !== 'getAppUrl') { setTimeout(function () { bad(new Error('AUTH_REQUIRED: test')); }, 30); return; }
         return inner.api(tok, fn, args);

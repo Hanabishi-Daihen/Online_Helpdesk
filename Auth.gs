@@ -44,7 +44,7 @@ var API_FNS = (function () {
   return o;
 })();
 // callable before signing in
-var AUTH_OPEN = { authLogin: 1, authRegisterStart: 1, authRegisterVerify: 1, authForgotStart: 1, authForgotReset: 1, authMe: 1, authInfo: 1, getAppUrl: 1 };
+var AUTH_OPEN = { authWarm: 1, authLogin: 1, authRegisterStart: 1, authRegisterVerify: 1, authForgotStart: 1, authForgotReset: 1, authMe: 1, authInfo: 1, getAppUrl: 1 };
 
 function api(tok, fn, args) {
   fn = String(fn || '');
@@ -200,7 +200,7 @@ function authLogin(id, pass, remember, device, newPass) {
     if (!r || r.err || r.first) return r || { err: 'เข้าสู่ระบบไม่สำเร็จ' };
     var au = authAdminUser_(r.user), s = sesNew_(au, !!remember, device);
     audit_([['User', 'เข้าสู่ระบบ', '', au.n + ' (Admin)']]);
-    return { token: s.token, expires: s.expires, user: authPub_(au), admin: r, boot: authBoot_() };
+    return { token: s.token, expires: s.expires, user: authPub_(au), admin: r, boot: authBoot_(au, true) };
   }
   var email = authEmail_(raw); if (!email) return { err: 'รูปแบบอีเมลไม่ถูกต้อง' };
   var fk = 'usrfail_' + email;
@@ -213,7 +213,7 @@ function authLogin(id, pass, remember, device, newPass) {
   C.remove(fk);
   withLock_(function () { var x = usrFind_(email); if (x) { x.t = nowStr_(); usrWrite_(x); } });
   var ses = sesNew_(u, !!remember, device);
-  return { token: ses.token, expires: ses.expires, user: authPub_(u), admin: u.admin ? authAdminInfo_(u.n) : null, boot: authBoot_() };
+  return { token: ses.token, expires: ses.expires, user: authPub_(u), admin: u.admin ? authAdminInfo_(u.n) : null, boot: authBoot_(u, !!u.admin) };
 }
 function authRegisterStart(email, name, dept, pass) {
   email = authEmail_(email); name = authName_(name); dept = String(dept || '').replace(/[^\w .-]/g, '').substring(0, 20);
@@ -239,7 +239,7 @@ function authRegisterVerify(email, code, remember, device) {
   audit_([['User', 'สมัครใช้งาน', '', u.n + ' <' + u.e + '>' + (auto ? '' : ' — รอ Admin อนุมัติ')]]);
   if (!auto) return { pending: true, name: u.n };
   var s = sesNew_(u, !!remember, device);
-  return { token: s.token, expires: s.expires, user: authPub_(u), boot: authBoot_() };
+  return { token: s.token, expires: s.expires, user: authPub_(u), boot: authBoot_(u, !!u.admin) };
 }
 // always answers the same way, so the form cannot be used to find out who has an account
 function authForgotStart(email) {
@@ -260,7 +260,7 @@ function authForgotReset(email, code, pass, remember, device) {
   CacheService.getScriptCache().remove('usrfail_' + email);
   audit_([['User', 'ตั้งรหัสผ่านใหม่ (ลืมรหัสผ่าน)', '', u.n + ' <' + u.e + '>']]);
   var s = sesNew_(u, !!remember, device);
-  return { token: s.token, expires: s.expires, user: authPub_(u), boot: authBoot_() };
+  return { token: s.token, expires: s.expires, user: authPub_(u), boot: authBoot_(u, !!u.admin) };
 }
 // → { user, cfg } for a valid session · { none: true }
 function authMe(tok) {
@@ -334,13 +334,34 @@ function authSaveCfg(token, c) {
 
 // Start-up data sent with the sign-in answer. With sign-in on, doGet puts no data into the page source, so these
 // first calls would otherwise each be a separate round trip right after signing in; the page answers them locally
-// (bootCall in index.html, same as the doGet boot). Version stamps first, so the conflict checks stay safe.
-function authBoot_() {
-  var t0 = Date.now(), r = {}, v = null;
-  try { v = getDataVers(); } catch (e) {}
-  [['getPulse', getPulse], ['getSettings', function () { return bootCfg_().settings; }], ['getSchedules', schedCached_],
-   ['getPublicTemplates', function () { return bootCfg_().templates; }]]
-    .forEach(function (f) { try { r[f[0]] = f[1](); } catch (e) { console.warn('authBoot_ ' + f[0], e); } });
-  perf_('authBoot_', t0);
+// (zqBootLate in index.html). Version stamps first, so the conflict checks stay safe. The user is known here (the
+// password was just checked), so the role-dependent first screen goes too: cases, My Day, the menu badges.
+var BOOT_FNS = ['getPulse', 'getSettings', 'getSchedules', 'getPublicTemplates', 'getIssues', 'getMyDay',
+  'getBomSummary', 'getStockAlertSummary', 'getOrderAgeSummary', 'getOrderTrackSummary', 'getNotify'];
+function authBoot_(u, admin) {
+  var t0 = Date.now(), r = {}, v = null, keep = __user, tok = admin ? 'session' : '';
+  __user = { e: u && u.e || '', n: u && u.n || '', d: u && u.d || '', a: admin ? 1 : 0 };
+  try {
+    try { v = getDataVers(); } catch (e) {}
+    var F = { getSettings: function () { return bootCfg_().settings; }, getSchedules: schedCached_, getPublicTemplates: function () { return bootCfg_().templates; },
+      getIssues: function () { return getIssues(tok); }, getMyDay: function () { return getMyDay(tok); } };
+    BOOT_FNS.forEach(function (n) { if (Date.now() - t0 > 12000) return; try { r[n] = (F[n] || globalThis[n])(); } catch (e) { console.warn('authBoot_ ' + n, e); } });
+  } finally { __user = keep; }
+  perf_('authBoot_ ' + Object.keys(r).length, t0);
   return { r: r, v: v };
 }
+
+// The sign-in page asks for this as soon as it opens: it wakes the script and fills the server caches (the same
+// reads authBoot_ makes, for both roles) while the person types, so the sign-in answer comes back from warm caches.
+// Nothing comes back to the page — before signing in, no data leaves the server. At most once per 3 minutes for
+// everybody, a 20 s budget, never in the way of authLogin (its own execution; a busy lock just skips).
+function authWarm() {
+  var C = CacheService.getScriptCache(); if (C.get('auth_warm')) return { ok: 1, skip: 1 };
+  var L = LockService.getScriptLock(); if (!L.tryLock(50)) return { ok: 1, skip: 1 };
+  try { if (C.get('auth_warm')) return { ok: 1, skip: 1 }; C.put('auth_warm', '1', 180); } finally { L.releaseLock(); }
+  var t0 = Date.now(), n = 0;
+  [false, true].forEach(function (admin) { if (Date.now() - t0 > 20000) return; try { n += Object.keys(authBoot_({}, admin).r).length; } catch (e) { console.warn('authWarm', e); } });
+  perf_('authWarm ' + n, t0);
+  return { ok: 1 };
+}
+

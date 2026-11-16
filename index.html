@@ -311,6 +311,7 @@
     el.appendChild(h("div", { class: "za-flash" }));
     document.body.appendChild(el);
     st.card = card; loop();
+    if (!st.warmed) { st.warmed = 1; call("authWarm", []).catch(function () {}); }   // the server fills its caches while the person types (no data comes back)
     form("login"); mode(direct ? "form" : "intro"); note && msg(note, "info");
     el.addEventListener("keydown", function (e) { if (e.key === "Escape" && st.mode === "form") mode("intro"); });
     setTimeout(function () { var b = q(st.mode === "form" ? ".za-card input" : "#za-go"); b && b.focus({ preventScroll: true }); }, 80);
@@ -1501,8 +1502,9 @@ if(U.length===1){zqWlRaw(U[0].r,...U[0].b).then(v=>L.forEach(x=>x.S(cp(x,v))),e=
 zqWlRaw("getMany",U.map(x=>[x.r,x.b])).then(res=>L.forEach(x=>{const y=res&&res[x.i];!y||/^not allowed/.test(y.e||"")?one(x):"e"in y?x.o(new Error(y.e)):x.S(cp(x,y.v))}),()=>L.forEach(one))}
 /* sign-in: every call waits for a session (window.zqAuth), goes through api() in Auth.gs, and re-asks for sign-in once when the session has ended */
 /* calls held for sign-in: the start-up data that came with the sign-in answer (authBoot_ in Auth.gs) answers them here, getMany entries one by one */
-function zqBootLate(r,b){if(r==="getMany"&&Array.isArray(b[0])){const L=b[0],pre=L.map(c=>c&&(!c[1]||!c[1].length)?zqBootTake(c[0],[]):null);if(!pre.some(Boolean))return zqWlSend(r,b);const rest=L.filter((c,i)=>!pre[i]),fin=res=>{let j=0;return L.map((c,i)=>pre[i]?{v:pre[i].v}:(res||[])[j++])};return rest.length?zqWlSend("getMany",[rest]).then(fin):Promise.resolve(fin([]))}
-const t=b.length?null:zqBootTake(r,b);return t?Promise.resolve(t.v):zqWlSend(r,b)}
+const zqTokOnly=a=>!a||a.every(x=>x===""||x==="session"||x==null);   /* the start-up data was made for this session's role: a call whose only argument is the role token matches it */
+function zqBootLate(r,b){if(r==="getMany"&&Array.isArray(b[0])){const L=b[0],pre=L.map(c=>c&&zqTokOnly(c[1])?zqBootTake(c[0],[]):null);if(!pre.some(Boolean))return zqWlSend(r,b);const rest=L.filter((c,i)=>!pre[i]),fin=res=>{let j=0;return L.map((c,i)=>pre[i]?{v:pre[i].v}:(res||[])[j++])};return rest.length?zqWlSend("getMany",[rest]).then(fin):Promise.resolve(fin([]))}
+const t=zqTokOnly(b)?zqBootTake(r,[]):null;return t?Promise.resolve(t.v):zqWlSend(r,b)}
 function zqWlRaw(r,...b){const A=window.zqAuth;if(!A)return zqWlSend(r,b);return A.gate(r).then(()=>A.held&&A.held()?zqBootLate(r,b):zqWlSend(r,b)).catch(e=>{if(/^AUTH_REQUIRED/.test(e&&e.message||"")&&!A.open(r)){A.lost();return A.gate(r).then(()=>zqWlSend(r,b))}throw e})}
 /* speed log: every server call's round trip (last 400, this browser only) → ตั้งค่าระบบ → ⚡ ความเร็วการเชื่อมต่อ */
 const zqPerf=(()=>{let L=null,tm=null;const ld=()=>{if(L)return L;try{L=JSON.parse(localStorage.getItem("zqPerf")||"[]")}catch(e){L=[]}return Array.isArray(L)?L:(L=[])},sv=()=>{tm||(tm=setTimeout(()=>{tm=null;try{localStorage.setItem("zqPerf",JSON.stringify(L))}catch(e){}},3e3))};

@@ -116,7 +116,8 @@ const cdn = r => { const u = r.request().url(); for (const [re, p] of MAP) { con
   await pn.goto('http://localhost:8832/'); await pn.waitForTimeout(1500); check('CDN blocked: the console still reads the model (no 3D)', /^\d+\.\d$/.test(await pn.locator('[data-v="mva"]').innerText()) && await pn.locator('.za-cv.on').count() === 0, await pn.locator('[data-v="mva"]').innerText()); await pn.click('#za-go'); await pn.waitForTimeout(800);
   await pn.fill('#za-id', 'somchai@example.co.th'); await pn.fill('#za-pw', 'Passw0rd99'); await pn.click('.za-card .za-btn[type=submit]'); await pn.waitForTimeout(1200);
   check('CDN blocked: sign-in still works', await pn.locator('#zq-auth').count() === 0);
-  await pn.waitForTimeout(800); const sent2 = await pn.evaluate(() => (window.__apiLog || []).map(x => x[0]));
-  check('start-up data came with the sign-in answer: no separate getSettings / getPublicTemplates / getPulse calls', !sent2.some(f => /^(getSettings|getPublicTemplates|getPulse)$/.test(f)) && sent2.length > 1, sent2);
+  await pn.waitForTimeout(800); const log2 = await pn.evaluate(() => window.__apiLog || []), sent2 = log2.map(x => x[0] + (x[2] ? '[' + x[2] + ']' : ''));
+  check('start-up data and the first screen came with the sign-in answer: no separate settings / templates / pulse / cases / badge calls', !sent2.some(f => /getSettings|getPublicTemplates|getPulse|getIssues|getBomSummary|getNotify|getOrderAgeSummary|getOrderTrackSummary/.test(f)) && sent2.length > 1, sent2);
+  check('the sign-in page warmed the server before the password check (and got no data)', sent2.indexOf('authWarm') >= 0 && sent2.indexOf('authWarm') < sent2.indexOf('authLogin'), sent2.slice(0, 5));
   console.log('errors:', errs); srv.close(); await b.close(); process.exit(errs.length || fails.length ? 1 : 0);
 })();
