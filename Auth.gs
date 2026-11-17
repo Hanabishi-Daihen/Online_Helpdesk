@@ -20,7 +20,7 @@ function trustEntry_() { __trusted = true; }                // doGet, triggers, 
 var API_FNS = (function () {
   var o = {};
   (
-  'adminActOrderApproval adminLogin backupNow bomExportLookup bomExportPrep bomPreview bomProjectAction ' +
+  'adminActOrderApproval adminLogin backupNow bomBook bomExportLookup bomExportPrep bomPreview bomProjectAction bomSaveItems ' +
   'changeAdminPassword checkDataVers checkOrderDup claimRemain closeRemainClaim createIssue deleteIssues ' +
   'deleteKitTemplate deleteOrder deleteOrderDbRow diagnose docLookup exportBomForm exportBomShortReport exportOrder ' +
   'exportRemainReport getAdminUsers getAppUrl getBom getBomOrdersAll getBomProjOrders getBomShortMailCfg getBomSummary ' +

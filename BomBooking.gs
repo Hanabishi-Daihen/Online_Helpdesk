@@ -161,6 +161,103 @@ function bomProjectAction(token, project, action, value) { apiOnly_();
   return bomView_(bomSnapBuild_());
 }
 
+// ── Admin: edit the CODE list of a booked project, book in the system (no Excel) ──────────────────────
+// Both write the same two sheets as importBom, so every page built on them (calculation, PDF, Order Project,
+// issue slips) keeps working unchanged.
+function bomSig_(items) { return (items || []).map(function (it) { return ordCodeKey_(it.code) + '=' + (Number(it.qty) || 0); }).sort().join('|'); }
+// items → clean list: one line per CODE (same CODE adds up), qty > 0, text fields trimmed; names from Item stock when blank
+function bomClean_(items) {
+  var by = {}, order = [], stock = null;
+  (items || []).slice(0, 2000).forEach(function (it) {
+    var k = ordCodeKey_(it && it.code), q = Number(String(it && it.qty).replace(/,/g, ''));
+    if (!k || !(q > 0) || k.length > 40) return;
+    if (!by[k]) { by[k] = { code: k, qty: 0, material: ordStr_(it.material, 120), type: ordStr_(it.type, 80), rated: ordStr_(it.rated, 80), maker: ordStr_(it.maker, 60), remark: ordStr_(it.remark, 120), item: ordStr_(it.item, 10) }; order.push(k); }
+    else if (it.remark && by[k].remark.indexOf(it.remark) < 0) by[k].remark = ordStr_((by[k].remark ? by[k].remark + ', ' : '') + it.remark, 120);
+    by[k].qty = Math.round((by[k].qty + q) * 1000) / 1000;
+  });
+  var blank = order.filter(function (k) { return !by[k].material; });
+  if (blank.length) {
+    try {
+      stock = {}; stockData_().forEach(function (row) { var t = row.indexOf('\t'); if (t < 0) return; var k = ordCodeKey_(row.substring(0, t)); if (stock[k]) return; var f = row.split('\t'); stock[k] = f; });
+      blank.forEach(function (k) { var f = stock[k]; if (f) { by[k].material = ordStr_(f[1], 120); if (!by[k].rated) by[k].rated = ordStr_(f[2], 80); } });
+    } catch (e) { console.warn('bomClean_ stock', e); }
+  }
+  return order.map(function (k) { return by[k]; });
+}
+// replace one project's rows in BomItems (call inside withLock_)
+function bomWriteItems_(key, items) {
+  var is = bomSheet_(BOM_ITEM_SHEET, BOM_ITEM_HEADER);
+  var keep = is.getLastRow() > 1 ? is.getRange(2, 1, is.getLastRow() - 1, BOM_ITEM_HEADER.length).getDisplayValues().filter(function (r) { return r[0] && r[0] !== key; }) : [];
+  var all = keep.concat(items.map(function (it) { return [key, it.code, String(it.qty), it.material || '', it.type || '', it.rated || '', it.maker || '', it.remark || '', it.item || '']; }));
+  if (is.getLastRow() > 1) is.getRange(2, 1, is.getLastRow() - 1, BOM_ITEM_HEADER.length).clearContent();
+  if (all.length) {
+    if (is.getMaxRows() < all.length + 1) is.insertRowsAfter(is.getMaxRows(), all.length + 1 - is.getMaxRows());
+    var rg = is.getRange(2, 1, all.length, BOM_ITEM_HEADER.length); rg.setNumberFormat('@'); rg.setValues(all);
+  }
+}
+// what changed, for the audit log and the project note: "+CODE 3 · −CODE · CODE 2→5 · OLD⇄NEW"
+function bomDiff_(before, after, swap) {
+  var b = {}, a = {}, out = [], sw = {}; before.forEach(function (it) { b[ordCodeKey_(it.code)] = Number(it.qty) || 0; }); after.forEach(function (it) { a[it.code] = it.qty; });
+  Object.keys(swap || {}).forEach(function (n) { var nk = ordCodeKey_(n), ok = ordCodeKey_(swap[n]); if (a[nk] != null && b[ok] != null && a[ok] == null) { sw[nk] = ok; out.push(ok + ' ⇄ ' + nk + (a[nk] !== b[ok] ? ' (' + b[ok] + '→' + a[nk] + ')' : '')); } });
+  var used = {}; Object.keys(sw).forEach(function (n) { used[n] = 1; used[sw[n]] = 1; });
+  Object.keys(a).forEach(function (k) { if (used[k]) return; if (b[k] == null) out.push('+' + k + ' ' + a[k]); else if (b[k] !== a[k]) out.push(k + ' ' + b[k] + '→' + a[k]); });
+  Object.keys(b).forEach(function (k) { if (!used[k] && a[k] == null) out.push('−' + k); });
+  return out;
+}
+function bomNote_(old, add) { var n = String(old || ''); return ordStr_((n ? n + ' · ' : '') + add, 500).slice(-500); }
+// Edit: the whole new list of the project (the page sends it), sig = the list the page started from (someone else saved in between → refuse)
+// swap = { NEWCODE: OLDCODE } for "เปลี่ยนอุปกรณ์" lines · note = why (shown in the audit log and the project note)
+function bomSaveItems(token, project, items, sig, swap, note) { apiOnly_();
+  requireAdmin_(token);
+  var key = bomKey_(project), clean = bomClean_(items), why = ordStr_(note, 120);
+  if (!clean.length) throw new Error('ต้องเหลืออย่างน้อย 1 รายการ — ถ้าไม่ใช้ทั้งโปรเจกต์แล้ว ให้กด "ปิดโปรเจกต์" หรือ "ลบ" แทน');
+  var diff = withLock_(function () {
+    var p = bomProjects_().filter(function (x) { return x.project === key; })[0];
+    if (!p) throw new Error('ไม่พบโปรเจกต์ ' + key);
+    var before = bomItems_()[key] || [];
+    if (sig != null && bomSig_(before) !== String(sig)) throw new Error('รายการของ ' + key + ' ถูกแก้ไขโดยคนอื่นระหว่างนี้ — กด "โหลดใหม่" แล้วแก้อีกครั้ง');
+    var d = bomDiff_(before, clean, swap);
+    if (!d.length) return d;
+    bomWriteItems_(key, clean);
+    var ps = ss_().getSheetByName(BOM_PROJ_SHEET);
+    writeText_(ps, p.row, 5, [String(clean.length)]);
+    writeText_(ps, p.row, 10, [bomNote_(p.note, 'แก้รายการ ' + nowStr_().split(' ')[0] + ': ' + d.slice(0, 6).join(', ') + (d.length > 6 ? ' …' : '') + (why ? ' (' + why + ')' : ''))]);
+    audit_([['Admin', 'แก้ไขรายการ Booking BOM', key, d.join(', ') + (why ? ' · เหตุผล: ' + why : '')]]);
+    return d;
+  });
+  var view = diff.length ? bomView_(bomSnapBuild_()) : getBom(token);
+  return { view: view, changes: diff };
+}
+// Book in the system: req = { project, title, needDate, mode: 'new' | 'add', items: [{ code, qty, remark }], note }
+// 'new' makes a project (FILE = "จองในระบบ") · 'add' adds to a project (same CODE → quantities add up)
+function bomBook(token, req) { apiOnly_();
+  requireAdmin_(token);
+  req = req || {};
+  var key = bomKey_(ordStr_(req.project, 40)), mode = req.mode === 'add' ? 'add' : 'new', need = String(req.needDate || '').trim(), why = ordStr_(req.note, 120);
+  if (!/^[A-Z0-9][A-Z0-9_\-\/.]{2,39}$/.test(key)) throw new Error('เลขโปรเจกต์ไม่ถูกต้อง (ตัวอักษร A-Z ตัวเลข และ - _ / . อย่างน้อย 3 ตัว เช่น PP1050B01)');
+  if (need && !/^\d{2}\/\d{2}\/\d{4}$/.test(need)) throw new Error('วันที่ต้องใช้ต้องเป็นรูปแบบ วว/ดด/ปปปป');
+  var add = bomClean_(req.items);
+  if (!add.length) throw new Error('ตะกร้ายังว่าง — เพิ่ม CODE และจำนวนก่อนจอง');
+  var res = withLock_(function () {
+    var ps = bomSheet_(BOM_PROJ_SHEET, BOM_PROJ_HEADER), p = bomProjects_().filter(function (x) { return x.project === key; })[0], now = nowStr_();
+    if (mode === 'new' && p) throw new Error('มีโปรเจกต์ ' + key + ' อยู่แล้ว — เลือก "เพิ่มเข้าโปรเจกต์ที่มีอยู่" แทน');
+    if (mode === 'add' && !p) throw new Error('ไม่พบโปรเจกต์ ' + key);
+    var before = p ? (bomItems_()[key] || []) : [], merged = bomClean_(before.concat(add.map(function (it) { return { code: it.code, qty: it.qty, material: it.material, type: it.type, rated: it.rated, maker: it.maker, remark: it.remark }; })));
+    bomWriteItems_(key, merged);
+    var d = bomDiff_(before, merged, null), tag = 'จองในระบบ ' + now.split(' ')[0] + ': ' + add.length + ' รายการ' + (why ? ' (' + why + ')' : '');
+    if (p) {
+      writeText_(ps, p.row, 5, [String(merged.length)]);
+      if (p.status !== 'active') writeText_(ps, p.row, 7, ['active', p.imported, '']);   // same as "เปิดอีกครั้ง"
+      if (need) writeText_(ps, p.row, 6, [need]);
+      writeText_(ps, p.row, 10, [bomNote_(p.note, tag)]);
+    } else writeText_(ps, ps.getLastRow() + 1, 1, [key, ordStr_(req.title, 120), '', 'จองในระบบ', String(merged.length), need, 'active', now, '', tag]);
+    audit_([['Admin', p ? 'เพิ่มการจองเข้า Booking BOM' : 'จอง Booking BOM ในระบบ', key, d.join(', ') + (why ? ' · ' + why : '')]]);
+    return { project: key, added: add.length, created: !p, reopened: !!p && p.status !== 'active', changes: d };
+  });
+  res.view = bomView_(bomSnapBuild_());
+  return res;
+}
+
 // ── need dates from the production schedule ─────────────────────────
 function bomDate_(s) { var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String(s || '')); return m ? new Date(+m[3], +m[2] - 1, +m[1]).getTime() : null; }
 function bomFmt_(t) { return t == null ? '' : Utilities.formatDate(new Date(t), 'Asia/Bangkok', 'dd/MM/yyyy'); }
