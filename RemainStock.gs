@@ -184,6 +184,13 @@ function saveRemainGroups(token, map) { apiOnly_();
   });
 }
 function rsGroupLabel_(k, names) { return names && names[k] ? k + ' — ' + names[k] : k; }
+// public: the category names (first 4 digits of a CODE) — Booking BOM's catalogue groups Item stock by them. Cached by RS_VER.
+function getCodeGroups() { apiOnly_();
+  var C = CacheService.getScriptCache(), key = 'rsgrp_' + String(schedProp_('RS_VER') || '0').replace(/[^\w]/g, '').substring(0, 30), hit = C.get(key);
+  if (hit) { try { return JSON.parse(hit); } catch (e) {} }
+  var g = rsGroups_(); try { C.put(key, JSON.stringify(g), 21600); } catch (e) {}
+  return g;
+}
 
 // ── "ฉันจะนำไปใช้" claims ────────────────────────────────────────────
 var RS_CLAIM_SHEET = 'RemainStockClaims';

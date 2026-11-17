@@ -13,11 +13,19 @@ const { chromium } = require('playwright');
   await p.evaluate(() => {
     const G = window.google.script, d = Object.getOwnPropertyDescriptor(G, 'run'); window.__bk = [];
     const stock = [['42050002', 'MOTOR CIRCUIT BREAKER', 'PKZM0-10', '12', 'PCS', 'STORE1'], ['42050002', 'MOTOR CIRCUIT BREAKER', 'PKZM0-10', '3', 'PCS', 'STORE2'], ['43401027', 'AUXILIARY RELAY', 'RH4B-U', '10', 'PCS', 'STORE1'], ['42310010', 'CAM SWITCH', 'CA10 A222 EG', '4', 'PCS', 'STORE1']];
+    window.__srv = [];
+    const tsv = stock.map(f => [f[0], f[1], f[2], f[3], f[4], f[5], '', 'DS13', '', '1'].join('\t')).join('\n');
+    window.__bundle = (async () => { const cs = new CompressionStream('gzip'), w = cs.writable.getWriter(); w.write(new TextEncoder().encode(tsv)); w.close();
+      const buf = new Uint8Array(await new Response(cs.readable).arrayBuffer()); let bin = ''; buf.forEach(c => bin += String.fromCharCode(c)); return btoa(bin); })();
     Object.defineProperty(G, 'run', { configurable: true, get() {
       const inner = d.get.call(G); let ok = () => {};
       const w = { withSuccessHandler(f) { ok = f; inner.withSuccessHandler(v => { if (window.__lastFn === 'getBom') window.__bom = v; f(v); }); return w; }, withFailureHandler(f) { inner.withFailureHandler(f); return w; },
         api(t, fn, a) {
           window.__lastFn = fn;
+          window.__srv.push(fn);
+          if (fn === 'getStockMeta') { setTimeout(() => ok({ hash: 'bk12345678', rows: stock.length, items: 4, locations: ['STORE1', 'STORE2'], bys: [], updated: '17/11/2026 09:00' }), 20); return; }
+          if (fn === 'getStockBundle') { window.__bundle.then(b64 => ok({ hash: 'bk12345678', b64, v: 3 })); return; }
+          if (fn === 'getCodeGroups') { setTimeout(() => ok({ '4205': 'Motor circuit breaker', '4340': 'Relay', '4231': 'Cam switch' }), 20); return; }
           if (fn === 'searchStock') { const q = String(a[1] || '').toLowerCase(); setTimeout(() => ok({ total: 2, page: 1, pages: 1, rows: stock.filter(f => (f[0] + ' ' + f[1]).toLowerCase().includes(q)), all: true }), 20); return; }
           if (fn === 'bomBook' || fn === 'bomSaveItems') {
             window.__bk.push([fn, JSON.parse(JSON.stringify(a))]);
@@ -53,7 +61,7 @@ const { chromium } = require('playwright');
   await p.locator('.zq-bk-r button').first().click(); await p.waitForTimeout(200);
   check('edit: swapping to a CODE still in the list is refused with a clear message', /มีอยู่ในรายการแล้ว/.test(await p.locator('.zq-em-msg.err').innerText().catch(() => '')));
   await p.locator('.zq-bk-s input[type=search]').fill('cam'); await p.waitForTimeout(700);
-  await p.locator('.zq-bk-r button:has-text("ใส่ตะกร้า")').first().click(); await p.waitForTimeout(200);
+  await p.locator('.zq-bk-r button').first().click(); await p.waitForTimeout(200);
   check('edit: changed / not used / swapped rows are marked', await ed.locator('tr.ch').count() >= 2 && await ed.locator('tr.dl').count() === 1 && /แทน/.test(await ed.innerText()));
   await p.screenshot({ path: OUT + 'bom_edit.png' });
   await p.fill('input[aria-label="เหตุผลที่แก้"]', 'ลูกค้าเปลี่ยนรุ่น');
@@ -65,11 +73,20 @@ const { chromium } = require('playwright');
   check('edit: back to the table with the result', await p.locator('table.zq-bk-e').count() === 0 && /บันทึกแล้ว/.test(await p.locator('.zq-em-msg').first().innerText().catch(() => '')));
   // ── the cart ──
   await p.locator('button:has-text("จองจาก Stock")').first().click(); await p.waitForTimeout(500);
-  await p.locator('.zq-bk-s input[type=search]').fill('4205'); await p.waitForTimeout(700);
-  const row = p.locator('.zq-bk-r').first();
-  check('cart: one line per CODE, all locations added up, booked and free shown', /42050002/.test(await row.innerText()) && /15/.test(await row.locator('.zq-bk-n').innerText()) && /ว่าง/.test(await row.innerText()), await row.innerText());
-  await row.locator('button').click(); await row.locator('button').click(); await p.waitForTimeout(200);
-  check('cart: pressing again adds one', /✓ 2/.test(await row.locator('button').innerText()) && await p.locator('.zq-bk-l').count() === 1);
+  await p.waitForSelector('.zq-shop-c', { timeout: 8000 }).catch(() => {});
+  const rail = p.locator('.zq-shop-cl');
+  check('shop: categories by the first 4 digits, with the names from Stock ช่วยใช้ and counts', /4205 — Motor circuit breaker/.test(await rail.innerText()) && /4340 — Relay/.test(await rail.innerText()), await rail.innerText());
+  await rail.locator('button', { hasText: '4205' }).click(); await p.waitForTimeout(200);
+  const cards = p.locator('.zq-shop-c'), card = cards.first();
+  check('shop: a category shows only its CODEs; one card per CODE, locations added up', await cards.count() === 1 && /42050002/.test(await card.innerText()) && /15/.test(await card.locator('.zq-shop-n').innerText()) && /STORE1, STORE2/.test(await card.innerText()), await card.innerText());
+  await card.locator('input').fill('2'); await card.locator('button.zq-bk-add').click(); await p.waitForTimeout(200);
+  check('shop: the quantity on the card goes to the cart', await p.locator('.zq-bk-l').count() === 1 && await p.locator('.zq-bk-l input[aria-label^="จำนวน"]').inputValue() === '2' && /✓ 2/.test(await card.locator('button.zq-bk-add').innerText()));
+  await rail.locator('button', { hasText: 'ทั้งหมด' }).first().click(); const before = (await p.evaluate(() => window.__srv)).length;
+  await p.fill('input[aria-label="ค้นหาสินค้า"]', 'relay'); await p.waitForTimeout(150);
+  check('shop: typing filters at once, with no server call', await cards.count() === 1 && /43401027/.test(await cards.first().innerText()) && (await p.evaluate(() => window.__srv)).slice(before).length === 0, (await p.evaluate(() => window.__srv)).slice(before));
+  await p.fill('input[aria-label="ค้นหาสินค้า"]', ''); await rail.locator('button', { hasText: 'เพิ่มล่าสุด' }).click(); await p.waitForTimeout(150);
+  check('shop: "เพิ่มล่าสุด" lists what was added', /42050002/.test(await p.locator('.zq-shop-g').innerText().catch(() => '')));
+  await rail.locator('button', { hasText: 'ทั้งหมด' }).first().click();
   await p.locator('.zq-bk-seg button:has-text("โปรเจกต์ใหม่")').click();
   await p.fill('input[aria-label="เลขโปรเจกต์ใหม่"]', 'pp1099a01'); await p.fill('input[aria-label="วันที่ต้องใช้"]', '01/12/2026'); await p.fill('input[aria-label="ชื่อโปรเจกต์"]', 'Local Control Cabinet (LCC.)');
   await p.screenshot({ path: OUT + 'bom_cart.png' });
