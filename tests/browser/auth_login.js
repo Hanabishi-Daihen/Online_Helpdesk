@@ -65,7 +65,8 @@ const cdn = r => { const u = r.request().url(); for (const [re, p] of MAP) { con
   await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(300);
   await p.locator('.za-otp input').first().fill('111111'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(300);
   check('wrong code message', /ไม่ถูกต้อง/.test(await p.locator('.za-msg').innerText()));
-  await p.locator('.za-otp input').first().fill('123456'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(300);
+  await p.locator('.za-otp input').first().fill('123456'); await p.click('.za-card .za-btn[type=submit]');
+  await p.waitForFunction(() => /รอ Admin อนุมัติ/.test((document.querySelector('.za-card') || {}).innerText || ''), null, { timeout: 4000 }).catch(() => {});
   check('waits for Admin approval', /รอ Admin อนุมัติ/.test(await p.locator('.za-card').innerText()));
   await p.click('.za-card .za-btn.ghost'); await p.click('.za-card >> text=ลืมรหัสผ่าน?'); await p.fill('#za-email', 'somchai@example.co.th'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(300);
   await p.locator('.za-otp input').first().fill('654321'); await p.fill('#za-pw', 'Newpass77'); await p.fill('#za-pw2', 'Newpass77'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(600); check('a session from forgot-password rides too: step 1 done', await p.locator('.za-trav-st span.done').count() >= 1); await p.waitForTimeout(2600);
