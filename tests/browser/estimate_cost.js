@@ -59,6 +59,7 @@ const { chromium } = require('playwright');
     check('PDF: English only — title, full project numbers, customer, TOTAL box per unit + 2 units, signers', /ESTIMATE COST OF CONTROL CABINET/.test(t) && /PROJECT : PP1030D01, PP1030D02 \(2 UNITS\)/.test(t) && /DEPARTMENT : CONTROL WIRING/.test(t) && /CUSTOMER : SESCO/.test(t) && /TOTAL COST \(THB\/UNIT\)\s*-81,048/.test(t) && /TOTAL 2 UNITS : -162,096/.test(t) && /Y\.Preparer/.test(t) && !/[\u0E00-\u0E7F]/.test(t.replace(/^[\s\S]*?DAIHEN/, '')), t.slice(0, 600));
     await pop.screenshot({ path: OUT + 'estimate_cost_pdf.png' });
     const hd = (await pop.locator('table.ec-tb tr').first().innerText()).replace(/\s+/g, ' ');
+    check('PDF: signers\' names sit on the signature line, no brackets', await pop.locator('.ec-ln .ec-sn').allInnerTexts().then(x => x.join() === 'P.Approver,C.Checker,Y.Preparer') && !/\( Y\.Preparer \)/.test(await pop.locator('body').innerText()));
     check('PDF table: NO. first, no SHIP DATE, rows numbered, small print', /^NO\. CODE MATERIALS/.test(hd) && !/SHIP DATE/.test(hd) && (await pop.locator('table.ec-tb tr').nth(10).locator('td').first().innerText()).trim() === '10' && await pop.evaluate(() => parseFloat(getComputedStyle(document.querySelector('table.ec-tb td')).fontSize) < 11), hd);
     await pop.close(); } else check('PDF window opened', false);
   await p.fill('input[aria-label="โปรเจกต์"]', ''); await p.waitForTimeout(300);
