@@ -540,17 +540,18 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
   <p class="lead">เมนู <span class="ui">Estimate Cost</span> (กลุ่มวางแผนผลิต) ออกรายงานต้นทุนจริงจากข้อมูล Shipment ตามแผนกและโปรเจกต์ แทนฟอร์ม Access เดิม (ปุ่ม CmdCost) <b>เฉพาะ Admin เท่านั้น</b></p>
   <ol class="steps">
     <li><div><b>1) แผนก</b> เลือกแผนก (CUSTNAME) ที่มีการ Shipment วงเล็บบอกจำนวนโปรเจกต์ · มีตัวเลือก <span class="ui">ทุกแผนก</span> ด้วย</div></li>
-    <li><div><b>2) โปรเจกต์</b> พิมพ์เลขโปรเจกต์แล้วกด Enter หรือคลิกจากรายการ (เรียงตามวันที่ Ship ล่าสุด พร้อมจำนวนบรรทัดและยอดรวม) · พิมพ์บางส่วน เช่น <code>1030</code> เพื่อกรองรายการ</div></li>
+    <li><div><b>2) โปรเจกต์</b> พิมพ์เลขโปรเจกต์แล้วกด Enter หรือคลิกจากรายการ (เรียงตามวันที่ Ship ล่าสุด พร้อมจำนวนบรรทัดและยอดรวม) · พิมพ์บางส่วน เช่น <code>1030</code> เพื่อกรองรายการ · รายการแสดงเลขเต็ม (เช่น PP0990D01) และลูกค้า จากตารางงานการผลิต / Booking BOM · ตารางแสดงเมื่อเลือกโปรเจกต์แล้วเท่านั้น กด <span class="ui">✕ ล้าง</span> หรือพิมพ์ใหม่เพื่อเลือกโปรเจกต์อื่น</div></li>
+    <li><div><b>หลาย Unit</b> ถ้าโปรเจกต์มีหลาย Unit (เช่น PP1043D01–03) จะมีช่อง <span class="ui">Unit 01 / 02 / 03</span> ให้ติ๊กเลือกคิดรวม · TOTAL COST (THB/UNIT) = ยอดรวม ÷ จำนวน Unit ที่เลือก และแสดงยอดรวมทุก Unit แยก</div></li>
     <li><div>ตรวจตาราง: CODE · MATERIALS · DATE · DOCNUM · Q'TY · COST เรียงจากวันที่ Ship ล่าสุด แถวสีเขียว = ยอดบวก (รับคืน / กลับรายการ) · TOTAL = ผลรวม COST (เลขติดลบ = ต้นทุน)</div></li>
     <li><div>ติ๊ก <span class="ui">รวมบรรทัดตาม CODE</span> เพื่อรวม CODE เดียวกันเป็น 1 บรรทัด (รายการรับคืนหักจำนวนออก บรรทัดที่หักกันเป็นศูนย์จะหายไป) · TOTAL เท่าเดิม</div></li>
-    <li><div>กด <span class="ui">🖨 PDF</span> (รูปแบบ ESTIMATE COST เดิม: หัวรายงาน, PROJECT, TOTAL (THB/UNIT), ตาราง, ช่องเซ็น APPROVED / CHECKED / PREPARED BY) หรือ <span class="ui">⬇ Excel</span> (คอลัมน์แบบ Q_Shipment)</div></li>
+    <li><div>กด <span class="ui">🖨 PDF</span> (ภาษาอังกฤษทั้งหมด: หัวรายงาน, PROJECT เลขเต็ม, DEPARTMENT, CUSTOMER / RATING, กรอบ TOTAL COST (THB/UNIT) ตัวใหญ่, ตาราง, ช่องเซ็น APPROVED / CHECKED / PREPARED BY) หรือ <span class="ui">⬇ Excel</span> (คอลัมน์แบบ Q_Shipment)</div></li>
     <li><div><span class="ui">✎ หัวรายงาน / ผู้ลงนาม</span> ตั้งชื่อหัวรายงานและชื่อผู้ลงนาม 3 ช่อง <b>แยกตามแผนก</b> · เว้นว่าง = ใช้ "ESTIMATE COST OF " + ชื่อแผนก</div></li>
   </ol>
   <div class="tw"><table>
     <thead><tr><th>พิมพ์</th><th>CATEGORY ที่ค้น</th><th>หลักการ (ตาม VBA เดิม)</th></tr></thead>
     <tbody>
       <tr><td><code>PP103001</code> / <code>PP1030D01</code> / <code>PP1030-01</code></td><td><code>1030P1</code></td><td>เลข 4 หลัก ≥ 1000 → เลข 4 หลัก &amp; "P" &amp; 2 หลักท้าย (ตัด 0 ข้างหน้า)</td></tr>
-      <tr><td><code>PP099901</code></td><td><code>P99901</code></td><td>รูปแบบเดิม (&lt; 1000) → "P" &amp; ตัวที่ 4–8</td></tr>
+      <tr><td><code>PP0990D01</code> / <code>PP099001</code></td><td><code>P99001</code></td><td>รูปแบบเดิม (&lt; 1000) → "P" &amp; เลข 3 หลัก &amp; Unit</td></tr>
       <tr><td><code>1030P1</code> / <code>P99901</code></td><td>ตามที่พิมพ์</td><td>พิมพ์ CATEGORY ตรง ๆ ได้</td></tr>
     </tbody>
   </table></div>

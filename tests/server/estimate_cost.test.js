@@ -28,6 +28,7 @@ const c=mk();c.SHIP_CHUNK=256;   // tiny ranges: records, quotes and Thai charac
 // project number ⇄ CATEGORY
 T('PP103001 / PP1030D01 / PP1030-01 / 1030P01 → 1030P1',['PP103001','PP1030D01','pp1030-01','1030P01','1030p1'].every(s=>c.shipCat_(s)==='1030P1'),['PP103001','PP1030D01'].map(c.shipCat_));
 T('old style PP099901 → P99901 (as the Access form)',c.shipCat_('PP099901')==='P99901'&&c.shipCat_('P99901')==='P99901');
+T('a project number with its unit letter, old style: PP0990D01 → P99001',c.shipCat_('PP0990D01')==='P99001');
 T('not a project → empty',['','PH0024','1043T1','PP10','ABC'].every(s=>c.shipCat_(s)===''));
 T('CATEGORY → project number on the report',c.shipProj_('1030P1')==='PP103001'&&c.shipProj_('1024P12')==='PP102412'&&c.shipProj_('P99901')==='PP099901');
 // the file (newest first, as the query)
@@ -53,6 +54,9 @@ let m=c.getEstMeta('');
 const s1=m.sum.find(s=>s[0]==='CONTROL WIRING'&&s[1]==='1030P1');
 T('meta: department × project with lines, total, last ship date',s1&&s1[2]==='PP103001'&&s1[3]===5&&Math.abs(s1[4]-(-67898.15+37800-37800-12768.5-381.15))<.01&&s1[5]==='05/11/2026',s1);
 T('meta: date range of the data',m.range==='01/03/2024 – 05/11/2026',m.range);
+c.schedCached_=()=>[['PP1030D01','30','115','EGAT','SESCO'],['PP1030D02','30','115','EGAT','SESCO']];c.bomProjects_=()=>[{project:'PP1024A02',title:'LCC'}];
+m=c.getEstMeta('');
+T('meta: full project numbers from Schedule (customer, rating) and Booking BOM (title)',m.names['1030P1'].no==='PP1030D01'&&m.names['1030P1'].cust==='SESCO'&&m.names['1030P1'].mva==='30'&&m.names['1024P2'].no==='PP1024A02'&&m.names['1024P2'].title==='LCC'&&!m.names['1030P2'],m.names);
 let p=c.getEstCost('','PP1030D01');
 T('project: every line of 1030P1 (all departments), newest first',p.cat==='1030P1'&&p.project==='PP103001'&&p.lines.length===6&&p.lines[0][2]==='20261105'&&p.lines.every((x,i)=>!i||x[2]<=p.lines[i-1][2]),p.lines.map(x=>x[2]));
 T('project: quotes, commas, Thai text and a line break inside a field survive range edges',p.lines.some(x=>x[1]==='รีเลย์ซ็อกเก็ต "PYFZ-14" (FOR MY4N)')&&p.lines.some(x=>x[1]==='Annunciator Type: ESPAN02E-24 DC.110V., I/P: No Contacts,')&&p.lines.some(x=>x[1]==='SOCKET RELAY PYFZ-14 line two'),p.lines.map(x=>x[1]));

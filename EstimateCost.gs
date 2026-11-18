@@ -31,14 +31,14 @@ function shipSS_(create) {
 
 // ── project number ⇄ CATEGORY (the rule of the Access form, extended) ─────────
 // PP103001 / PP1030D01 / PP1030-01 → 1030P1  (4 digits ≥ 1000: digits & "P" & Val(last 2))
-// PP099901 → P99901                           (old style: "P" & Mid(x, 4, 5))
+// PP099901 / PP0990D01 → P99901 / P99001      (old style: "P" & Mid(x, 4, 5), the unit letter skipped)
 // 1030P1 / 1030P01 / P99901 typed as they are → the same CATEGORY
 function shipCat_(s) {
   s = String(s || '').toUpperCase().replace(/[\s\-_\/]/g, '');
   var m = /^(\d{4})P(\d{1,2})$/.exec(s); if (m) return m[1] + 'P' + Number(m[2]);
   if (/^P\d{5}$/.test(s)) return s;
   m = /^PP(\d{4})[A-Z]*(\d{2})$/.exec(s);
-  if (m) return Number(m[1]) >= 1000 ? m[1] + 'P' + Number(m[2]) : 'P' + s.substr(3, 5);
+  if (m) return Number(m[1]) >= 1000 ? m[1] + 'P' + Number(m[2]) : 'P' + m[1].substr(1) + m[2];   // PP0990D01 → P99001
   return '';
 }
 function shipProj_(cat) {           // CATEGORY → the project number printed on the report
@@ -248,7 +248,30 @@ function getEstMeta(token) { apiOnly_();
   requireAdmin_(token);
   var m = shipMeta_(), L = shipInfo_();
   return { ok: !!m, ver: m ? m.ver : '', sum: m ? m.sum.map(function (s) { return [s[0], s[1], shipProj_(s[1]), s[2], s[3], shipShow_(s[4]), s[4]]; }) : [],
-    range: m && m.oldest ? shipShow_(m.oldest) + ' – ' + shipShow_(m.newest) : '', last: L, cfg: estCfg_(), hasUrl: !!schedProp_('SHIP_SRC_URL') };
+    range: m && m.oldest ? shipShow_(m.oldest) + ' – ' + shipShow_(m.newest) : '', last: L, cfg: estCfg_(), hasUrl: !!schedProp_('SHIP_SRC_URL'),
+    names: m ? shipNames_(m) : {} };
+}
+// CATEGORY → the full project number (with its unit letter, PP0990D01) and what the system knows of it:
+// Production Schedule first (customer, MVA, kV), then Booking BOM (title). CATEGORY alone cannot tell the letter.
+function shipNames_(m) {
+  var want = {}, out = {};
+  m.sum.forEach(function (s) { want[s[1]] = 1; });
+  try {
+    (schedCached_() || []).forEach(function (r) {
+      var no = String(r[0] || '').trim().toUpperCase(), cat = shipCat_(no);
+      if (!cat || !want[cat] || out[cat]) return;
+      out[cat] = { no: no, cust: String(r[4] || r[3] || '').trim(), mva: String(r[1] || '').trim(), kv: String(r[2] || '').trim() };
+    });
+  } catch (e) { console.warn('shipNames_ schedule', e); }
+  try {
+    (typeof bomProjects_ === 'function' ? bomProjects_() : []).forEach(function (p) {
+      var no = String(p.project || '').trim().toUpperCase(), cat = shipCat_(no);
+      if (!cat || !want[cat]) return;
+      if (!out[cat]) out[cat] = { no: no, cust: '', mva: '', kv: '' };
+      if (!out[cat].title && p.title) out[cat].title = String(p.title);
+    });
+  } catch (e) { console.warn('shipNames_ bom', e); }
+  return out;
 }
 // the lines of one project (every department — the page filters), newest ship date first
 function getEstCost(token, proj) { apiOnly_();

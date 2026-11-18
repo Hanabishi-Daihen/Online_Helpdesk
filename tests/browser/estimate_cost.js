@@ -11,7 +11,8 @@ const { chromium } = require('playwright');
   await p.evaluate(() => {
     const M = window.__M;
     M.getEstMeta = { ok: true, ver: '1', range: '01/01/2023 – 05/11/2026', last: { ok: true, time: '18/11/2026 04:05:00', msg: 'ok' }, cfg: {}, hasUrl: true,
-      sum: [['CONTROL WIRING', '1030P1', 'PP103001', 5, -43047.8, '05/11/2026', '20261105'], ['CONTROL WIRING', '1024P2', 'PP102402', 2, -900, '01/10/2026', '20261001'],
+      names: { '1030P1': { no: 'PP1030D01', cust: 'SESCO', mva: '30', kv: '115' }, '1030P2': { no: 'PP1030D02', cust: 'SESCO', mva: '30', kv: '115' } },
+      sum: [['CONTROL WIRING', '1030P1', 'PP103001', 5, -43047.8, '05/11/2026', '20261105'], ['CONTROL WIRING', '1030P2', 'PP103002', 5, -43047.8, '04/11/2026', '20261104'], ['CONTROL WIRING', '1024P2', 'PP102402', 2, -900, '01/10/2026', '20261001'],
         ['TANKING', '1030P1', 'PP103001', 1, -75, '01/11/2026', '20261101'], ['CORE SHEARING', '1043P1', 'PP104301', 4, -10, '01/09/2026', '20260901']] };
     M.getEstCost = { cat: '1030P1', project: 'PP103001', cols: [], lines: [
       ['37000017', 'Winding Thermometer', '20261105', 'MF241A/PP1030D01-02', 'CONTROL WIRING', 'WH1', 2, 'EA', 33949.07, -67898.15, 'USR1'],
@@ -29,20 +30,25 @@ const { chromium } = require('playwright');
   const pw = p.locator('input[type=password]'); await pw.first().fill('control'); await pw.first().press('Enter'); await p.waitForTimeout(1500);
   await p.locator('aside nav button:has-text("Estimate Cost")').first().click(); await p.waitForTimeout(1000);
   const dept = p.locator('select[aria-label="แผนก"]');
-  check('departments from the data, with project counts', /CONTROL WIRING \(2 โปรเจกต์\)/.test(await dept.innerText()) && /ทุกแผนก/.test(await dept.innerText()), await dept.innerText());
+  check('departments from the data, with project counts', /CONTROL WIRING \(3 โปรเจกต์\)/.test(await dept.innerText()) && /ทุกแผนก/.test(await dept.innerText()), await dept.innerText());
   await dept.selectOption('CONTROL WIRING'); await p.waitForTimeout(300);
-  check('project list of the department, last ship first', (await p.locator('.zq-ec-pj').allInnerTexts()).map(t => t.split(/\s/)[0]).join() === 'PP103001,PP102402');
+  check('project list: full numbers from the Schedule, last ship first', (await p.locator('.zq-ec-pj').allInnerTexts()).map(t => t.split(/\s/)[0]).join() === 'PP1030D01,PP1030D02,PP102402', await p.locator('.zq-ec-pj').allInnerTexts());
+  check('nothing picked → no table', await p.locator('.zq-ec-tb').count() === 0);
   await p.fill('input[aria-label="โปรเจกต์"]', '1024'); await p.waitForTimeout(200);
   check('typing filters the list', await p.locator('.zq-ec-pj').count() === 1);
   await p.fill('input[aria-label="โปรเจกต์"]', 'PP1030D01'); await p.press('input[aria-label="โปรเจกต์"]', 'Enter'); await p.waitForTimeout(800);
   const rowsN = () => p.locator('.zq-ec-tb tbody tr').count(), sumT = () => p.locator('.zq-ec-sum').innerText();
+  check('picked → the list closes, typing again clears the table', await p.locator('.zq-ec-pj').count() === 0);
   check('PP1030D01 → 1030P1: the department\'s lines one by one (TANKING left out), newest first', await rowsN() === 5 && /^37000017/.test(await p.locator('.zq-ec-tb tbody tr').first().innerText()), await rowsN());
-  check('TOTAL = sum of the lines, negative', /-81,047\.80/.test(await sumT()), await sumT());
+  check('TOTAL COST (THB/UNIT) = sum of the lines, negative', /TOTAL COST \(THB\/UNIT\)\s*-81,047\.80/.test(await sumT()), await sumT());
   check('a reversal (+) row is marked', await p.locator('.zq-ec-tb tr.rv').count() === 1);
   check('other departments of the project are named', /TANKING/.test(await sumT()));
   await p.locator('label:has-text("รวมบรรทัดตาม CODE") input').check(); await p.waitForTimeout(300);
   check('merge by CODE: returns cancel out, quantities add up, same TOTAL', await rowsN() === 2 && /-81,047\.80/.test(await sumT()) && /69\.00/.test(await p.locator('.zq-ec-tb').innerText()), [await rowsN(), await sumT()]);
   await p.locator('label:has-text("รวมบรรทัดตาม CODE") input').uncheck();
+  // two units
+  await p.locator('.zq-ec-units label:has-text("Unit 02") input').check(); await p.waitForTimeout(600);
+  check('2 units: lines of both, TOTAL of 2 units, THB/UNIT = half, UNIT column', await rowsN() === 10 && /TOTAL 2 UNITS\s*-162,095\.60/.test(await sumT()) && /THB\/UNIT\)\s*-81,047\.80/.test(await sumT()) && await p.locator('.zq-ec-tb th:has-text("UNIT")').count() === 1, [await rowsN(), await sumT()]);
   await p.locator('button:has-text("หัวรายงาน / ผู้ลงนาม")').click(); await p.waitForTimeout(200);
   check('report settings start with the department name as the title', (await p.locator('.zq-ws-card input[placeholder="ESTIMATE COST OF CONTROL WIRING"]').count()) === 1);
   await p.locator('button:has-text("บันทึก")').last().click(); await p.waitForTimeout(500);
@@ -50,8 +56,11 @@ const { chromium } = require('playwright');
   await p.screenshot({ path: OUT + 'estimate_cost.png' });
   const [pop] = await Promise.all([ctx.waitForEvent('page', { timeout: 5000 }).catch(() => null), p.locator('button:has-text("🖨 PDF")').click()]);
   if (pop) { await pop.waitForTimeout(800); const t = await pop.locator('body').innerText();
-    check('PDF: title, PROJECT, TOTAL (THB/UNIT), 5 lines, signers', /ESTIMATE COST OF CONTROL CABINET/.test(t) && /PROJECT : PP103001/.test(t) && /TOTAL : \(THB\/UNIT\) -81,048/.test(t) && /APPROVED BY/.test(t) && /Y\.Preparer/.test(t) && await pop.locator('table tr').count() >= 7, t.slice(0, 400));
+    check('PDF: English only — title, full project numbers, customer, TOTAL box per unit + 2 units, signers', /ESTIMATE COST OF CONTROL CABINET/.test(t) && /PROJECT : PP1030D01, PP1030D02 \(2 UNITS\)/.test(t) && /DEPARTMENT : CONTROL WIRING/.test(t) && /CUSTOMER : SESCO/.test(t) && /TOTAL COST \(THB\/UNIT\)\s*-81,048/.test(t) && /TOTAL 2 UNITS : -162,096/.test(t) && /Y\.Preparer/.test(t) && !/[\u0E00-\u0E7F]/.test(t.replace(/^[\s\S]*?DAIHEN/, '')), t.slice(0, 600));
+    await pop.screenshot({ path: OUT + 'estimate_cost_pdf.png' });
     await pop.close(); } else check('PDF window opened', false);
+  await p.fill('input[aria-label="โปรเจกต์"]', ''); await p.waitForTimeout(300);
+  check('input cleared → no table, the list is back', await p.locator('.zq-ec-tb').count() === 0 && await p.locator('.zq-ec-pj').count() === 3);
   check('no page errors', errs.length === 0, errs);
   srv.close(); await b.close();
   process.exit(fails.length || errs.length ? 1 : 0);
