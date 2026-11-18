@@ -69,7 +69,9 @@ const cdn = r => { const u = r.request().url(); for (const [re, p] of MAP) { con
   await p.waitForFunction(() => /รอ Admin อนุมัติ/.test((document.querySelector('.za-card') || {}).innerText || ''), null, { timeout: 4000 }).catch(() => {});
   check('waits for Admin approval', /รอ Admin อนุมัติ/.test(await p.locator('.za-card').innerText()));
   await p.click('.za-card .za-btn.ghost'); await p.click('.za-card >> text=ลืมรหัสผ่าน?'); await p.fill('#za-email', 'somchai@example.co.th'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(300);
-  await p.locator('.za-otp input').first().fill('654321'); await p.fill('#za-pw', 'Newpass77'); await p.fill('#za-pw2', 'Newpass77'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(600); check('a session from forgot-password rides too: step 1 done', await p.locator('.za-trav-st span.done').count() >= 1); await p.waitForTimeout(2600);
+  await p.locator('.za-otp input').first().fill('654321'); await p.fill('#za-pw', 'Newpass77'); await p.fill('#za-pw2', 'Newpass77'); await p.click('.za-card .za-btn[type=submit]');
+  await p.waitForSelector('.za-trav-st span.done', { timeout: 3000 }).catch(() => {}); check('a session from forgot-password rides too: step 1 done', await p.locator('.za-trav-st span.done').count() >= 1);
+  await p.waitForFunction(() => !document.querySelector('#zq-auth'), null, { timeout: 8000 }).catch(() => {});
   check('signed in: page closed', await A.count() === 0, await p.evaluate(() => [document.querySelectorAll('#zq-auth').length, (document.querySelector('.za-trav-hd') || {}).innerText, window.__zqNet, window.__zqNetE, (document.querySelector('.za-msg') || {}).innerText]));
   const sent = await p.evaluate(() => (window.__apiLog || []).filter(x => !/^auth|getAppUrl/.test(x[0])));
   check('held calls went out with the session', sent.length > 0 && sent.every(x => x[1]), sent.slice(0, 4));
