@@ -301,11 +301,11 @@
   /* ── the page ── */
   var PARTS = [
     ["01", "บุชชิ่งแรงสูง", "High-voltage bushings", "นำสาย 132 kV ผ่านฝาถังที่ต่อลงดินโดยไม่เกิดวาบไฟข้าม และปิดผนึกน้ำมันไว้ภายใน", "145 kV class · 3 เฟส + นิวทรัล · LV 33 kV × 3"],
-    ["02", "ถังพักน้ำมัน", "Conservator", "ถังขยายตัวที่ทำให้ตัวถังมีน้ำมันเต็มเสมอเมื่อน้ำมันขยายตัวตามโหลด มีรีเลย์บุคโฮลซ์เฝ้าท่อด้านล่าง", "Rubber-cell · น้ำมัน 18,700 L · Silica gel breather"],
+    ["02", "ถังพักน้ำมัน", "Conservator", "ถังขยายตัวแบ่ง 2 ห้อง: ห้องยาวของตัวถังหลัก (ท่อผ่านรีเลย์บุคโฮลซ์) และห้องสั้นของ OLTC (ท่อผ่านรีเลย์ป้องกัน OLTC) แต่ละห้องมีเกจระดับน้ำมันและ Silica gel breather ของตัวเอง", "Rubber-cell · 2 ห้อง Main / OLTC · น้ำมัน 18,700 L"],
     ["03", "ครีบระบายความร้อนและพัดลม", "Radiators & fans", "น้ำมันร้อนลอยขึ้นสู่ครีบเหล็กชุบกัลวาไนซ์แล้วจมลงเมื่อเย็นตัว เมื่อโหลดสูงพัดลมเริ่มทำงาน เพิ่มพิกัดได้อีกครึ่งหนึ่ง", "4 ชุดครีบ · พัดลม 4 ตัว · ONAN 30 → ONAF 45 MVA"],
     ["04", "ตัวถังหลัก", "Main tank", "ถังเหล็กเชื่อมทนสุญญากาศ บรรจุน้ำมันและชุดแกน–ขดลวด การยกตัวถังออกเรียกว่า Untanking", "น้ำหนักรวม 75,500 kg · ติดตั้งกลางแจ้ง"],
     ["05", "ตัวเปลี่ยนแทปขณะจ่ายโหลด", "On-load tap changer", "เปลี่ยนอัตราส่วนรอบขดลวดทีละขั้นขณะจ่ายโหลดเต็ม เพื่อคุมแรงดันฝั่ง 33 kV ให้นิ่งเมื่อแรงดันกริดเปลี่ยน", "16 ตำแหน่ง · 1.67 % ต่อขั้น · +10 % / −15 %"],
-    ["06", "แกนเหล็กและขดลวด", "Core & windings", "แผ่นเหล็กซิลิคอนเกรนโอเรียนเต็ดนำฟลักซ์แม่เหล็ก ขดลวดทองแดงซ้อนกันแปลง 132 kV เป็น 33 kV", "แกน 3 ขา · HV สตาร์ (YN) / LV เดลต้า · 40,500 kg"],
+    ["06", "แกนเหล็กและขดลวด", "Core & windings", "แผ่นเหล็กซิลิคอนเกรนโอเรียนเต็ดนำฟลักซ์แม่เหล็ก ขดลวดทองแดงซ้อนกันแปลง 132 kV เป็น 33 kV · กด แยกแกน–ขดลวด เพื่อยกแอกบนและขดลวดออกจากขาแกน", "แกน 3 ขา · HV สตาร์ (YN) / LV เดลต้า · 40,500 kg"],
     ["07", "ตู้ควบคุม", "Local control cabinet", "รวมอุปกรณ์ป้องกันและสัญญาณเตือน ป้าย Card holder, Annunciator และ Strip marker ในตู้นี้สั่งผ่านตัวช่วยหน้าแบบของระบบนี้", "OTI / WTI · Annunciator · Terminal"],
     ["", "ประกอบครบ พร้อมจ่ายไฟ", "Assembled · Energized", "ทุกชิ้นกลับเข้าที่ หม้อแปลง 45 MVA พร้อมใช้งาน", "30/45 MVA · 132/33 kV · ONAN/ONAF · 50 Hz"]
   ];
@@ -373,25 +373,28 @@
 
   /* ══ the operator's tour: what the page does by itself; any click / drag / key takes over, 25 s of quiet gives it back ══ */
   var SHORT = ["บุชชิ่ง", "ถังพักน้ำมัน", "ครีบ + พัดลม", "ตัวถัง", "แทป OLTC", "แกน + ขดลวด", "ตู้ควบคุม"];
-  var BEATS = [   // [s, assembly (0 = whole), exploded, x-ray, labels, turntable, operator action]
+  var BEATS = [   // [s, assembly (0 = whole), exploded, x-ray, labels, turntable, operator action, core & windings apart]
     [0, 0, 0, 0, 1, 1, "OVERVIEW · ENERGIZED"], [7, 1, 0, 0, 1, 0, "ISOLATE BUSHINGS"], [13, 2, 0, 0, 1, 0, "ISOLATE CONSERVATOR"],
     [19, 3, 0, 0, 1, 0, "ISOLATE COOLING"], [25, 4, 0, 0, 1, 0, "ISOLATE MAIN TANK"], [31, 5, 0, 0, 1, 0, "ISOLATE OLTC"],
-    [37, 6, 0, 0, 1, 0, "ISOLATE CORE & WINDINGS"], [43, 7, 0, 0, 1, 0, "OPEN CONTROL CABINET"], [49, 0, 1, 0, 1, 0, "EXPLODED VIEW"],
-    [56, 0, 0, 1, 1, 1, "X-RAY · ACTIVE PART"], [61, 0, 0, 0, 1, 1, "REASSEMBLE · RE-ENERGIZE"]], TOUR = 66;
+    [37, 6, 0, 0, 1, 0, "ISOLATE CORE & WINDINGS"], [41, 6, 0, 0, 1, 0, "LIFT TOP YOKE · WINDINGS OFF THE CORE", 1], [47, 6, 0, 0, 1, 0, "RESTACK · CORE & WINDINGS ASSEMBLED"],
+    [50, 7, 0, 0, 1, 0, "OPEN CONTROL CABINET"], [56, 0, 1, 0, 1, 0, "EXPLODED VIEW"],
+    [63, 0, 0, 1, 1, 1, "X-RAY · ACTIVE PART"], [68, 0, 0, 0, 1, 1, "REASSEMBLE · RE-ENERGIZE"]], TOUR = 73;
   function beatAt(t) { var b = 0; for (var i = 0; i < BEATS.length; i++) if (BEATS[i][0] <= t) b = i; return b; }
   function ctl0(still, mobile) {
     var C = { still: still, mobile: mobile, t: 0, play: !still, boost: 0, idle: 0, acts: 0, beat: -1, user: false, hover: 0,
-      V: { k: 0, ex: 0, xr: 0, lb: 1, tt: 0 }, m: sim0(8.5), act: BEATS[0][6], cam: 0, hudT: 0 };
+      V: { k: 0, ex: 0, xr: 0, lb: 1, tt: 0, sp: 0 }, m: sim0(8.5), act: BEATS[0][6], cam: 0, hudT: 0 };
     return C;
   }
   function applyBeat(C, i, fromUser) {
-    var b = BEATS[i]; C.beat = i; C.V = { k: b[1], ex: b[2], xr: b[3], lb: b[4], tt: C.still ? 0 : b[5] }; C.act = b[6]; C.cam++;
-    if (!fromUser) cursorTo(b[2] ? '[data-d="ex"]' : b[3] ? '[data-d="xr"]' : b[1] ? '[data-k="' + b[1] + '"]' : '[data-k="0"]');
+    var b = BEATS[i]; C.beat = i; C.V = { k: b[1], ex: b[2], xr: b[3], lb: b[4], tt: C.still ? 0 : b[5], sp: b[7] || 0 }; C.act = b[6]; C.cam++;
+    if (!fromUser) cursorTo(b[7] ? '[data-d="sp"]' : b[2] ? '[data-d="ex"]' : b[3] ? '[data-d="xr"]' : b[1] ? '[data-k="' + b[1] + '"]' : '[data-k="0"]');
     if (/REASSEMBLE/.test(b[6])) setTimeout(function () { st.three && st.three.pop && st.three.pop(); }, 1500);
   }
   // a hand on the controls: stop the tour, count it, give the tour back after 25 s
   function take(C, act) { C.play = false; C.user = true; C.idle = 0; C.acts++; if (act) C.act = act; cursorOff(); hudNow(); }
-  function setView(C, patch, act) { var V = C.V, k; for (k in patch) V[k] = patch[k]; if ("k" in patch && patch.k) V.ex = 0; if ("ex" in patch && patch.ex) V.k = 0; C.cam++; take(C, act); }
+  function setView(C, patch, act) { var V = C.V, k; for (k in patch) V[k] = patch[k]; if ("k" in patch && patch.k) V.ex = 0; if ("ex" in patch && patch.ex) V.k = 0;
+    if ("sp" in patch && patch.sp) { V.k = 6; V.ex = 0; } if (("k" in patch && patch.k !== 6) || ("ex" in patch && patch.ex)) V.sp = 0;   // core & windings apart only in the active-part view
+    C.cam++; take(C, act); }
   function ctlTick(C, dt) {
     var sp = 1 + C.boost; C.boost *= Math.exp(-dt * 1.4);
     if (C.play) { C.t += dt * sp; if (C.t >= TOUR) C.t -= TOUR; var b = beatAt(C.t); if (b !== C.beat) applyBeat(C, b); }
@@ -425,8 +428,8 @@
     // right: tap changer · assemblies · display · subsystems
     var asm = h("div", { class: "za-chips za-asm" }, [h("button", { type: "button", class: "za-chip", "data-k": "0", text: "ทั้งหมด", onclick: function () { setView(C, { k: 0, ex: 0, xr: 0 }, "SHOW WHOLE UNIT"); } })].concat(SHORT.map(function (s, i) {
       return h("button", { type: "button", class: "za-chip", "data-k": String(i + 1), text: s, onclick: function () { setView(C, { k: C.V.k === i + 1 ? 0 : i + 1 }, "ISOLATE " + PARTS[i][2].toUpperCase()); } }); })));
-    var disp = h("div", { class: "za-chips za-disp" }, [["lb", "ป้ายชื่อ"], ["ex", "แยกชิ้น"], ["xr", "มองทะลุ"], ["tt", "หมุนรอบ"]].map(function (d) {
-      return h("button", { type: "button", class: "za-chip", "data-d": d[0], text: d[1], "aria-pressed": "false", onclick: function () { var p = {}; p[d[0]] = C.V[d[0]] ? 0 : 1; setView(C, p, (p[d[0]] ? "" : "HIDE ") + { lb: "LABELS", ex: "EXPLODED VIEW", xr: "X-RAY", tt: "TURNTABLE" }[d[0]]); } }); }));
+    var disp = h("div", { class: "za-chips za-disp" }, [["lb", "ป้ายชื่อ"], ["ex", "แยกชิ้น"], ["xr", "มองทะลุ"], ["tt", "หมุนรอบ"], ["sp", "แยกแกน–ขดลวด"]].map(function (d) {
+      return h("button", { type: "button", class: "za-chip", "data-d": d[0], text: d[1], "aria-pressed": "false", onclick: function () { var p = {}; p[d[0]] = C.V[d[0]] ? 0 : 1; setView(C, p, d[0] === "sp" ? (p.sp ? "LIFT TOP YOKE · WINDINGS OFF THE CORE" : "RESTACK · CORE & WINDINGS ASSEMBLED") : (p[d[0]] ? "" : "HIDE ") + { lb: "LABELS", ex: "EXPLODED VIEW", xr: "X-RAY", tt: "TURNTABLE" }[d[0]]); } }); }));
     var subs = h("div", { class: "za-subs" }, [["01", "พัดลมระบายความร้อน", "4 ตัว · ONAF", "fan"], ["02", "รีเลย์บุคโฮลซ์", "ก๊าซในน้ำมัน", "buch"], ["03", "ตัวเปลี่ยนแทป", "AVR 33 kV ± 1.25 %", "oltc"],
       ["04", "ระดับน้ำมัน", "ถังพักน้ำมัน", "oil"], ["05", "Silica gel", "สารดูดความชื้น", "gel"], ["06", "Pressure relief", "ระบายแรงดัน", "prd"]].map(function (r) {
       return h("div", { class: "za-sub" }, [h("i", { text: r[0] }), h("div", {}, [h("b", { text: r[1] }), h("small", { "data-v": r[3] + "s", text: r[2] })]), h("em", { "data-v": r[3], text: "–" })]); }));
@@ -448,7 +451,7 @@
     bar.addEventListener("click", function (e) { var r = bar.getBoundingClientRect(); C.t = Math.max(0, Math.min(TOUR - .01, (e.clientX - r.left) / r.width * TOUR)); C.play = true; C.user = false; applyBeat(C, beatAt(C.t), true); C.acts++; hudNow(); });
     var pb = h("button", { type: "button", class: "za-pp", "aria-label": "หยุด / เล่นทัวร์", onclick: function () { if (C.play) take(C, "PAUSE TOUR"); else { C.play = true; C.user = false; C.beat = -1; } hudNow(); } }, [h("i")]);
     el.appendChild(h("div", { class: "za-log" }, [pb, h("div", { class: "za-lg" }, [h("div", { class: "za-lh" }, [h("span", { text: "OPERATOR LOG · บันทึก" }), h("b", { "data-v": "act", text: "" }), h("span", { "data-v": "acts", text: "" })]), bar,
-      h("div", { class: "za-lh sm" }, [h("span", { "data-v": "tl", text: "00:00 / 01:06" }), h("span", { text: "ลากเพื่อหมุน · คลิกชิ้นส่วนเพื่อแยก · หมุนล้อเมาส์เพื่อเร่ง" })])])]));
+      h("div", { class: "za-lh sm" }, [h("span", { "data-v": "tl", text: "00:00 / 01:13" }), h("span", { text: "ลากเพื่อหมุน · คลิกชิ้นส่วนเพื่อแยก · หมุนล้อเมาส์เพื่อเร่ง" })])])]));
     el.appendChild(h("div", { class: "za-lbls", "aria-hidden": "true" }, [document.createElementNS("http://www.w3.org/2000/svg", "svg")]));
     el.appendChild(h("div", { class: "za-cur", "aria-hidden": "true" }));
     st.hud = el; hudNow();
@@ -481,12 +484,12 @@
     set("fans", m.fan > .5 ? "4 ตัว · " + Math.round(m.fan * 100) + " %" : "4 ตัว · หยุด (ONAN)"); set("oltcs", "AVR 33 kV ± 1.25 % · TAP " + two(m.n));
     // mode · log
     var md = el.querySelector(".za-mode"), p = V.k ? PARTS[V.k - 1] : null, b = md && md.querySelector("b"), th = md && md.querySelector(".th"), ds = md && md.querySelector("p");
-    var big = V.ex ? "EXPLODED VIEW" : p ? p[2].toUpperCase() : V.xr ? "X-RAY · ACTIVE PART" : "ENERGIZED · " + (m.onaf ? "ONAF" : "ONAN");
-    var sub = V.ex ? "แยกชิ้นทั้งหมด · " + Math.round(C.apart || 0) + " %" : p ? p[1] + " · " + p[4] : V.xr ? "มองทะลุตัวถัง · แกนเหล็กและขดลวด" : "หม้อแปลง 30/45 MVA · 132/33 kV · โหลด " + pct.toFixed(0) + " %";
+    var big = V.ex ? "EXPLODED VIEW" : V.sp ? "CORE & WINDINGS · APART" : p ? p[2].toUpperCase() : V.xr ? "X-RAY · ACTIVE PART" : "ENERGIZED · " + (m.onaf ? "ONAF" : "ONAN");
+    var sub = V.ex ? "แยกชิ้นทั้งหมด · " + Math.round(C.apart || 0) + " %" : V.sp ? "ยกแอกบน (Top yoke) และขดลวด HV / LV ออกจากขาแกน · " + Math.round((C.sep || 0) * 100) + " %" : p ? p[1] + " · " + p[4] : V.xr ? "มองทะลุตัวถัง · แกนเหล็กและขดลวด" : "หม้อแปลง 30/45 MVA · 132/33 kV · โหลด " + pct.toFixed(0) + " %";
     if (b && b.textContent !== big) b.textContent = big; if (th && th.textContent !== sub) th.textContent = sub;
     var dsc = p ? p[3] + (V.k === 5 ? " · " + tapText(m.n) : "") : ""; if (ds && ds.textContent !== dsc) ds.textContent = dsc;
     set("act", (C.user ? "USER · " : "OPERATOR · ") + C.act); set("acts", C.user && !C.play ? "ทัวร์อัตโนมัติกลับมาใน " + Math.max(0, Math.ceil(25 - C.idle)) + " วินาที" : C.acts + " USER ACTIONS");
-    set("tl", "00:" + two(C.t) + " / 01:" + two(TOUR - 60)); var tl = el.querySelector(".za-tl i"); tl && (tl.style.width = (C.t / TOUR * 100) + "%");
+    set("tl", two(C.t / 60) + ":" + two(C.t % 60) + " / " + two(TOUR / 60) + ":" + two(TOUR % 60)); var tl = el.querySelector(".za-tl i"); tl && (tl.style.width = (C.t / TOUR * 100) + "%");
     var pp = el.querySelector(".za-pp"); pp && pp.classList.toggle("paused", !C.play);
     [].forEach.call(el.querySelectorAll(".za-asm .za-chip"), function (c) { var on = +c.getAttribute("data-k") === (V.ex ? -1 : V.k); c.classList.toggle("on", on); c.setAttribute("aria-pressed", String(on)); });
     [].forEach.call(el.querySelectorAll(".za-disp .za-chip"), function (c) { var on = !!V[c.getAttribute("data-d")]; c.classList.toggle("on", on); c.setAttribute("aria-pressed", String(on)); });
@@ -827,6 +830,7 @@
     var lamT = tex(64, 64, function (x, w, hh) { for (var i = 0; i < hh; i += 2) { x.fillStyle = i % 4 ? "#79828c" : "#6a737d"; x.fillRect(0, i, w, 2); } }, 1, 4);
     var core = new T.MeshStandardMaterial({ color: 0xffffff, map: lamT, metalness: .7, roughness: .42, emissive: 0x0292d8, emissiveIntensity: 0 });
     var root = new T.Group(); scene.add(root);
+    var plateM = function (map) { return new T.MeshStandardMaterial({ map: map, roughness: .4, metalness: .1, polygonOffset: true, polygonOffsetFactor: -2 }); };
     function M(g, m, x, y, z, p) { var o = new T.Mesh(g, m); o.position.set(x || 0, y || 0, z || 0); (p || root).add(o); return o; }
     function B(w, hh, d, m, x, y, z, p) { return M(new T.BoxGeometry(w, hh, d), m, x, y, z, p); }
     function C(r, hh, m, x, y, z, p, seg, r2) { return M(new T.CylinderGeometry(r2 == null ? r : r2, r, hh, seg || 32), m, x, y, z, p); }
@@ -851,7 +855,7 @@
 
     // 01 · bushings (layout as drawing PP0889D): 3 HV + neutral, staggered on tall CT turrets; 3 LV bushings with palm pads on a raised terminal box
     var RISE = .2, ROFF = .24;                                                                       // the OLTC end of the cover is a step higher
-    var HV = [[-.85, .12, .42, 1.15], [-.2, -.18, .48, 1.25], [.35, .14, .42, 1.15]], NEU = [.95, -.22, .3, .8], LVB = [[-.35, .4], [-.2, .4], [-.05, .4]];
+    var HZ = -.12, HV = [[-.9, HZ, .45, 1.2], [-.3, HZ, .45, 1.2], [.3, HZ, .45, 1.2]], NEU = [.95, HZ, .3, .8], LVB = [[-.35, .4], [-.2, .4], [-.05, .4]];
     function ringBolts(r, n, x, y, z, p, axis) { var I = new T.InstancedMesh(new T.CylinderGeometry(.011, .011, .022, 6), steel, n), o = new T.Object3D(); for (var k = 0; k < n; k++) { var a = k / n * Math.PI * 2; if (axis === "x") { o.position.set(x, y + Math.cos(a) * r, z + Math.sin(a) * r); o.rotation.set(0, 0, Math.PI / 2); } else o.position.set(x + Math.cos(a) * r, y, z + Math.sin(a) * r); o.updateMatrix(); I.setMatrixAt(k, o.matrix); } p.add(I); return I; }
     var g1 = part([[1, 0, .45, 1.5], [2, 0, .45 + LIFT, 1.5]]);
     function bushing(x, z, base, len, rc, rb, rs, pitch, shank) {
@@ -874,22 +878,56 @@
       M(new T.LatheGeometry(pts, 24), porcelain, 0, 0, 0, b); C(.016, .07, copper, 0, .29, 0, b, 10); B(.05, .07, .012, copper, 0, .35, 0, b); });
     // leads to the bushings belong to the active part, the turrets to the tank (below)
 
-    // 02 · conservator on brackets off the back wall, Buchholz relay in its pipe, silica-gel breather
-    var g2 = part([[2, 0, .7, -.85], [3, 0, .7 + LIFT, -.85]]), cz = -.8, cy = 2.4, cl = 1.5, cx = -.2;
-    X(C(.21, cl, paint, cx, cy, cz, g2, 40)); [-1, 1].forEach(function (s) { var e = M(new T.SphereGeometry(.21, 32, 16), paint, cx + s * cl / 2, cy, cz, g2); e.scale.set(.32, 1, 1); });
-    [-.5, .5].forEach(function (dx) { var t = M(new T.TorusGeometry(.215, .012, 6, 40), paintD, cx + dx, cy, cz, g2); t.rotation.y = Math.PI / 2;
-      B(.06, cy - .21 - .95, .06, paintD, cx + dx, (cy - .21 + .95) / 2, cz, g2); B(.06, .06, .26, paintD, cx + dx, .98, cz + .12, g2); });
+    // 02 · conservator — on the OLTC end of the tank, axis across the tank. One shell, two compartments behind a welded diaphragm:
+    //      the long one feeds the main tank through the Buchholz relay, the short one (front, nearest the OLTC head) feeds the tap changer
+    //      through its protective relay. Each has its own magnetic oil-level gauge and silica-gel breather (rubber cell inside).
+    var g2 = part([[2, .9, .7, 0], [3, .9, .7 + LIFT, 0]]), cx = TL / 2 + .42, cy = 2.42, cr = .21, cl = 1.5, cz = 0, zP = cl / 2 - .4, V3 = T.Vector3, UP = new V3(0, 1, 0);
+    function seg(a, b, r, m, p) { var d = new V3(b[0] - a[0], b[1] - a[1], b[2] - a[2]), o = C(r, d.length(), m, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2, p, 14); o.quaternion.setFromUnitVectors(UP, d.normalize()); return o; }
+    function run(pts, r, m, p) { for (var i = 1; i < pts.length; i++) seg(pts[i - 1], pts[i], r, m, p); for (var j = 1; j < pts.length - 1; j++) M(new T.SphereGeometry(r * 1.08, 14, 10), m, pts[j][0], pts[j][1], pts[j][2], p); }
+    function valve(x, y, z, ax, p) { var v = C(.042, .07, dark, x, y, z, p, 14); ax === "z" ? Z(v) : X(v); [-1, 1].forEach(function (s) { var f = C(.05, .014, paintD, ax === "z" ? x : x + s * .042, y, ax === "z" ? z + s * .042 : z, p, 16); ax === "z" ? Z(f) : X(f); }); C(.008, .07, steel, x, y + .065, z, p, 6); wheel(x, y + .1, z, "y", p); return v; }
+    function breather(x, yt, z, k, p) {                                                              // cap · glass body with orange gel · base · oil-seal cup
+      var hb = .24 * k; C(.07 * k, .03, alu, x, yt, z, p, 20); C(.058 * k, hb, glass, x, yt - .015 - hb / 2, z, p, 24); C(.047 * k, hb - .02, gel, x, yt - .015 - hb / 2, z, p, 16);
+      C(.07 * k, .03, alu, x, yt - .03 - hb, z, p, 20); C(.042 * k, .07, glass, x, yt - .08 - hb, z, p, 18); C(.03 * k, .03, new T.MeshStandardMaterial({ color: 0xb98a2a, roughness: .3, transparent: true, opacity: .8 }), x, yt - .09 - hb, z, p, 14); }
+    function tag(t, w) { return tex(256, 64, function (x) { x.fillStyle = "#e9ebe6"; x.fillRect(0, 0, 256, 64); x.strokeStyle = "#333"; x.lineWidth = 4; x.strokeRect(3, 3, 250, 58); x.fillStyle = "#111"; x.font = "700 " + (w || 30) + "px Arial"; x.textAlign = "center"; x.fillText(t, 128, 43); }); }
+    Z(C(cr, cl, paint, cx, cy, cz, g2, 48));
+    [-1, 1].forEach(function (s) { var e = M(new T.SphereGeometry(cr, 40, 16), paint, cx, cy, cz + s * cl / 2, g2); e.scale.set(1, 1, .32); });
+    [zP - .014, zP + .014].forEach(function (z) { M(new T.TorusGeometry(cr + .004, .007, 6, 48), paintD, cx, cy, z, g2); });       // the diaphragm's two weld seams
+    M(new T.TorusGeometry(cr + .006, .01, 6, 48), paintD, cx, cy, -cl / 2 + .03, g2); M(new T.TorusGeometry(cr + .006, .01, 6, 48), paintD, cx, cy, cl / 2 - .03, g2);
+    C(.07, .03, paintD, cx, cy + cr + .01, -.15, g2, 20); C(.05, .03, paintD, cx, cy + cr + .01, zP + .2, g2, 20);                    // filling / air-release flanges, one per compartment
+    // two saddles on posts, arms bolted to the end wall, diagonal braces down to the lower belt
+    [-.25, .45].forEach(function (z) {
+      M(new T.TorusGeometry(cr + .01, .016, 6, 48), paintD, cx, cy, z, g2); B(.24, .04, .1, paintD, cx, cy - cr - .02, z, g2);
+      B(.07, cy - cr - .04 - 1.27, .07, paintD, cx, (cy - cr - .04 + 1.27) / 2, z, g2); B(cx - TL / 2 - .03, .07, .07, paintD, (cx + TL / 2 + .03) / 2, 1.3, z, g2);
+      B(.025, .14, .12, paintD, TL / 2 + .06, 1.3, z, g2); seg([TL / 2 + .06, .86, z], [cx, 1.27, z], .022, paintD, g2); B(.025, .1, .1, paintD, TL / 2 + .06, .86, z, g2); });
+    // magnetic oil-level gauges: main compartment on the outer side, OLTC compartment on the front head
     var dial = tex(64, 64, function (x) { x.fillStyle = "#f4f4ef"; x.beginPath(); x.arc(32, 32, 30, 0, 7); x.fill(); x.strokeStyle = "#111"; x.lineWidth = 2; for (var i = 0; i < 9; i++) { var a = Math.PI * (.8 + i * .175); x.beginPath(); x.moveTo(32 + Math.cos(a) * 22, 32 + Math.sin(a) * 22); x.lineTo(32 + Math.cos(a) * 28, 32 + Math.sin(a) * 28); x.stroke(); } x.strokeStyle = "#c0392b"; x.lineWidth = 3; x.beginPath(); x.moveTo(32, 32); x.lineTo(50, 22); x.stroke(); });
     var dialM = new T.MeshStandardMaterial({ map: dial, roughness: .4 });
-    var og = C(.07, .03, alu, cx + cl / 2 + .07, cy, cz, g2, 24); og.rotation.z = Math.PI / 2; var of = M(new T.CircleGeometry(.06, 24), dialM, cx + cl / 2 + .086, cy, cz, g2); of.rotation.y = Math.PI / 2;
-    pipe([[.35, cy - .2, cz], [.35, 2.0, cz + .05], [.35, 1.98, -.6], [.35, 1.95, -.42], [.35, COV + .06, -.36]], .025, paintD, g2);
-    B(.13, .12, .11, dark, .35, 1.985, -.6, g2); [-1, 1].forEach(function (s) { X(C(.03, .012, glass, .35 + s * .068, 1.985, -.6, g2, 16)); }); B(.08, .05, .07, paintD, .35, 2.07, -.6, g2);
-    wheel(.35, 2.0, -.7, "z", g2); wheel(.35, 1.95, -.47, "z", g2);
-    pipe([[cx - .62, cy - .2, cz], [cx - .62, 1.6, cz - .02], [cx - .62, 1.25, cz - .02]], .018, paintD, g2);
-    C(.065, .03, alu, cx - .62, 1.24, cz - .02, g2); C(.055, .2, glass, cx - .62, 1.12, cz - .02, g2); C(.045, .18, gel, cx - .62, 1.12, cz - .02, g2, 16); C(.065, .03, alu, cx - .62, 1.0, cz - .02, g2); C(.04, .06, glass, cx - .62, .95, cz - .02, g2);
+    X(C(.08, .04, alu, cx + cr + .01, cy, -.35, g2, 28)); var mf = M(new T.CircleGeometry(.066, 28), dialM, cx + cr + .031, cy, -.35, g2); mf.rotation.y = Math.PI / 2;
+    var mt = M(new T.PlaneGeometry(.2, .05), plateM(tag("MAIN TANK", 28)), cx + cr - .02, cy - .12, -.35, g2); mt.rotation.y = Math.PI / 2;
+    Z(C(.065, .035, alu, cx, cy + .02, cl / 2 + cr * .32 + .01, g2, 28)); M(new T.CircleGeometry(.054, 28), dialM, cx, cy + .02, cl / 2 + cr * .32 + .029, g2);
+    M(new T.PlaneGeometry(.14, .045), plateM(tag("OLTC", 34)), cx, cy - .11, cl / 2 + cr * .32 - .005, g2);
+    // main pipe: cover → isolating valve → Buchholz relay (rising ≈ 4°) → valve → main compartment
+    var bz = -.5, by0 = 2.02, by1 = 2.1, bx0 = .5, bx1 = 1.55, slope = Math.atan2(by1 - by0, bx1 - bx0), byAt = function (x) { return by0 + (x - bx0) * (by1 - by0) / (bx1 - bx0); };
+    C(.06, .035, paintD, bx0, COV + .075, bz, g2, 18); run([[bx0, COV + .06, bz], [bx0, by0, bz], [bx1, by1, bz], [bx1, cy - .16, bz]], .03, paintD, g2);
+    valve(.72, byAt(.72), bz, "x", g2); valve(1.36, byAt(1.36), bz, "x", g2);
+    var bu = new T.Group(); bu.position.set(1.04, byAt(1.04), bz); bu.rotation.z = slope; g2.add(bu);
+    B(.2, .15, .13, dark, 0, 0, 0, bu); [-1, 1].forEach(function (s) { X(C(.058, .02, paintD, s * .11, 0, 0, bu, 18)); Z(C(.038, .012, glass, -.03, .005, s * .067, bu, 18)); Z(C(.045, .006, alu, -.03, .005, s * .066, bu, 18)); });
+    B(.13, .05, .1, paintD, 0, .1, 0, bu); C(.012, .05, steel, .04, .15, 0, bu, 8); C(.02, .04, dark, -.05, .14, 0, bu, 10);           // terminal box, test cock, cable gland
+    var bt = M(new T.PlaneGeometry(.12, .03), plateM(tag("BUCHHOLZ", 30)), 0, -.056, .066, bu);
+    // OLTC pipe: OLTC head → protective relay → valve → OLTC compartment
+    var oz1 = .6, ox1 = 1.5;
+    run([[1.1, COV + ROFF + .16, .24], [1.1, 2.15, .24], [ox1, 2.16, .24], [ox1, 2.16, oz1], [ox1, cy - .15, oz1]], .024, paintD, g2);
+    var rs = X(C(.05, .13, dark, 1.3, 2.155, .24, g2, 18)); [-1, 1].forEach(function (s) { X(C(.055, .016, paintD, 1.3 + s * .07, 2.155, .24, g2, 18)); });
+    Z(C(.03, .01, glass, 1.3, 2.16, .292, g2, 16)); B(.07, .045, .07, paintD, 1.3, 2.215, .24, g2);
+    valve(ox1, 2.16, .43, "z", g2);
+    // breather pipes from the top of each compartment down to the breathers at hand height, clamped to the posts
+    var bxp = cx + .32;
+    run([[cx, cy + cr - .02, -.6], [cx, cy + cr + .07, -.6], [bxp, cy + cr + .07, -.6], [bxp, 1.07, -.6]], .016, paintD, g2); breather(bxp, 1.05, -.6, 1, g2);
+    run([[cx, cy + cr - .02, .62], [cx, cy + cr + .05, .62], [bxp, cy + cr + .05, .62], [bxp, 1.2, .62]], .014, paintD, g2); breather(bxp, 1.18, .62, .78, g2);
+    seg([cx + .035, 1.55, -.25], [bxp, 1.55, -.6], .01, galv, g2); seg([cx + .035, 1.62, .45], [bxp, 1.62, .62], .01, galv, g2);
 
     // 03 · radiators (as drawing PP0889D): one bank of 4 panel blocks off the end of the tank, headers with valves, braces, 4 fans 2 × 2 on the far face
-    var g3l = part([[3, -1.15, 0, 0], [4, -1.15, LIFT, 0]]), g3r = part([[3, 0, 0, 0]]), fans = [];
+    var g3l = part([[3, 0, 0, -1.15], [4, 0, LIFT, -1.15]]), g3r = part([[3, 0, 0, 0]]), fans = [];
     var nF = mobile ? 8 : 13, BX0 = -TL / 2 - .16, BD = .3, BG = .36, BW = .66, yT = 1.56, yB = .42, bxs = [0, 1, 2, 3].map(function (k) { return BX0 - BD / 2 - k * BG; }), bEnd = bxs[3] - BD / 2;
     // plates stand across the bank (edges face the front, as drawn); each block has its own top / bottom header
     var fins = new T.InstancedMesh(new T.BoxGeometry(.012, yT - yB - .06, BW), galv, nF * 4), fo = new T.Object3D(), fk = 0;
@@ -904,7 +942,8 @@
     [-1, 1].forEach(function (s) { B(BX0 - bEnd, .03, .03, paintD, (BX0 + bEnd) / 2, yT + .1, s * .22, g3l); pipe([[BX0 + .05, COV - .1, s * .42], [(BX0 + bEnd) / 2, yT + .1, s * .22]], .014, paintD, g3l); });
     // 4 fans, 2 × 2 on the front face of the outer two blocks, blowing between the plates
     var FZ = BW / 2 + .1, fcx = (bxs[2] + bxs[3]) / 2;
-    B(BG * 2 - .02, .92, .025, paintD, fcx, .99, FZ - .05, g3l);
+    [bxs[2], bxs[3]].forEach(function (xc) { [.56, 1.42].forEach(function (y) { B(BD + .05, .03, .02, galv, xc, y, FZ - .05, g3l); [-1, 1].forEach(function (s) { B(.03, .03, FZ - BW / 2 - .02, galv, xc + s * (BD / 2 + .005), y, (FZ - .05 + BW / 2 - .02) / 2, g3l); }); });
+      B(.03, .9, .02, galv, xc, .99, FZ - .05, g3l); });                                                              // fan rails on stand-offs, no backing plate
     [[.76, bxs[3]], [.76, bxs[2]], [1.22, bxs[3]], [1.22, bxs[2]]].forEach(function (f) {
       var fan = new T.Group(); fan.position.set(f[1], f[0], FZ); fan.rotation.y = Math.PI / 2; g3l.add(fan);     // local −x (the guard) faces out
       var ring = M(new T.TorusGeometry(.155, .014, 8, 40), dark, 0, 0, 0, fan); ring.rotation.y = Math.PI / 2;
@@ -917,6 +956,8 @@
       fans.push(blades);
     });
     fins.castShadow = !mobile;
+    // the bank hangs off the back wall: built along −x above, turned so −x → −z (out from the wall) and the fan face → +x
+    var g3i = new T.Group(); g3i.rotation.y = -Math.PI / 2; g3i.scale.z = -1; g3i.position.set(-.25, 0, (TL - TW) / 2); while (g3l.children.length) g3i.add(g3l.children[0]); g3l.add(g3i);
 
     // 04 · main tank (bell): walls, cover, stiffeners, flanges, turrets, plates, OLTC head + drive shaft, ladder
     var g4 = part([[4, 0, 2.55, 0], [5, 0, 2.55 + LIFT, 0]]);
@@ -924,7 +965,7 @@
     slab(TL + .08, TW + .08, TR + .04, .03, paint, .3, g4, .07); bolts(TL + .04, TW + .04, .315, mobile ? 40 : 72, g4);
     slab(TL + .07, TW + .07, TR + .035, .05, paint, COV, g4); bolts(TL + .035, TW + .035, COV + .062, mobile ? 40 : 72, g4);
     [-1.05, -.35, .35].forEach(function (x) { B(.07, COV - .45, .05, paintD, x, (COV + .45) / 2, TW / 2 + .025, g4); });
-    [-1.0, -.5, 0, .5, 1.0].forEach(function (x) { B(.07, COV - .45, .05, paintD, x, (COV + .45) / 2, -TW / 2 - .025, g4); });
+    [-1.0, -.75, .25, .6, 1.0].forEach(function (x) { B(.07, COV - .45, .05, paintD, x, (COV + .45) / 2, -TW / 2 - .025, g4); });   // clear of the radiator headers
     B(TL - .3, .05, .04, paintD, 0, .52, TW / 2 + .02, g4);
     [[-1, -1], [-1, 1], [1, -1], [1, 1]].forEach(function (c) { var l = B(.05, .16, .12, paintD, c[0] * (TL / 2 + .02), COV - .1, c[1] * (TW / 2 - .18), g4); var e = M(new T.TorusGeometry(.03, .012, 6, 14), paintD, c[0] * (TL / 2 + .05), COV - .06, c[1] * (TW / 2 - .18), g4); e.rotation.y = Math.PI / 2; });
     // raised compartment at the OLTC end
@@ -932,28 +973,26 @@
     B(rw, RISE, TW - .02, paint, rcx, COV + .05 + RISE / 2, 0, g4); B(rw + .05, .04, TW + .05, paint, rcx, COV + .05 + RISE + .02, 0, g4);
     var rg = new T.Group(); rg.position.x = rcx; g4.add(rg); bolts(rw + .02, TW + .02, COV + .05 + RISE + .045, mobile ? 18 : 30, rg);
     // HV / neutral turrets: tall cylinders, bolted flange rings, a CT terminal box on the side
-    HV.concat([NEU]).forEach(function (h, i) { var y0 = COV + .05 + (i === 3 ? ROFF : 0), th = h[2], r = i === 3 ? .11 : i === 1 ? .17 : .15;
+    HV.concat([NEU]).forEach(function (h, i) { var y0 = COV + .05 + (i === 3 ? ROFF : 0), th = h[2], r = i === 3 ? .11 : .15;
       C(r, th, paint, h[0], y0 + th / 2, h[1], g4, 36); C(r + .045, .035, paint, h[0], y0 + th - .017, h[1], g4, 36); C(r + .04, .03, paint, h[0], y0 + .015, h[1], g4, 36);
       ringBolts(r + .025, 16, h[0], y0 + th + .005, h[1], g4); ringBolts(r + .022, 14, h[0], y0 + .035, h[1], g4);
       B(.09, .1, .06, paintD, h[0] + r * .7, y0 + th * .55, h[1] + r * .7, g4).rotation.y = -Math.PI / 4; });
     // U-shaped oil pipes from the turrets down to the cover (as drawn)
-    [[-.85, .12, .15], [.35, .14, .15]].forEach(function (u) { pipe([[u[0] + u[2], COV + .34, u[1]], [u[0] + u[2] + .1, COV + .36, u[1]], [u[0] + u[2] + .14, COV + .3, u[1]], [u[0] + u[2] + .14, COV + .06, u[1]]], .02, paint, g4); });
+    [[HV[0][0], HZ, .15], [HV[2][0], HZ, .15]].forEach(function (u) { pipe([[u[0] + u[2], COV + .34, u[1]], [u[0] + u[2] + .1, COV + .36, u[1]], [u[0] + u[2] + .14, COV + .3, u[1]], [u[0] + u[2] + .14, COV + .06, u[1]]], .02, paint, g4); });
     // LV terminal box (raised, bolted lid)
     B(.48, .14, .22, paint, -.2, COV + .05 + .07, .4, g4); B(.52, .02, .26, paint, -.2, COV + .05 + .15, .4, g4);
     var lb = new T.Group(); lb.position.set(-.2, 0, .4); g4.add(lb); bolts(.49, .23, COV + .05 + .165, 18, lb);
     // bolted inspection covers on the cover
-    [[-.62, -.36, .26, .16], [.56, .42, .2, .14]].forEach(function (c) { B(c[2], .02, c[3], paintD, c[0], COV + .06, c[1], g4); var cg = new T.Group(); cg.position.set(c[0], 0, c[1]); g4.add(cg); bolts(c[2] - .03, c[3] - .03, COV + .075, 14, cg); });
+    [[-.5, -.42, .26, .16], [.56, .42, .2, .14]].forEach(function (c) { B(c[2], .02, c[3], paintD, c[0], COV + .06, c[1], g4); var cg = new T.Group(); cg.position.set(c[0], 0, c[1]); g4.add(cg); bolts(c[2] - .03, c[3] - .03, COV + .075, 14, cg); });
     // belt stiffeners round the walls, end channels, a bolted manhole on the OLTC end
     [.82, 1.3].forEach(function (y) { [-1, 1].forEach(function (s) { B(TL - .06, .05, .035, paintD, 0, y, s * (TW / 2 + .03), g4); }); B(.035, .05, TW - .1, paintD, TL / 2 + .03, y, 0, g4); });
     [-.32, .32].forEach(function (z) { B(.05, COV - .45, .06, paintD, TL / 2 + .025, (COV + .45) / 2, z, g4); });
     var mh = X(C(.24, .03, paint, TL / 2 + .035, 1.06, 0, g4, 40)); ringBolts(.215, 20, TL / 2 + .05, 1.06, 0, g4, "x"); B(.02, .07, .03, steel, TL / 2 + .055, 1.06, .14, g4); B(.02, .07, .03, steel, TL / 2 + .055, 1.06, -.14, g4);
-    C(.05, .06, paintD, .35, COV + .08, -.36, g4);
-    C(.07, .06, paintD, -.7, COV + .08, -.05, g4); C(.075, .05, dark, -.7, COV + .13, -.05, g4, 20, .04);              // pressure relief device
+    C(.07, .06, paintD, -.75, COV + .08, .32, g4); C(.075, .05, dark, -.75, COV + .13, .32, g4, 20, .04);              // pressure relief device
     [[.6, -.3], [-.45, -.32]].forEach(function (a) { C(.022, .07, steel, a[0], COV + .085, a[1], g4, 10); });                // thermometer pockets
     wheel(.75, .42, TW / 2 + .07, "z", g4); Z(C(.03, .07, paintD, .75, .42, TW / 2 + .035, g4, 12));                   // drain valve
     [.65, .85].forEach(function (x) { B(.025, COV - .5, .025, galv, x, (COV + .5) / 2 + .05, -TW / 2 - .1, g4); }); for (var lr = 0; lr < 8; lr++) B(.2, .015, .015, galv, .75, .62 + lr * .13, -TW / 2 - .1, g4);
     var lp = new T.TextureLoader().load(LOGO, function (tx) { tx.encoding = T.sRGBEncoding; });
-    var plateM = function (map) { return new T.MeshStandardMaterial({ map: map, roughness: .4, metalness: .1, polygonOffset: true, polygonOffsetFactor: -2 }); };
     M(new T.PlaneGeometry(.5, .23), plateM(lp), 0, 1.17, TW / 2 + .003, g4);
     var rate = tex(256, 160, function (x) { x.fillStyle = "#d9dcd6"; x.fillRect(0, 0, 256, 160); x.strokeStyle = "#333"; x.lineWidth = 3; x.strokeRect(4, 4, 248, 152); x.fillStyle = "#111"; x.textAlign = "center"; x.font = "700 17px Arial"; x.fillText("POWER TRANSFORMER", 128, 30);
       x.font = "13px Arial"; ["30 / 45 MVA   ONAN / ONAF", "132 / 33 kV   50 Hz   YNd1", "OLTC 16 POS  +10 / -15 %", "TOTAL MASS 75,500 kg"].forEach(function (t, i) { x.fillText(t, 128, 58 + i * 24); }); });
@@ -980,21 +1019,23 @@
     var arm = new T.Group(); arm.position.set(ox0, .85, oz0); g5.add(arm); B(.1, .016, .022, copper, .05, 0, 0, arm); C(.025, .03, steel, 0, 0, 0, arm, 12);
 
     // 06 · active part: 3-limb stepped core, clamps, windings (LV inner / HV outer), leads
-    var g6 = part([[6, 0, .2, 0]]);
+    // g6t (top yoke, top clamps, tie rods) and g6w (windings + leads) lift off for the "core & windings apart" view
+    var g6 = part([[6, 0, .2, 0]]), g6t = new T.Group(), g6w = new T.Group(); g6.add(g6t); g6.add(g6w);
     var LX = [-.72, 0, .72], STEP = [[.3, .12], [.25, .22], [.18, .28], [.1, .31]];
-    STEP.forEach(function (sd) { B(1.78, .2, sd[1], core, 0, .42, 0, g6); B(1.78, .2, sd[1], core, 0, 1.52, 0, g6);
+    STEP.forEach(function (sd) { B(1.78, .2, sd[1], core, 0, .42, 0, g6); B(1.78, .2, sd[1], core, 0, 1.52, 0, g6t);
       LX.forEach(function (x) { B(sd[0], .9, sd[1], core, x, .97, 0, g6); }); });
-    [-1, 1].forEach(function (s) { [.42, 1.52].forEach(function (y) { B(1.9, .22, .035, paintD, 0, y, s * .175, g6); }); [-.93, .93].forEach(function (x) { C(.012, 1.1, steel, x, .97, s * .175, g6, 8); }); });
+    [-1, 1].forEach(function (s) { B(2.24, .22, .035, paintD, 0, .42, s * .175, g6); B(2.24, .22, .035, paintD, 0, 1.52, s * .175, g6t); [-1.08, 1.08].forEach(function (x) { C(.014, 1.1, steel, x, .97, s * .175, g6t, 8); }); });   // tie rods outside the outer windings
+    LX.forEach(function (x) { C(.035, .04, steel, x, 1.44, 0, g6, 10); });                                                // leg tops (step-lap joint) show once the yoke is off
     LX.forEach(function (x) {
-      var w = new T.Group(); w.position.set(x, .97, 0); g6.add(w);
+      var w = new T.Group(); w.position.set(x, .97, 0); g6w.add(w);
       M(new T.CylinderGeometry(.33, .33, .84, 48, 1, true), paper, 0, 0, 0, w);
       var inn = M(new T.CylinderGeometry(.25, .25, .84, 40, 1, true), paper, 0, 0, 0, w); inn.material = new T.MeshStandardMaterial({ map: paperT, roughness: .8, side: T.BackSide });
       [-.43, .43].forEach(function (y) { var rg = M(new T.RingGeometry(.2, .35, 48), board, 0, y, 0, w); rg.rotation.x = y > 0 ? -Math.PI / 2 : Math.PI / 2; });
       var cu = M(new T.RingGeometry(.205, .245, 40), copper, 0, .435, 0, w); cu.rotation.x = -Math.PI / 2;
       for (var bk = 0; bk < 8; bk++) { var ba = bk / 8 * Math.PI * 2; B(.04, .05, .04, board, Math.cos(ba) * .3, .455, Math.sin(ba) * .3, w).rotation.y = -ba; }
     });
-    HV.forEach(function (h, i) { pipe([[LX[i] + .2, 1.41, .2], [LX[i] + .12, 1.5, .24], [h[0], 1.6, h[1] + .02], [h[0], COV + .2, h[1]]], .016, paperL, g6); });
-    pipe([[.72 + .3, 1.0, .1], [.95, 1.05, .25], [ox0 - .05, 1.0, oz0 - .06]], .012, copper, g6);
+    HV.forEach(function (h, i) { pipe([[LX[i] + .2, 1.41, .2], [LX[i] + .12, 1.5, .24], [h[0], 1.6, h[1] + .02], [h[0], COV + .2, h[1]]], .016, paperL, g6w); });
+    pipe([[.72 + .3, 1.0, .1], [.95, 1.05, .25], [ox0 - .05, 1.0, oz0 - .06]], .012, copper, g6w);
 
     // 07 · local control cabinet — unbolted with the tank lift, set down in front; its door opens on its own stop
     var g7 = part([[4, -.35, -.5, 1.0]]), cw = .5, chh = .8, cd = .28, cxp = -.75, cyp = .95, czp = TW / 2 + cd / 2;
@@ -1022,7 +1063,7 @@
     var GHOST = new T.MeshBasicMaterial({ color: 0x7f9bb8, transparent: true, opacity: .07, depthWrite: false, fog: false });
     function ghost(q, on) { if (q.gh === on) return; q.gh = on; q.g.traverse(function (o) { if (o.isInstancedMesh) o.visible = !on; else if (o.isMesh) { o.material = on ? GHOST : o.userData.m0; o.castShadow = !on && !mobile; } }); }   // fins / bolts drop out: dozens of see-through layers read as fog
     // label anchors, in each assembly's own frame (they travel with it)
-    var ANC = { 1: [g1, [-.2, COV + .05 + .48 + 1.35, -.18]], 2: [g2, [cx + cl / 2 + .05, cy + .2, cz]], 3: [g3l, [bxs[1], yT + .12, BW / 2]], 4: [g4, [-TL / 2 + .1, 1.5, TW / 2]], 5: [g5, [ox0, 1.66, oz0]], 6: [g6, [0, 1.64, .1]], 7: [g7, [cxp + cw / 2, cyp + chh / 2, czp + cd / 2]] };
+    var ANC = { 1: [g1, [-.3, COV + .05 + .45 + 1.3, HZ]], 2: [g2, [cx, cy + cr + .06, -.3]], 3: [g3i, [bxs[1], yT + .12, BW / 2]], 4: [g4, [-TL / 2 + .1, 1.5, TW / 2]], 5: [g5, [ox0, 1.66, oz0]], 6: [g6, [0, 1.64, .1]], 7: [g7, [cxp + cw / 2, cyp + chh / 2, czp + cd / 2]] };
     var lbl = st.el.querySelector(".za-lbls"), svg = lbl && lbl.querySelector("svg"), LB = {}, NS = "http://www.w3.org/2000/svg";
     Object.keys(ANC).forEach(function (k) {
       var d = document.createElement("div"); d.className = "za-lb"; d.innerHTML = "<i>0" + k + "</i><b></b><span></span>"; d.querySelector("b").textContent = SHORT[k - 1];
@@ -1032,12 +1073,12 @@
     });
     function labelText(k, m) { return k == 1 ? m.vg.toFixed(1) + " kV" : k == 2 ? "น้ำมัน " + m.oil.toFixed(0) + " %" : k == 3 ? (m.onaf ? "ONAF · พัดลม " + Math.round(m.fan * 100) + " %" : "ONAN") : k == 4 ? "น้ำมัน " + m.to.toFixed(0) + " °C" : k == 5 ? tapText(m.n) : k == 6 ? "จุดร้อน " + m.hs.toFixed(0) + " °C" : "OTI / WTI"; }
     // camera presets per view: focus point + offset (→ yaw, pitch, distance); the visitor's drag / zoom adds to it
-    var PRE = { 0: [[-.6, 1.5, 0], [5.6, 3.6, 10.0]], 1: [[-.2, 3.15, 1.4], [2.9, .7, 3.9]], 2: [[-.2, 3.0, -1.55], [-3.4, 1.0, -3.3]], 3: [[-3.2, 1.0, .2], [-1.2, .75, 3.6]], 4: [[-.2, 1.2, 0], [5.6, 2.6, 6.8]],
-      5: [[ox0 + .15, 1.15, 1.42], [2.0, .6, 2.7]], 6: [[0, 1.1, 0], [3.9, 1.7, 5.2]], 7: [[cxp, cyp, czp + .3], [1.3, .45, 2.5]], ex: [[-.8, 1.9, 0], [9.0, 4.6, 11.2]], xr: [[0, 1.2, 0], [5.6, 2.6, 6.6]] };
+    var PRE = { 0: [[-.1, 1.45, -.35], [8.2, 4.0, -7.4]], 1: [[-.3, 3.15, 1.4], [2.9, .7, 3.9]], 2: [[2.15, 2.55, -.1], [3.0, 1.5, 3.4]], 3: [[-.25, 1.0, -2.45], [3.9, .9, 1.8]], 4: [[-.2, 1.2, 0], [5.6, 2.6, 6.8]],
+      5: [[ox0 + .15, 1.15, 1.42], [2.0, .6, 2.7]], 6: [[0, 1.1, 0], [3.9, 1.7, 5.2]], 7: [[cxp, cyp, czp + .3], [1.3, .45, 2.5]], ex: [[.1, 2.1, -.3], [9.0, 4.6, 11.2]], sp: [[0, 1.9, 0], [4.4, 1.6, 6.4]], xr: [[0, 1.2, 0], [5.6, 2.6, 6.6]] };
     function sph(o) { var d = Math.sqrt(o[0] * o[0] + o[1] * o[1] + o[2] * o[2]); return { yaw: Math.atan2(o[0], o[2]), pit: Math.asin(o[1] / d), d: d * (mobile ? 1.45 : 1) }; }
     var CV = { f: new T.Vector3(0, 1.45, 0), yaw: 0, pit: 0, d: 10 }, TG = { f: new T.Vector3(), yaw: 0, pit: 0, d: 10 }, U = { yaw: 0, pit: 0, z: 1 }, camN = -1;
-    (function () { var s = sph(PRE[0][1]); CV.yaw = TG.yaw = s.yaw; CV.pit = TG.pit = s.pit; CV.d = TG.d = s.d; TG.f.set(-.55, 1.5, 0); CV.f.set(-.55, 1.5, 0); })();
-    function aim(V) { var p = PRE[V.ex ? "ex" : V.k ? V.k : V.xr ? "xr" : 0], s = sph(p[1]); TG.f.set(p[0][0], p[0][1], p[0][2]); TG.yaw = s.yaw; TG.pit = s.pit; TG.d = s.d; if (!st.ctl.user) { U.yaw = 0; U.pit = 0; U.z = 1; } }
+    (function () { var s = sph(PRE[0][1]); CV.yaw = TG.yaw = s.yaw; CV.pit = TG.pit = s.pit; CV.d = TG.d = s.d; TG.f.set(-.1, 1.45, -.35); CV.f.set(-.1, 1.45, -.35); })();
+    function aim(V) { var p = PRE[V.ex ? "ex" : V.sp ? "sp" : V.k ? V.k : V.xr ? "xr" : 0], s = sph(p[1]); TG.f.set(p[0][0], p[0][1], p[0][2]); TG.yaw = s.yaw; TG.pit = s.pit; TG.d = s.d; if (!st.ctl.user) { U.yaw = 0; U.pit = 0; U.z = 1; } }
     var comp = null, bokeh = null;
     if (!mobile && !still && T.EffectComposer && T.BokehPass) { try { comp = new T.EffectComposer(R); comp.addPass(new T.RenderPass(scene, cam)); bokeh = new T.BokehPass(scene, cam, { focus: 8, aperture: .00008, maxblur: .004, width: 1, height: 1 }); comp.addPass(bokeh); } catch (e) { comp = null; } }
     var W = 1, H = 1, ox = 0, oy = 0;
@@ -1078,7 +1119,7 @@
         L.ln.setAttribute("x1", x); L.ln.setAttribute("y1", y); L.ln.setAttribute("x2", lx); L.ln.setAttribute("y2", ly); L.dot.setAttribute("cx", x); L.dot.setAttribute("cy", y);
       });
     }
-    var lastMode = "";
+    var lastMode = "", sep = 0;
     function draw(C, dt, now) {
       var V = C.V;
       if (st.mode !== lastMode) { lastMode = st.mode; camN = -1; }
@@ -1087,6 +1128,9 @@
         ghost(q, !V.ex && ((V.k && V.k !== q.k) || (q.k === 4 && V.xr && V.k !== 4))); });
       C.apart = apart * 100;
       door.rotation.y += ((V.k === 7 || V.ex ? -1.9 : 0) - door.rotation.y) * kk;
+      var spT = V.sp ? 1 : 0; sep = still ? spT : sep + Math.max(-dt / 2.6, Math.min(dt / 2.6, spT - sep)); C.sep = sep;
+      var e1 = Math.min(1, sep * 2), e2 = Math.max(0, sep * 2 - 1), es = function (t) { return t * t * (3 - 2 * t); };
+      g6t.position.y = 1.55 * es(e1); g6w.position.y = 1.02 * es(e2);
       if (!still) fans.forEach(function (f, i) { f.rotation.x += dt * m.fan * (15 + i); });
       arm.rotation.y += (-tapAng(m.n) - arm.rotation.y) * (still ? 1 : Math.min(1, dt * 8)); if (m.n !== lastN) { lastN = m.n; mdDraw(m.n); }
       core.emissiveIntensity = (V.k === 6 || V.xr ? .12 + (still ? 0 : .06 * Math.sin(now / 160)) : 0) * Math.min(1.4, m.s / TR.S + .4);
