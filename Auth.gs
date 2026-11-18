@@ -24,7 +24,7 @@ var API_FNS = (function () {
   'changeAdminPassword checkDataVers checkOrderDup claimRemain closeRemainClaim createIssue deleteIssues ' +
   'deleteKitTemplate deleteOrder deleteOrderDbRow diagnose docLookup exportBomForm exportBomShortReport exportOrder ' +
   'exportRemainReport getAdminUsers getAppUrl getBom getBomOrdersAll getBomProjOrders getBomShortMailCfg getBomSummary ' +
-  'getDataVers getDocIndex getDocPaths getDocSource getEmailConfig getEmailRoster getExportPdf getFeedback getForecast ' +
+  'getDataVers getEstCost getEstMeta getShipSource saveEstCfg setShipSource syncShipNow getDocIndex getDocPaths getDocSource getEmailConfig getEmailRoster getExportPdf getFeedback getForecast ' +
   'getIssueFull getIssues getIssuesVer getItem360 getKitTemplate getKitTemplates getMany getMyDay getNotify ' +
   'getOrderAgeSummary getOrderApprovalPulse getOrderBoot getOrderDb getOrderTemplate getOrderTrack getOrderTrackSummary ' +
   'getOrders getP360Cfg getPendingBundle getPendingMeta getPendingSource getProject360 getProjects getPublicTemplates ' +

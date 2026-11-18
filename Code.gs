@@ -249,7 +249,7 @@ function getIssuesVer() { apiOnly_(); return issVer_(); }
 var MANY_OK = ['getPulse', 'getDataVers', 'getIssuesVer', 'getIssues', 'getSchedules', 'getBomSummary', 'getStockAlertSummary',
   'getOrderAgeSummary', 'getOrderTrackSummary', 'getNotify', 'getRemainFlags', 'getStockMeta', 'getPendingMeta', 'getOrderApprovalPulse',
   // settings page (Admin): the data-source panels, e-mail roster, Project 360 settings — small reads, one round trip
-  'getRtSource', 'getStockSource', 'getPendingSource', 'getScheduleSource', 'getDocSource', 'getEmailRoster', 'getP360Cfg'];
+  'getRtSource', 'getStockSource', 'getPendingSource', 'getScheduleSource', 'getDocSource', 'getShipSource', 'getEmailRoster', 'getP360Cfg'];
 function getMany(calls) { apiOnly_();
   var t0 = Date.now(), G = globalThis;
   var out = (Array.isArray(calls) ? calls : []).slice(0, 20).map(function (c) {

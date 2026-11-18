@@ -105,6 +105,7 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
   <a href="#bom"><span>13</span>Booking BOM</a>
   <a href="#forecast"><span>13.1</span>พยากรณ์ของขาด</a>
   <a href="#bomexport"><span>14</span>Export ใบเบิก BOM</a>
+  <a href="#estcost"><span>14.1</span>Estimate Cost</a>
   <b>ดูแลระบบ (Admin)</b>
   <a href="#settings"><span>15</span>ตั้งค่าระบบและการซิงค์</a>
   <a href="#templates"><span>16</span>แม่แบบ และสุขภาพระบบ</a>
@@ -534,12 +535,41 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
   </ul>
 </section>
 
+<section id="estcost">
+  <h2><span class="no">14.1</span>Estimate Cost <span class="role r-a">ADMIN</span></h2>
+  <p class="lead">เมนู <span class="ui">Estimate Cost</span> (กลุ่มวางแผนผลิต) ออกรายงานต้นทุนจริงจากข้อมูล Shipment ตามแผนกและโปรเจกต์ แทนฟอร์ม Access เดิม (ปุ่ม CmdCost) <b>เฉพาะ Admin เท่านั้น</b></p>
+  <ol class="steps">
+    <li><div><b>1) แผนก</b> เลือกแผนก (CUSTNAME) ที่มีการ Shipment วงเล็บบอกจำนวนโปรเจกต์ · มีตัวเลือก <span class="ui">ทุกแผนก</span> ด้วย</div></li>
+    <li><div><b>2) โปรเจกต์</b> พิมพ์เลขโปรเจกต์แล้วกด Enter หรือคลิกจากรายการ (เรียงตามวันที่ Ship ล่าสุด พร้อมจำนวนบรรทัดและยอดรวม) · พิมพ์บางส่วน เช่น <code>1030</code> เพื่อกรองรายการ</div></li>
+    <li><div>ตรวจตาราง: CODE · MATERIALS · DATE · DOCNUM · Q'TY · COST เรียงจากวันที่ Ship ล่าสุด แถวสีเขียว = ยอดบวก (รับคืน / กลับรายการ) · TOTAL = ผลรวม COST (เลขติดลบ = ต้นทุน)</div></li>
+    <li><div>ติ๊ก <span class="ui">รวมบรรทัดตาม CODE</span> เพื่อรวม CODE เดียวกันเป็น 1 บรรทัด (รายการรับคืนหักจำนวนออก บรรทัดที่หักกันเป็นศูนย์จะหายไป) · TOTAL เท่าเดิม</div></li>
+    <li><div>กด <span class="ui">🖨 PDF</span> (รูปแบบ ESTIMATE COST เดิม: หัวรายงาน, PROJECT, TOTAL (THB/UNIT), ตาราง, ช่องเซ็น APPROVED / CHECKED / PREPARED BY) หรือ <span class="ui">⬇ Excel</span> (คอลัมน์แบบ Q_Shipment)</div></li>
+    <li><div><span class="ui">✎ หัวรายงาน / ผู้ลงนาม</span> ตั้งชื่อหัวรายงานและชื่อผู้ลงนาม 3 ช่อง <b>แยกตามแผนก</b> · เว้นว่าง = ใช้ "ESTIMATE COST OF " + ชื่อแผนก</div></li>
+  </ol>
+  <div class="tw"><table>
+    <thead><tr><th>พิมพ์</th><th>CATEGORY ที่ค้น</th><th>หลักการ (ตาม VBA เดิม)</th></tr></thead>
+    <tbody>
+      <tr><td><code>PP103001</code> / <code>PP1030D01</code> / <code>PP1030-01</code></td><td><code>1030P1</code></td><td>เลข 4 หลัก ≥ 1000 → เลข 4 หลัก &amp; "P" &amp; 2 หลักท้าย (ตัด 0 ข้างหน้า)</td></tr>
+      <tr><td><code>PP099901</code></td><td><code>P99901</code></td><td>รูปแบบเดิม (&lt; 1000) → "P" &amp; ตัวที่ 4–8</td></tr>
+      <tr><td><code>1030P1</code> / <code>P99901</code></td><td>ตามที่พิมพ์</td><td>พิมพ์ CATEGORY ตรง ๆ ได้</td></tr>
+    </tbody>
+  </table></div>
+  <h3>ตั้งค่าข้อมูล Shipment (ครั้งแรก)</h3>
+  <ol class="steps">
+    <li><div>ใน Access ให้ export คิวรี Q_Shipment เป็น <b>.csv</b> (ไม่ใช่ .xlsx) ไปไว้ในโฟลเดอร์ OneDrive วันละครั้ง เช่น<br><code>DoCmd.TransferText acExportDelim, , "Q_Shipment", "C:\Users\...\OneDrive - ...\Helpdesk\Q_Shipment.csv", True</code></div></li>
+    <li><div>แชร์ไฟล์แบบ "Anyone with the link" → ตั้งค่าระบบ → <span class="ui">☁ ซิงค์ข้อมูล Shipment (Estimate Cost)</span> → วางลิงก์ เลือก <span class="ui">วันละครั้ง</span> (ตั้งเวลาหลังจาก Access export เสร็จ) → บันทึก → <span class="ui">⟳ ซิงค์ตอนนี้</span></div></li>
+    <li><div>ครั้งแรกให้เปิด Apps Script Editor → เลือกฟังก์ชัน <code>testShipSync</code> → ▶ Run เพื่ออนุญาตสิทธิ์ และดูผลใน Execution log</div></li>
+  </ol>
+  <div class="note"><b>ไฟล์ใหญ่กว่า 50 MB ได้</b>Apps Script ดาวน์โหลดได้ครั้งละไม่เกิน 50 MB ระบบจึงอ่านไฟล์ทีละ 20 MB และเก็บเฉพาะแถวที่ CATEGORY เป็นเลขโปรเจกต์ (เช่น 1030P1, P99901 · CATEGORY แบบ T / PH / อื่น ๆ ไม่เก็บ) แบบบีบอัดรายโปรเจกต์ ในสเปรดชีต <b>Helpdesk_Shipment</b> แยกต่างหาก การเปิดโปรเจกต์จึงอ่านเฉพาะส่วนของโปรเจกต์นั้น · ถ้าไฟล์ไม่เปลี่ยน รอบอัตโนมัติจะข้าม</div>
+  <div class="note warn"><b>ข้อจำกัด</b>การซิงค์ 1 รอบต้องเสร็จใน ~5 นาที (ไฟล์ CSV ประมาณ 150–250 MB) ถ้าขึ้นข้อความ "ไฟล์ใหญ่เกินกว่าจะอ่านจบใน 1 รอบ" ให้ลดช่วงปีในคิวรี หรือตัดคอลัมน์ที่ไม่ใช้ (LOCATION, AUDTUSER) · ข้อมูลต้นทุนแสดงเฉพาะ Admin</div>
+</section>
+
 <section id="settings">
   <h2><span class="no">15</span>ตั้งค่าระบบและการซิงค์ <span class="role r-a">ADMIN</span></h2>
   <p class="lead">เมนู <span class="ui">ตั้งค่าระบบ</span> → ส่วน <span class="ui">☁ แหล่งข้อมูล OneDrive (ซิงค์ข้อมูล)</span></p>
   <ol class="steps">
     <li><div>ในไฟล์ OneDrive กดแชร์แบบ "Anyone with the link" แล้วคัดลอกลิงก์</div></li>
-    <li><div>วางลิงก์ในช่องของแหล่งข้อมูลนั้น: Item stock, Pending Order, ตารางงาน, Readtime (StockRT), รายการเอกสาร (FileList)</div></li>
+    <li><div>วางลิงก์ในช่องของแหล่งข้อมูลนั้น: Item stock, Pending Order, ตารางงาน, Readtime (StockRT), รายการเอกสาร (FileList), ข้อมูล Shipment (Estimate Cost)</div></li>
     <li><div>เลือกความถี่ซิงค์อัตโนมัติ: ปิด / ทุก 1, 2, 4, 6, 8, 12 ชั่วโมง / วันละครั้งตามเวลา (00:00–23:00)</div></li>
     <li><div>กด <span class="ui">ซิงค์ตอนนี้</span> เพื่อทดสอบ ตรวจเวลาและจำนวนแถวที่ซิงค์ล่าสุด</div></li>
   </ol>
