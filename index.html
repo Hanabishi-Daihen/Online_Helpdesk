@@ -938,8 +938,8 @@
       C(.03, .03, dark, xc, yB - .06, BW / 2 - .06, g3l, 12);                                                       // drain plug
     });
     g3l.add(fins);
-    [yT, yB].forEach(function (y) { var L = BX0 - bEnd + .1; [-.2, .2].forEach(function (z) { X(C(.036, L, galv, (BX0 + bEnd) / 2 + .05, y, z, g3l, 16)); }); X(C(.06, .03, steel, BX0 + .07, y, 0, g3l, 18)); X(C(.04, .1, galv, BX0 + .03, y, 0, g3l, 14)); wheel(BX0 + .07, y + .08, 0, "x", g3l); });
-    [-1, 1].forEach(function (s) { B(BX0 - bEnd, .03, .03, paintD, (BX0 + bEnd) / 2, yT + .1, s * .22, g3l); pipe([[BX0 + .05, COV - .1, s * .42], [(BX0 + bEnd) / 2, yT + .1, s * .22]], .014, paintD, g3l); });
+    [yT, yB].forEach(function (y) { var L = BX0 - bEnd + .1; [-.2, .2].forEach(function (z) { X(C(.036, L, galv, (BX0 + bEnd) / 2 + .05, y, z, g3l, 16)); }); });
+    [-1, 1].forEach(function (s) { B(BX0 - bEnd, .03, .03, paintD, (BX0 + bEnd) / 2, yT + .1, s * .22, g3l); });
     // 4 fans, 2 × 2 on the front face of the outer two blocks, blowing between the plates
     var FZ = BW / 2 + .1, fcx = (bxs[2] + bxs[3]) / 2;
     [bxs[2], bxs[3]].forEach(function (xc) { [.56, 1.42].forEach(function (y) { B(BD + .05, .03, .02, galv, xc, y, FZ - .05, g3l); [-1, 1].forEach(function (s) { B(.03, .03, FZ - BW / 2 - .02, galv, xc + s * (BD / 2 + .005), y, (FZ - .05 + BW / 2 - .02) / 2, g3l); }); });
@@ -956,8 +956,15 @@
       fans.push(blades);
     });
     fins.castShadow = !mobile;
-    // the bank hangs off the back wall: built along −x above, turned so −x → −z (out from the wall) and the fan face → +x
-    var g3i = new T.Group(); g3i.rotation.y = -Math.PI / 2; g3i.scale.z = -1; g3i.position.set(-.25, 0, (TL - TW) / 2); while (g3l.children.length) g3i.add(g3l.children[0]); g3l.add(g3i);
+    // the bank stands parallel to the back wall (built along −x above, turned half a turn: blocks run along the tank, fans face out)
+    var RGAP = .2, RZ = -(TW / 2 + RGAP) - BW / 2, RXC = -.15, g3i = new T.Group(); g3i.rotation.y = Math.PI; g3i.position.set(RXC + (BX0 + bEnd) / 2, 0, RZ);
+    while (g3l.children.length) g3i.add(g3l.children[0]); g3l.add(g3i);
+    // each block has its own top and bottom connection to the tank wall: flange · butterfly valve · flange, into the inner common header
+    var rzh = RZ + .2;                                                                                 // the common header on the wall side
+    bxs.forEach(function (xc) { var x = RXC + (BX0 + bEnd) / 2 - xc;
+      [yT, yB].forEach(function (y) { seg([x, y, -TW / 2], [x, y, rzh], .034, galv, g3l); Z(C(.055, .025, paintD, x, y, -TW / 2 - .015, g3l, 18)); Z(C(.044, .05, dark, x, y, -TW / 2 - .1, g3l, 16));
+        Z(C(.055, .016, steel, x, y, -TW / 2 - .07, g3l, 18)); Z(C(.055, .016, steel, x, y, -TW / 2 - .13, g3l, 18)); B(.012, .07, .012, steel, x, y + .065, -TW / 2 - .1, g3l); B(.09, .012, .012, steel, x + .03, y + .1, -TW / 2 - .1, g3l); }); });
+    [RXC - .5, RXC + .5].forEach(function (x) { seg([x, COV - .12, -TW / 2], [x, yT + .1, RZ - .22], .012, paintD, g3l); B(.06, .06, .02, paintD, x, COV - .12, -TW / 2 - .01, g3l); });   // top stays
 
     // 04 · main tank (bell): walls, cover, stiffeners, flanges, turrets, plates, OLTC head + drive shaft, ladder
     var g4 = part([[4, 0, 2.55, 0], [5, 0, 2.55 + LIFT, 0]]);
@@ -965,7 +972,7 @@
     slab(TL + .08, TW + .08, TR + .04, .03, paint, .3, g4, .07); bolts(TL + .04, TW + .04, .315, mobile ? 40 : 72, g4);
     slab(TL + .07, TW + .07, TR + .035, .05, paint, COV, g4); bolts(TL + .035, TW + .035, COV + .062, mobile ? 40 : 72, g4);
     [-1.05, -.35, .35].forEach(function (x) { B(.07, COV - .45, .05, paintD, x, (COV + .45) / 2, TW / 2 + .025, g4); });
-    [-1.0, -.75, .25, .6, 1.0].forEach(function (x) { B(.07, COV - .45, .05, paintD, x, (COV + .45) / 2, -TW / 2 - .025, g4); });   // clear of the radiator headers
+    [-1.05, -.51, -.15, .21, .65, 1.05].forEach(function (x) { B(.07, COV - .45, .05, paintD, x, (COV + .45) / 2, -TW / 2 - .025, g4); });   // between the radiator connections
     B(TL - .3, .05, .04, paintD, 0, .52, TW / 2 + .02, g4);
     [[-1, -1], [-1, 1], [1, -1], [1, 1]].forEach(function (c) { var l = B(.05, .16, .12, paintD, c[0] * (TL / 2 + .02), COV - .1, c[1] * (TW / 2 - .18), g4); var e = M(new T.TorusGeometry(.03, .012, 6, 14), paintD, c[0] * (TL / 2 + .05), COV - .06, c[1] * (TW / 2 - .18), g4); e.rotation.y = Math.PI / 2; });
     // raised compartment at the OLTC end
@@ -991,7 +998,10 @@
     C(.07, .06, paintD, -.75, COV + .08, .32, g4); C(.075, .05, dark, -.75, COV + .13, .32, g4, 20, .04);              // pressure relief device
     [[.6, -.3], [-.45, -.32]].forEach(function (a) { C(.022, .07, steel, a[0], COV + .085, a[1], g4, 10); });                // thermometer pockets
     wheel(.75, .42, TW / 2 + .07, "z", g4); Z(C(.03, .07, paintD, .75, .42, TW / 2 + .035, g4, 12));                   // drain valve
-    [.65, .85].forEach(function (x) { B(.025, COV - .5, .025, galv, x, (COV + .5) / 2 + .05, -TW / 2 - .1, g4); }); for (var lr = 0; lr < 8; lr++) B(.2, .015, .015, galv, .75, .62 + lr * .13, -TW / 2 - .1, g4);
+    var ldx = -TL / 2 - .11, ldz = -.12;                                                                          // ladder on the free end wall (HV side)
+    [-.1, .1].forEach(function (dz) { B(.025, COV - .38, .025, galv, ldx, (COV + .38) / 2 + .06, ldz + dz, g4); [.55, COV - .05].forEach(function (y) { B(.11, .02, .02, galv, ldx + .055, y, ldz + dz, g4); }); });
+    for (var lr = 0; lr < 9; lr++) B(.015, .015, .2, galv, ldx, .5 + lr * .135, ldz, g4);
+    var hk = M(new T.TorusGeometry(.1, .012, 6, 20, Math.PI), galv, ldx, COV + .07, ldz, g4); hk.rotation.y = Math.PI / 2;   // grab hoop over the top
     var lp = new T.TextureLoader().load(LOGO, function (tx) { tx.encoding = T.sRGBEncoding; });
     M(new T.PlaneGeometry(.5, .23), plateM(lp), 0, 1.17, TW / 2 + .003, g4);
     var rate = tex(256, 160, function (x) { x.fillStyle = "#d9dcd6"; x.fillRect(0, 0, 256, 160); x.strokeStyle = "#333"; x.lineWidth = 3; x.strokeRect(4, 4, 248, 152); x.fillStyle = "#111"; x.textAlign = "center"; x.font = "700 17px Arial"; x.fillText("POWER TRANSFORMER", 128, 30);
@@ -1073,7 +1083,7 @@
     });
     function labelText(k, m) { return k == 1 ? m.vg.toFixed(1) + " kV" : k == 2 ? "น้ำมัน " + m.oil.toFixed(0) + " %" : k == 3 ? (m.onaf ? "ONAF · พัดลม " + Math.round(m.fan * 100) + " %" : "ONAN") : k == 4 ? "น้ำมัน " + m.to.toFixed(0) + " °C" : k == 5 ? tapText(m.n) : k == 6 ? "จุดร้อน " + m.hs.toFixed(0) + " °C" : "OTI / WTI"; }
     // camera presets per view: focus point + offset (→ yaw, pitch, distance); the visitor's drag / zoom adds to it
-    var PRE = { 0: [[-.1, 1.45, -.35], [8.2, 4.0, -7.4]], 1: [[-.3, 3.15, 1.4], [2.9, .7, 3.9]], 2: [[2.15, 2.55, -.1], [3.0, 1.5, 3.4]], 3: [[-.25, 1.0, -2.45], [3.9, .9, 1.8]], 4: [[-.2, 1.2, 0], [5.6, 2.6, 6.8]],
+    var PRE = { 0: [[-.1, 1.45, -.35], [8.2, 4.0, -7.4]], 1: [[-.3, 3.15, 1.4], [2.9, .7, 3.9]], 2: [[2.15, 2.55, -.1], [3.0, 1.5, 3.4]], 3: [[-.15, 1.0, -2.5], [2.2, 1.0, -3.6]], 4: [[-.2, 1.2, 0], [5.6, 2.6, 6.8]],
       5: [[ox0 + .15, 1.15, 1.42], [2.0, .6, 2.7]], 6: [[0, 1.1, 0], [3.9, 1.7, 5.2]], 7: [[cxp, cyp, czp + .3], [1.3, .45, 2.5]], ex: [[.1, 2.1, -.3], [9.0, 4.6, 11.2]], sp: [[0, 1.9, 0], [4.4, 1.6, 6.4]], xr: [[0, 1.2, 0], [5.6, 2.6, 6.6]] };
     function sph(o) { var d = Math.sqrt(o[0] * o[0] + o[1] * o[1] + o[2] * o[2]); return { yaw: Math.atan2(o[0], o[2]), pit: Math.asin(o[1] / d), d: d * (mobile ? 1.45 : 1) }; }
     var CV = { f: new T.Vector3(0, 1.45, 0), yaw: 0, pit: 0, d: 10 }, TG = { f: new T.Vector3(), yaw: 0, pit: 0, d: 10 }, U = { yaw: 0, pit: 0, z: 1 }, camN = -1;
