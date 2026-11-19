@@ -49,7 +49,20 @@ const { chromium } = require('playwright');
   const pw = p.locator('input[type=password]'); await pw.first().fill('control'); await pw.first().press('Enter'); await p.waitForTimeout(1500);
   await nav(); await p.waitForTimeout(1200);
   // ── edit a project ──
-  await p.locator('button:has-text("แก้ไขรายการ CODE")').first().click(); await p.waitForTimeout(500);
+  // ── new layout: KPI cards filter the list · views vs actions · next step · ⋯ menu · tabs ──
+  const kc = p.locator('.zq-bx-kc');
+  check('layout: KPI cards are buttons (5 + overstock), the view switch and the action buttons are apart', await kc.count() === 6 && await p.locator('.zq-bx-seg button').count() === 2 && await p.locator('.zq-bx-act button:has-text("จองจาก Stock")').count() === 1 && await p.locator('.zq-bx-act button:has-text("Import BOM")').count() === 1);
+  await kc.nth(3).click(); await p.waitForTimeout(300);
+  const rk = await p.locator('.zq-bx-li').count();
+  await kc.nth(3).click(); await p.waitForTimeout(300);
+  check('layout: a KPI card filters the project list, clicking it again clears it', /กรอง: พร้อมเบิก/.test(await p.locator('main').innerText()) === false && await p.locator('.zq-bx-li').count() >= rk, rk);
+  check('layout: grouped compact list + next-step box + detail tabs', await p.locator('.zq-bx-gh').count() >= 1 && await p.locator('.zq-bx-nx').count() === 1 && await p.locator('.zq-bx-dt [role=tab]').count() === 3 && await p.locator('th:has-text("จัดสรร")').count() === 1 && await p.locator('th:has-text("จาก Stock")').count() === 0);
+  check('layout: close / delete live in the ⋯ menu, not on the page', await p.locator('.zq-bm-det button:has-text("ปิดโปรเจกต์")').count() === 0);
+  await p.locator('button[aria-label="คำสั่งเพิ่มเติม"]').click(); await p.waitForTimeout(200);
+  const mt = await p.locator('.zq-bx-m').innerText();
+  check('⋯ menu: exports, edit, PDF, then close / delete after a divider', /By Stock/.test(mt) && /By Project/.test(mt) && /แก้ไขรายการ CODE/.test(mt) && /ปิดโปรเจกต์|เปิดโปรเจกต์/.test(mt) && /ลบโปรเจกต์/.test(mt) && await p.locator('.zq-bx-m hr').count() === 1, mt);
+  await p.screenshot({ path: OUT + 'bom_ux.png' });
+  await p.locator('.zq-bx-m button:has-text("แก้ไขรายการ CODE")').first().click(); await p.waitForTimeout(500);
   const ed = p.locator('table.zq-bk-e'); check('edit: the editor replaces the table', await ed.count() === 1 && await ed.locator('tbody tr').count() >= 3, await ed.count());
   const r0 = ed.locator('tbody tr').nth(0), code0 = (await r0.locator('code').innerText()).trim();
   await r0.locator('input').first().fill('5');
