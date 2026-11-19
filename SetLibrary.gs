@@ -1,0 +1,147 @@
+/**
+ * ชุดอุปกรณ์ (Set Library) — parts that are always used together: a relay and its socket and clip, an MCB and its
+ * auxiliary switch, a motor circuit breaker and its auxiliary contact… The page shows each part's Stock and how many
+ * sets Stock can make, and drafts an Order Item for the whole set or only what is short.
+ *
+ * Sheet SetLibrary (main spreadsheet): ID | NAME | CAT | NOTE | PARTS (JSON) | SOURCE | UPDATED | BY
+ *   PARTS = [{ role, per, unit, optional, opts: [{ code, kw, name }] }]
+ *   one part = one place in the set; opts = models that can be used there (a CODE from Item stock, or only a model
+ *   keyword `kw` when the shop has no CODE for it yet). The first part is the main item.
+ * Everyone signed in reads; only Admin creates, edits, deletes, and imports the catalog suggestions (SET_SEEDS).
+ */
+var SETLIB_SHEET = 'SetLibrary', SETLIB_HEAD = ['ID', 'NAME', 'CAT', 'NOTE', 'PARTS', 'SOURCE', 'UPDATED', 'BY'], SETLIB_CK = 'setlib_v1';
+
+function setLibSheet_() { return sheet_(SETLIB_SHEET, SETLIB_HEAD); }
+function setLibRead_() {
+  var C = CacheService.getScriptCache(), hit = C.get(SETLIB_CK);
+  if (hit) { try { return JSON.parse(hit); } catch (e) {} }
+  var sh = setLibSheet_(), n = sh.getLastRow() - 1, out = [];
+  if (n > 0) sh.getRange(2, 1, n, 8).getValues().forEach(function (r) {
+    if (!r[0]) return;
+    var parts = []; try { parts = JSON.parse(String(r[4] || '[]')) || []; } catch (e) { parts = []; }
+    out.push({ id: String(r[0]), name: String(r[1] || ''), cat: String(r[2] || ''), note: String(r[3] || ''), parts: parts, source: String(r[5] || ''), updated: String(r[6] || ''), by: String(r[7] || '') });
+  });
+  out.sort(function (a, b) { return a.cat < b.cat ? -1 : a.cat > b.cat ? 1 : a.name < b.name ? -1 : a.name > b.name ? 1 : 0; });
+  try { var s = JSON.stringify(out); if (s.length < 95000) C.put(SETLIB_CK, s, 21600); } catch (e) {}
+  return out;
+}
+function getSetLib(token) { apiOnly_(); return { sets: setLibRead_(), admin: isAdmin_(token) }; }
+
+function setLibStr_(v, n) { return String(v == null ? '' : v).replace(/[\r\n\t]+/g, ' ').trim().substring(0, n); }
+function setLibClean_(s) {
+  s = s || {};
+  var name = setLibStr_(s.name, 80);
+  if (!name) throw new Error('ใส่ชื่อชุด');
+  var parts = (Array.isArray(s.parts) ? s.parts : []).slice(0, 12).map(function (p) {
+    p = p || {};
+    var per = Number(p.per); if (!(per > 0)) per = 1; per = Math.min(1000, Math.round(per * 1000) / 1000);
+    var opts = (Array.isArray(p.opts) ? p.opts : []).slice(0, 8).map(function (o) {
+      o = o || {};
+      return { code: setLibStr_(o.code, 40).toUpperCase().replace(/\s+/g, ''), kw: setLibStr_(o.kw, 40), name: setLibStr_(o.name, 120) };
+    }).filter(function (o) { return o.code || o.kw; });
+    return { role: setLibStr_(p.role, 30) || 'อุปกรณ์', per: per, unit: setLibStr_(p.unit, 10).toUpperCase() || 'PCS', optional: !!p.optional, opts: opts };
+  }).filter(function (p) { return p.opts.length; });
+  if (!parts.length) throw new Error('ชุดต้องมีอุปกรณ์อย่างน้อย 1 รายการ (ใส่ CODE หรือรุ่น)');
+  parts[0].optional = false;                                                   // the main item is never optional
+  return { id: setLibStr_(s.id, 40), name: name, cat: setLibStr_(s.cat, 30) || 'อื่น ๆ', note: setLibStr_(s.note, 300), source: setLibStr_(s.source, 600), parts: parts };
+}
+// one set or a list (catalog import) · same id = replace
+function saveSetLib(token, sets) { apiOnly_();
+  requireAdmin_(token);
+  var list = (Array.isArray(sets) ? sets : [sets]).slice(0, 60).map(setLibClean_), who = __admName || (typeof __user !== 'undefined' && __user && __user.n) || 'Admin';
+  withLock_(function () {
+    var sh = setLibSheet_(), n = sh.getLastRow() - 1, ids = n > 0 ? sh.getRange(2, 1, n, 1).getValues().map(function (r) { return String(r[0]); }) : [];
+    list.forEach(function (s, i) {
+      if (!s.id) s.id = 'S' + Date.now().toString(36).toUpperCase() + i;
+      var row = [s.id, s.name, s.cat, s.note, JSON.stringify(s.parts), s.source, nowStr_(), who], at = ids.indexOf(s.id);
+      if (JSON.stringify(s.parts).length > 45000) throw new Error('ชุด ' + s.name + ' ใหญ่เกินไป');
+      var rg; if (at >= 0) rg = sh.getRange(at + 2, 1, 1, 8); else { rg = sh.getRange(sh.getLastRow() + 1, 1, 1, 8); ids.push(s.id); }
+      fmtText_(rg); rg.setValues([row]);
+    });
+    CacheService.getScriptCache().remove(SETLIB_CK);
+  });
+  audit_([['Admin', list.length > 1 ? 'นำเข้าชุดอุปกรณ์' : 'บันทึกชุดอุปกรณ์', list.length > 1 ? list.length + ' ชุด' : list[0].id, list.map(function (s) { return s.name; }).slice(0, 5).join(', ')]]);
+  return getSetLib(token);
+}
+function deleteSetLib(token, id) { apiOnly_();
+  requireAdmin_(token);
+  id = String(id || '');
+  var name = '';
+  withLock_(function () {
+    var sh = setLibSheet_(), n = sh.getLastRow() - 1, rows = n > 0 ? sh.getRange(2, 1, n, 2).getValues() : [];
+    for (var i = 0; i < rows.length; i++) if (String(rows[i][0]) === id) { name = String(rows[i][1]); sh.deleteRow(i + 2); break; }
+    CacheService.getScriptCache().remove(SETLIB_CK);
+  });
+  if (!name) throw new Error('ไม่พบชุดนี้ (อาจถูกลบไปแล้ว)');
+  audit_([['Admin', 'ลบชุดอุปกรณ์', id, name]]);
+  return getSetLib(token);
+}
+
+// ── catalog suggestions (manufacturer catalogs / distributor listings, collected 11/2026) ──
+// kw = model text searched in Item stock (CODE + description); ok: 1 = confirmed in a catalog, 0 = check before use
+function getSetSeeds() { apiOnly_(); return SET_SEEDS; }
+var SET_SEEDS = [
+  { cat: 'Relay + Socket', name: 'OMRON MY4N (4 ขั้ว) + Socket', ok: 1, note: 'MY4N / MY4N-GS ใช้ Socket 14 ขา · PYF14A-E กำลังเลิกผลิต ทดแทนด้วย PYFZ-14-E · Clip PYC-A1 กันหลุด',
+    src: 'https://www.ia.omron.com/data_pdf/cat/my-gs_ds_e_8_1_csm1051922.pdf | https://hken.rs-online.com/web/p/relay-sockets/0403285',
+    parts: [{ role: 'หลัก', kw: ['MY4N', 'MY4IN'] }, { role: 'Socket', kw: ['PYFZ-14', 'PYF14A'] }, { role: 'Clip', kw: ['PYC-A1'], optional: 1 }] },
+  { cat: 'Relay + Socket', name: 'OMRON MY2N (2 ขั้ว) + Socket', ok: 1, note: 'Socket 8 ขา PYF08A-E (ทดแทนด้วย PYFZ-08-E) · Clip PYC-A1',
+    src: 'https://www.tme.com/il/en/details/pyf08a-e/electromagnetic-relays-accessories/omron/ | https://cn.element14.com/en-CN/omron-industrial-automation/pyca1/clip-my-ly-relay-2pole-pk2/dp/103923',
+    parts: [{ role: 'หลัก', kw: ['MY2N', 'MY2IN'] }, { role: 'Socket', kw: ['PYFZ-08', 'PYF08A'] }, { role: 'Clip', kw: ['PYC-A1'], optional: 1 }] },
+  { cat: 'Relay + Socket', name: 'OMRON LY2N + Socket', ok: 0, note: 'Socket PTF08A-E · Clip: ผู้จำหน่ายระบุ PYC-A1 ใช้กับ PTF08A-E/PTF14A-E — ควรตรวจกับ Datasheet',
+    src: 'https://uk.rs-online.com/web/p/relay-sockets/0803376 | https://cn.element14.com/en-CN/omron-industrial-automation/pyca1/clip-my-ly-relay-2pole-pk2/dp/103923',
+    parts: [{ role: 'หลัก', kw: ['LY2N'] }, { role: 'Socket', kw: ['PTF08A'] }, { role: 'Clip', kw: ['PYC-A1'], optional: 1 }] },
+  { cat: 'Relay + Socket', name: 'OMRON LY4N + Socket', ok: 0, note: 'Socket PTF14A-E · Clip PYC-A1 (ควรตรวจ)',
+    src: 'https://cn.element14.com/en-CN/omron-industrial-automation/pyca1/clip-my-ly-relay-2pole-pk2/dp/103923',
+    parts: [{ role: 'หลัก', kw: ['LY4N'] }, { role: 'Socket', kw: ['PTF14A'] }, { role: 'Clip', kw: ['PYC-A1'], optional: 1 }] },
+  { cat: 'Relay + Socket', name: 'OMRON G2R-2-S + Socket', ok: 0, note: 'Socket P2RF-08-E · Clip P2CM-S ระบุสำหรับ Socket แบบ Screwless — ควรตรวจกับรุ่นที่ใช้',
+    src: 'https://docs.rs-online.com/dd86/A700000012687690.pdf',
+    parts: [{ role: 'หลัก', kw: ['G2R-2-S'] }, { role: 'Socket', kw: ['P2RF-08'] }, { role: 'Clip', kw: ['P2CM'], optional: 1 }] },
+  { cat: 'Relay + Socket', name: 'IDEC RR2KP (Latching) + Socket', ok: 1, note: 'Socket 11 ขา SR3P-05 · Hold-down spring SR3P-06F3 หรือ SR3B-02F1',
+    src: 'https://au.element14.com/idec/sr3p-06f3/hold-down-clip-relay-socket/dp/4815478 | https://wolfautomation.com/sr3b-02f1-hold-down-pullover-spring',
+    parts: [{ role: 'หลัก', kw: ['RR2KP'] }, { role: 'Socket', kw: ['SR3P-05'] }, { role: 'Hold-down', kw: ['SR3P-06F3', 'SR3B-02F1'], optional: 1 }] },
+  { cat: 'Relay + Socket', name: 'IDEC RH2B + Socket', ok: 1, note: 'Socket SH2B-05 · Pullover spring SY4S-02F1',
+    src: 'https://manualmachine.com/idec/sockets/16898656-selection-guide',
+    parts: [{ role: 'หลัก', kw: ['RH2B'] }, { role: 'Socket', kw: ['SH2B-05'] }, { role: 'Hold-down', kw: ['SY4S-02F1'], optional: 1 }] },
+  { cat: 'Relay + Socket', name: 'IDEC RU4S + Socket', ok: 1, note: 'Socket SY4S-05 (สกรู) หรือ SU4S-11L (Spring clamp)',
+    src: 'https://manualmachine.com/idec/ruseries/16824373-catalog',
+    parts: [{ role: 'หลัก', kw: ['RU4S'] }, { role: 'Socket', kw: ['SY4S-05', 'SU4S-11L'] }] },
+  { cat: 'Relay + Socket', name: 'IDEC RJ2S + Socket', ok: 1, note: 'Socket 8 ขา SJ2S-05B',
+    src: 'https://images.kleen-ritecorp.com/Documents/Manuals/IDEC/IDEC2052/IDEC Socket Data Sheet.pdf',
+    parts: [{ role: 'หลัก', kw: ['RJ2S'] }, { role: 'Socket', kw: ['SJ2S-05B'] }] },
+  { cat: 'Relay + Socket', name: 'Finder 62.33 + Socket', ok: 1, note: 'Socket 92.03 (92.03SMA มี Clip โลหะ 092.71 ในชุด)',
+    src: 'https://findernet.com/en/uk/series/92-series-sockets-for-62-series-relays | https://www.digikey.co.uk/en/products/detail/finder-relays-inc/092-71/10055752',
+    parts: [{ role: 'หลัก', kw: ['62.33'] }, { role: 'Socket', kw: ['92.03'] }, { role: 'Clip', kw: ['092.71'], optional: 1 }] },
+  { cat: 'Relay + Socket', name: 'Finder 55.34 + Socket', ok: 1, note: 'Socket 94.04 · Clip โลหะ 094.71 (94.04SMA) หรือพลาสติก 094.91.3 (94.04SPA)',
+    src: 'https://findernet.com/en/usa/series/94-series-sockets-for-55-and-85-series-relays',
+    parts: [{ role: 'หลัก', kw: ['55.34'] }, { role: 'Socket', kw: ['94.04'] }, { role: 'Clip', kw: ['094.71', '094.91'], optional: 1 }] },
+  { cat: 'Relay + Socket', name: 'Schneider RXM4 / RXM2 + Socket', ok: 1, note: 'Socket RXZE2M114(M) · Clamp โลหะ RXZ400 หรือพลาสติก RXZR335',
+    src: 'https://www.se.com/us/en/product/RXZ400/maintaining-clamp-harmony-for-rxm-sockets-metal',
+    parts: [{ role: 'หลัก', kw: ['RXM4', 'RXM2'] }, { role: 'Socket', kw: ['RXZE2M114'] }, { role: 'Clamp', kw: ['RXZ400', 'RXZR335'], optional: 1 }] },
+  { cat: 'Timer + Socket', name: 'OMRON H3CR-A8 + Socket', ok: 1, note: 'Socket 8 ขา P2CF-08-E (ราง DIN)',
+    src: 'https://uk.rs-online.com/p/panel-meter-accessories/0329468',
+    parts: [{ role: 'หลัก', kw: ['H3CR-A8'] }, { role: 'Socket', kw: ['P2CF-08'] }] },
+  { cat: 'Timer + Socket', name: 'OMRON H3Y-4 + Socket', ok: 0, note: 'ใช้ Socket 14 ขาแบบ PYF / PY เดียวกับ MY4 (ควรตรวจ)',
+    src: 'https://www.ia.omron.com/products/family/811/lineup.html',
+    parts: [{ role: 'หลัก', kw: ['H3Y-4'] }, { role: 'Socket', kw: ['PYFZ-14', 'PYF14A'] }] },
+  { cat: 'Timer + Socket', name: 'Autonics MS4SC + Socket', ok: 0, note: 'Socket 8 ขา PG-08 (หลังตู้) หรือ PS-08 (ราง DIN) — ยังไม่พบเอกสารยืนยัน ควรตรวจ',
+    src: 'https://baa.vn/document/ps-and-pg-series-autonics-de-ro-le-4992-catalog1.pdf',
+    parts: [{ role: 'หลัก', kw: ['MS4SC'] }, { role: 'Socket', kw: ['PS-08', 'PG-08', 'TP48X'] }] },
+  { cat: 'MCB', name: 'EATON MCB PLS6 + อุปกรณ์เสริม', ok: 1, note: 'Aux switch ZP-IHK (1NO+1NC) หรือ ZP-WHK (1CO) ติดด้านซ้าย · Shunt trip ZP-ASA',
+    src: 'https://www.eaton.com/mx/en-us/skuPage.286052.html | https://www.eaton.com/dk/da-dk/skuPage.286053.html | https://pdf.directindustry.com/pdf/eaton/accessories-rcds-mcbs-combined-rcd-mcb-devices-motor-starters-power-limiters/5067-564558.html',
+    parts: [{ role: 'หลัก', kw: ['PLS6'] }, { role: 'Aux switch', kw: ['ZP-IHK', 'ZP-WHK'], optional: 1 }, { role: 'Shunt trip', kw: ['ZP-ASA'], optional: 1 }] },
+  { cat: 'Motor CB', name: 'EATON PKZM0 + Aux contact', ok: 1, note: 'NHI11-PKZ0 ติดด้านข้าง หรือ NHI-E-11-PKZ0 ติดด้านหน้า (ความกว้าง 45 mm เท่าเดิม)',
+    src: 'https://www.eaton.com/tr/tr-tr/skuPage.072896.html | https://www.eaton.com/sg/en-us/skuPage.082882.html',
+    parts: [{ role: 'หลัก', kw: ['PKZM0'] }, { role: 'Aux contact', kw: ['NHI11-PKZ0', 'NHI-E-11-PKZ0'] }] },
+  { cat: 'Motor CB', name: 'Schneider GV2ME + Aux contact', ok: 1, note: 'GVAE11 ติดด้านหน้า (1NO+1NC) · GVAN11 ติดด้านข้าง (ควรตรวจ)',
+    src: 'https://www.se.com/be/en/product/GVAE11/auxiliary-contact-blocktesys-deca1no+1ncfront-mountingfor-gv2',
+    parts: [{ role: 'หลัก', kw: ['GV2ME'] }, { role: 'Aux contact', kw: ['GVAE11', 'GVAN11'] }] },
+  { cat: 'Motor CB', name: 'ABB MS116 / MS132 + Aux contact', ok: 1, note: 'HKF1-11 ติดด้านหน้า 1NO+1NC',
+    src: 'https://www.standardelectricsupply.com/userfiles/documents/ad/a/abb_hkf1_11_data_sheet.pdf',
+    parts: [{ role: 'หลัก', kw: ['MS116', 'MS132'] }, { role: 'Aux contact', kw: ['HKF1-11'] }] },
+  { cat: 'Terminal', name: 'TOGI PT50 · ชุดละ 10 ตัว', ok: 1, note: '1 ชุด = Terminal 10 ตัว + End plate 1 + ฝาครอบ 1 เส้น (ตามใบ Estimate cost ที่ใช้จริง)',
+    src: 'ใบ Estimate cost CONTROL WIRING (PT50 / PT50L2 / CA-40)',
+    parts: [{ role: 'หลัก', kw: ['PT50'], per: 10 }, { role: 'End plate', kw: ['PT50L2'] }, { role: 'ฝาครอบ', kw: ['CA-40'], optional: 1 }] },
+  { cat: 'Terminal', name: 'Phoenix URTK/S · ชุดละ 10 ตัว', ok: 0, note: 'End cover D-URTK/S · End bracket CLIPFIX 35 (ควรตรวจรหัสฝาปิดกับรุ่นที่ใช้)',
+    src: 'https://www.phoenixcontact.com/ (URTK/S 0311087 · D-URTK/S-BEN 0308029 · CLIPFIX 35 3022218)',
+    parts: [{ role: 'หลัก', kw: ['URTK/S'], per: 10 }, { role: 'End cover', kw: ['D-URTK'] }, { role: 'End bracket', kw: ['CLIPFIX'], per: 2 }] }
+];

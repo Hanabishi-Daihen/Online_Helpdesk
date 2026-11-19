@@ -98,6 +98,7 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
   <a href="#pending"><span>08</span>Pending Order</a>
   <a href="#docs"><span>08.1</span>เอกสาร Spec (ใน Pending Order)</a>
   <a href="#order"><span>09</span>Order Item (ใบสั่ง)</a>
+  <a href="#setlib"><span>09.1</span>ชุดอุปกรณ์</a>
   <a href="#approval"><span>10</span>การอนุมัติใบสั่ง</a>
   <a href="#ordtrack"><span>10.1</span>ติดตามใบสั่ง และแจ้งเตือนของเข้า</a>
   <a href="#alert"><span>11</span>Stock Alert</a>
@@ -336,6 +337,22 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
     </tbody>
   </table></div>
   <div class="note"><b>Admin ปรับเกณฑ์ได้</b>ใน Order Item ตั้งได้ว่าจะนับใบสั่งที่ "ไม่อนุมัติ" หรือไม่ และนับย้อนหลังกี่วัน (ค่าเริ่มต้น 120 วัน)</div>
+</section>
+
+<section id="setlib">
+  <h2><span class="no">09.1</span>ชุดอุปกรณ์ (Set Library) <span class="role r-u">ทุกคน</span></h2>
+  <p class="lead">เมนู <span class="ui">ชุดอุปกรณ์</span> (กลุ่มคลังและจัดซื้อ) รวมอุปกรณ์ที่ต้องใช้คู่กัน เช่น Relay MY4N + Socket PYFZ-14 / PYF14A-E + Clip PYC-A1, MCB + Aux switch, Motor CB + Aux contact พร้อม Stock ของทุกชิ้น</p>
+  <ol class="steps">
+    <li><div>เลือกหมวดหรือค้นหา (ชื่อชุด / CODE / รุ่น เช่น MY4N, PKZM0) แล้วคลิกชุด · ป้าย <b>ทำได้ X ชุด</b> = จำนวนชุดที่ Stock ทำได้ คิดจากชิ้นที่มีน้อยที่สุด</div></li>
+    <li><div>ใส่ <b>จำนวนชุดที่ต้องการ</b> · ตำแหน่งที่มีหลายรุ่น (เช่น Socket) กดเลือกรุ่นที่ใช้ ระบบเลือกรุ่นที่มี Stock มากที่สุดให้ก่อนและจำรุ่นที่เลือกไว้ในเครื่อง · ชิ้นที่เลือกใส่ได้ (Clip, Aux switch) ติ๊ก <span class="ui">ใส่ในชุด</span></div></li>
+    <li><div>การ์ดสรุป: ทำจาก Stock ได้กี่ชุด (ติดที่ชิ้นไหน) · ต้องใช้กี่รายการ · ต้องสั่งเพิ่มกี่รายการ · กด <span class="ui">🛒 ใส่ใบสั่งเฉพาะที่ขาด</span> หรือ <span class="ui">ใส่ใบสั่งทั้งชุด</span> ระบบเปิดหน้า Order Item พร้อมรายการ (ตรวจซ้ำกับใบสั่งค้างเหมือนเดิม)</div></li>
+  </ol>
+  <h3>สร้างและแก้ไขชุด <span class="role r-a">ADMIN</span></h3>
+  <ul>
+    <li><span class="ui">📚 ชุดแนะนำจาก Catalog</span> = ชุดที่รวบรวมจาก Catalog / Datasheet ผู้ผลิต (OMRON, IDEC, Finder, Schneider, EATON, ABB, TOGI, Phoenix) ระบบหา CODE ใน Item stock จากชื่อรุ่นให้ · ✓ ยืนยันแล้ว = พบในเอกสารผู้ผลิต · ⚠ ควรตรวจ = ตรวจก่อนใช้ · มีลิงก์เอกสารอ้างอิงทุกชุด · ค่าเริ่มต้นเลือกเฉพาะชุดที่พบอุปกรณ์หลักใน Stock</li>
+    <li><span class="ui">+ สร้างชุดใหม่</span> / <span class="ui">✎ แก้ไขชุด</span>: ชื่อ หมวด หมายเหตุ อ้างอิง · แต่ละชิ้น: ตำแหน่งในชุด, จำนวนต่อชุด (เช่น Terminal ×10 ต่อ End plate 1), หน่วย, เลือกใส่ได้ · เพิ่มรุ่นที่ใช้แทนกันได้ด้วยช่องค้น Item stock · ชิ้นแรกคืออุปกรณ์หลักเสมอ</li>
+    <li>ชิ้นที่ยังไม่มี CODE ใน Stock แสดงเป็น "ยังไม่มี CODE" (จำนวน Stock 0) และจะไม่ถูกใส่ในใบสั่ง · ข้อมูลเก็บในชีต <b>SetLibrary</b></li>
+  </ul>
 </section>
 
 <section id="approval">
