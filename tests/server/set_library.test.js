@@ -36,5 +36,7 @@ T('delete of a missing set says so',/ไม่พบ/.test(E(()=>c.deleteSetLib(
 const seeds=c.getSetSeeds();
 T('catalog seeds: each has a name, category, source, and parts with model keywords (main part first)',seeds.length>=15&&seeds.every(s=>s.name&&s.cat&&s.src&&s.parts.length&&s.parts[0].role==='หลัก'&&s.parts.every(p=>p.kw&&p.kw.length)),seeds.filter(s=>!(s.name&&s.src)).map(s=>s.name));
 T('catalog seeds: MY4N pairs with PYFZ-14 / PYF14A sockets and the PYC-A1 clip',(()=>{const m=seeds.find(s=>/MY4N/.test(s.name));return m&&m.parts[1].kw.join()==='PYFZ-14,PYF14A'&&m.parts[2].kw[0]==='PYC-A1'&&m.parts[2].optional})());
+T('catalog seeds: magnetic contactors, PT30 / PT40 / UK 5 N / UK 6 N / USST terminals and test terminals are there',['FUJI SC-03','FUJI SC-0 ','Mitsubishi S-T','Schneider LC1D','TOGI PT30','TOGI PT40','Phoenix UK 5 N','Phoenix UK 6 N','USST','Phoenix URTK/S','Test terminal Type B','GE PK-2'].every(n=>seeds.some(x=>x.name.indexOf(n)===0)),seeds.map(x=>x.name));
+T('catalog seeds: SC-0 asks for that model exactly (not SC-03 / SC-05)',seeds.find(x=>/SC-0 /.test(x.name)).parts[0].kw[0]==='=SC-0');
 T('page may call them (allow-list)',['getSetLib','getSetSeeds','saveSetLib','deleteSetLib'].every(f=>!!c.API_FNS[f]));
 console.log(ok+' passed, '+bad+' failed');process.exit(bad?1:0);

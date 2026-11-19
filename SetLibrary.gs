@@ -78,7 +78,8 @@ function deleteSetLib(token, id) { apiOnly_();
 }
 
 // ── catalog suggestions (manufacturer catalogs / distributor listings, collected 11/2026) ──
-// kw = model text searched in Item stock (CODE + description); ok: 1 = confirmed in a catalog, 0 = check before use
+// kw = model text searched in Item stock (CODE + description); '=SC-0' = that model exactly (not SC-03 / SC-05)
+// ok: 1 = confirmed in a catalog, 0 = check before use
 function getSetSeeds() { apiOnly_(); return SET_SEEDS; }
 var SET_SEEDS = [
   { cat: 'Relay + Socket', name: 'OMRON MY4N (4 ขั้ว) + Socket', ok: 1, note: 'MY4N / MY4N-GS ใช้ Socket 14 ขา · PYF14A-E กำลังเลิกผลิต ทดแทนด้วย PYFZ-14-E · Clip PYC-A1 กันหลุด',
@@ -138,6 +139,51 @@ var SET_SEEDS = [
   { cat: 'Motor CB', name: 'ABB MS116 / MS132 + Aux contact', ok: 1, note: 'HKF1-11 ติดด้านหน้า 1NO+1NC',
     src: 'https://www.standardelectricsupply.com/userfiles/documents/ad/a/abb_hkf1_11_data_sheet.pdf',
     parts: [{ role: 'หลัก', kw: ['MS116', 'MS132'] }, { role: 'Aux contact', kw: ['HKF1-11'] }] },
+  // ── magnetic contactors: thermal overload relay, auxiliary contact, covers ──
+  { cat: 'Magnetic contactor', name: 'FUJI SC-03 + Thermal relay', ok: 1, note: 'Thermal TR-0N/3 ติดใต้ Contactor · Aux SZ-A11 (หน้า 1NO+1NC) หรือ SZ-AS1 (ข้าง) · ฝาครอบขั้ว SZ-T1 · Fuji ประกาศเลิกผลิต SC-03/0/05/4-1 แล้ว (ทดแทนด้วย SC09X…)',
+    src: 'https://onlinecomponents.com/productfiles/mf-fji/aeh561.pdf | https://americas.fujielectric.com/wp-content/uploads/2025/09/Discontinuation-notice-for-Orange-Line-and-Odyssey-complete-1.pdf',
+    parts: [{ role: 'หลัก', kw: ['SC-03'] }, { role: 'Thermal relay', kw: ['TR-0N', 'TR-ON'] }, { role: 'Aux contact', kw: ['SZ-A11', 'SZ-AS1'], optional: 1 }, { role: 'ฝาครอบขั้ว', kw: ['SZ-T1'], optional: 1 }] },
+  { cat: 'Magnetic contactor', name: 'FUJI SC-0 + Thermal relay', ok: 1, note: 'Thermal TR-0N/3 · Aux SZ-A11 / SZ-AS1 · ฝาครอบขั้ว SZ-T1',
+    src: 'https://onlinecomponents.com/productfiles/mf-fji/aeh561.pdf',
+    parts: [{ role: 'หลัก', kw: ['=SC-0'] }, { role: 'Thermal relay', kw: ['TR-0N', 'TR-ON'] }, { role: 'Aux contact', kw: ['SZ-A11', 'SZ-AS1'], optional: 1 }, { role: 'ฝาครอบขั้ว', kw: ['SZ-T1'], optional: 1 }] },
+  { cat: 'Magnetic contactor', name: 'FUJI SC-05 + Thermal relay', ok: 1, note: 'Thermal TR-0N/3 · Aux SZ-A11 / SZ-AS1 · ฝาครอบขั้ว SZ-T2',
+    src: 'https://onlinecomponents.com/productfiles/mf-fji/aeh561.pdf',
+    parts: [{ role: 'หลัก', kw: ['SC-05'] }, { role: 'Thermal relay', kw: ['TR-0N', 'TR-ON'] }, { role: 'Aux contact', kw: ['SZ-A11', 'SZ-AS1'], optional: 1 }, { role: 'ฝาครอบขั้ว', kw: ['SZ-T2'], optional: 1 }] },
+  { cat: 'Magnetic contactor', name: 'FUJI SC-4-0 / SC-4-1 + Thermal relay', ok: 0, note: 'Thermal TR-5-1N/3 · ฝาครอบขั้ว SZ-T3 · Aux SZ-A11 / SZ-AS1 (ควรตรวจกับรุ่นที่ใช้)',
+    src: 'https://onlinecomponents.com/productfiles/mf-fji/aeh561.pdf',
+    parts: [{ role: 'หลัก', kw: ['SC-4-1', 'SC-4-0'] }, { role: 'Thermal relay', kw: ['TR-5-1N'] }, { role: 'Aux contact', kw: ['SZ-A11', 'SZ-AS1'], optional: 1 }, { role: 'ฝาครอบขั้ว', kw: ['SZ-T3'], optional: 1 }] },
+  { cat: 'Magnetic contactor', name: 'FUJI SC-E02…E05 + Thermal relay', ok: 1, note: 'Thermal TK-E02 สำหรับ SC-E02/E03/E04/E05 (TK-E2 สำหรับ SC-E1/E2) · Aux หน้า SZ-A11T / SZ-A22T',
+    src: 'https://www.fujielectric.com/fcs/support_contact/support/standard/box/pdf/TUV/TUV.pdf | https://cdn.automationdirect.com/static/specs/cutsheet/TK-E02-260_cutsheet.pdf',
+    parts: [{ role: 'หลัก', kw: ['SC-E02', 'SC-E03', 'SC-E04', 'SC-E05'] }, { role: 'Thermal relay', kw: ['TK-E02'] }, { role: 'Aux contact', kw: ['SZ-A11', 'SZ-A22'], optional: 1 }] },
+  { cat: 'Magnetic contactor', name: 'Mitsubishi S-T10 / S-T12 / S-T20 + Thermal relay', ok: 1, note: 'Thermal TH-T18 · Aux UN-AX2 / UN-AX4 · Surge absorber UN-SA (ตามแรงดัน Coil)',
+    src: 'https://th.misumi-ec.com/en/vona2/detail/222005725443 | https://www.mitsubishielectric.co.jp/fa/products/lvd/lvsw/support/QR/pdf/st10st12st20.pdf',
+    parts: [{ role: 'หลัก', kw: ['S-T10', 'S-T12', 'S-T20'] }, { role: 'Thermal relay', kw: ['TH-T18'] }, { role: 'Aux contact', kw: ['UN-AX2', 'UN-AX4'], optional: 1 }, { role: 'Surge absorber', kw: ['UN-SA'], optional: 1 }] },
+  { cat: 'Magnetic contactor', name: 'Schneider LC1D09…D38 + Thermal relay', ok: 0, note: 'Thermal LRD (ต่อใต้ LC1D09–D38) · RC suppressor LAD4RC… ตามแรงดัน Coil (LAD4RCE 24–48VAC) · Aux หน้า LADN11 (ควรตรวจ)',
+    src: 'https://www.se.com/il/en/product/LRD08/tesys-lrd-thermal-overload-relays-2-5-4-a-class-10a | https://www.se.com/us/en/faqs/FA342734',
+    parts: [{ role: 'หลัก', kw: ['LC1D09', 'LC1D12', 'LC1D18', 'LC1D25', 'LC1D32', 'LC1D38'] }, { role: 'Thermal relay', kw: ['LRD'] }, { role: 'Aux contact', kw: ['LADN11'], optional: 1 }, { role: 'Suppressor', kw: ['LAD4RC'], optional: 1 }] },
+  // ── terminals: end plate / cover, end clamps, partition, markers (per 10 terminals) ──
+  { cat: 'Terminal', name: 'TOGI PT30 · ชุดละ 10 ตัว', ok: 1, note: 'ตามแผ่นข้อมูล PT series: PT-30 + End plate PT-30L2 + ฝาครอบ CA-36 + ป้ายชื่อ AM-10',
+    src: 'https://www.togi.co.jp/en/pdf_file/terminalblock/series/PT_series.pdf',
+    parts: [{ role: 'หลัก', kw: ['=PT30', '=PT-30'], per: 10 }, { role: 'End plate', kw: ['PT30L2', 'PT-30L2'] }, { role: 'ฝาครอบ', kw: ['CA-36'], optional: 1 }, { role: 'ป้ายชื่อ', kw: ['AM-10'], optional: 1 }] },
+  { cat: 'Terminal', name: 'TOGI PT40 · ชุดละ 10 ตัว', ok: 0, note: 'End plate PT40L2 · ฝาครอบ CA-40 (ไม่พบในเอกสาร ใช้ตามชุด PT50 — ควรตรวจ)',
+    src: 'https://www.togi.co.jp/en/pdf_file/terminalblock/series/Accessories - 1.pdf',
+    parts: [{ role: 'หลัก', kw: ['=PT40', '=PT-40'], per: 10 }, { role: 'End plate', kw: ['PT40L2', 'PT-40L2'] }, { role: 'ฝาครอบ', kw: ['CA-40'], optional: 1 }] },
+  { cat: 'Terminal', name: 'Phoenix UK 5 N · ชุดละ 10 ตัว', ok: 1, note: 'End cover D-UK 4/10 · End clamp E/UK 2 ตัว · Partition ATP-UK (คั่นกลุ่ม) · Marker ZB 5 (ควรตรวจ)',
+    src: 'https://au.element14.com/phoenix-contact/3003020/end-cover-d-uk4-10/dp/3042250 | https://au.element14.com/phoenix-contact/e-uk/end-clamp-din-rail-mount/dp/179044',
+    parts: [{ role: 'หลัก', kw: ['UK 5 N', 'UK5N', 'UK 5N'], per: 10 }, { role: 'End cover', kw: ['D-UK 4/10', 'D-UK4/10'] }, { role: 'End clamp', kw: ['E/UK'], per: 2 }, { role: 'Partition', kw: ['ATP-UK'], optional: 1 }, { role: 'Marker', kw: ['ZB 5', 'ZB5'], per: 10, optional: 1 }] },
+  { cat: 'Terminal', name: 'Phoenix UK 6 N · ชุดละ 10 ตัว', ok: 1, note: 'End cover D-UK 4/10 (ใช้กับ UK 3 N / 5 N / 6 N / 10 N) · End clamp E/UK 2 ตัว · Marker ZB 6',
+    src: 'https://www.ahlsell.se/en/products/electric/automation-29-45/29-terminals-labelling-ducts/terminal-blocks/end-trays/2911301',
+    parts: [{ role: 'หลัก', kw: ['UK 6 N', 'UK6N', 'UK 6N'], per: 10 }, { role: 'End cover', kw: ['D-UK 4/10', 'D-UK4/10'] }, { role: 'End clamp', kw: ['E/UK'], per: 2 }, { role: 'Marker', kw: ['ZB 6', 'ZB6'], per: 10, optional: 1 }] },
+  { cat: 'Terminal', name: 'USST · ชุดละ 10 ตัว', ok: 0, note: 'ไม่พบเอกสารผู้ผลิตของ USST — ระบบค้นจากชื่อใน Stock · ตรวจ End cover / End clamp ที่ใช้จริงแล้วแก้ชุด',
+    src: 'ยังไม่พบเอกสาร (ตรวจรุ่นกับผู้ขาย)',
+    parts: [{ role: 'หลัก', kw: ['USST'], per: 10 }, { role: 'End cover', kw: ['D-USST'] }, { role: 'End clamp', kw: ['E/UK', 'CLIPFIX'], per: 2 }] },
+  // ── test terminals ──
+  { cat: 'Test terminal', name: 'Test terminal Type B (CT / PT) · 1 กลุ่ม', ok: 1, note: 'สัดส่วนจากใบ Estimate cost ที่ใช้จริง (CTT 8 · PTT 4 · Short bar 8 · Cover 4) = ต่อกลุ่ม CTT 2 · PTT 1 · Short bar 2 · Cover 1',
+    src: 'ใบ Estimate cost CONTROL WIRING (B-CTT / B-PTT / B-SB / Cover B-C)',
+    parts: [{ role: 'หลัก', kw: ['B-CTT'], per: 2 }, { role: 'PT terminal', kw: ['B-PTT'] }, { role: 'Short bar', kw: ['B-SB'], per: 2 }, { role: 'Cover', kw: ['=B-C'] }] },
+  { cat: 'Test terminal', name: 'GE PK-2 Test block + Test plug', ok: 0, note: 'PK-2 = Test block 4 / 6 ขั้ว มีฝาครอบในตัว และ Contact ลัดวงจร CT เมื่อถอดฝา · Test plug ใช้ตอนทดสอบ (ตรวจรุ่น Plug กับเอกสาร GE)',
+    src: 'https://www.gevernova.com/grid-solutions/products/brochures/pk2.pdf',
+    parts: [{ role: 'หลัก', kw: ['PK-2', 'PK2'] }, { role: 'Test plug', kw: ['PK-2 PLUG', 'TEST PLUG'], optional: 1 }] },
   { cat: 'Terminal', name: 'TOGI PT50 · ชุดละ 10 ตัว', ok: 1, note: '1 ชุด = Terminal 10 ตัว + End plate 1 + ฝาครอบ 1 เส้น (ตามใบ Estimate cost ที่ใช้จริง)',
     src: 'ใบ Estimate cost CONTROL WIRING (PT50 / PT50L2 / CA-40)',
     parts: [{ role: 'หลัก', kw: ['PT50'], per: 10 }, { role: 'End plate', kw: ['PT50L2'] }, { role: 'ฝาครอบ', kw: ['CA-40'], optional: 1 }] },

@@ -10,12 +10,17 @@ const { chromium } = require('playwright');
   await p.goto('http://localhost:8848/'); await p.waitForTimeout(1500);
   await p.evaluate(() => {
     const G = window.google.script, d = Object.getOwnPropertyDescriptor(G, 'run'); window.__saved = [];
-    const stock = [['43401016', 'AUXILIARY RELAY', 'MY4N-GS-R DC100/110V OMRON', '48', 'PCS', 'STORE1'], ['46420024', 'SOCKET RELAY', 'PYFZ-14 (FOR MY4N)', '69', 'PCS', 'STORE1'], ['42050002', 'MOTOR CIRCUIT BREAKER', 'PKZM0-10', '15', 'PCS', 'STORE2']];
+    const stock = [['43401016', 'AUXILIARY RELAY', 'MY4N-GS-R DC100/110V OMRON', '48', 'PCS', 'STORE1'], ['46420024', 'SOCKET RELAY', 'PYFZ-14 (FOR MY4N)', '69', 'PCS', 'STORE1'], ['42050002', 'MOTOR CIRCUIT BREAKER', 'PKZM0-10', '15', 'PCS', 'STORE2'],
+      ['42200001', 'MAGNETIC CONTACTOR', 'SC-03 AC220V FUJI', '7', 'PCS', 'STORE1'], ['42200005', 'THERMAL RELAY', 'TR-ON/3 0.95-1.45A', '4', 'PCS', 'STORE1'],
+      ['46320001', 'Current test terminal', 'B-CTT (GREEN)', '8', 'PCS', 'STORE1'], ['46330005', 'Test terminal cover', 'FOR TYPE B-C FUJI ELECTRIC IND.', '4', 'PCS', 'STORE1']];
     const tsv = stock.map(f => [f[0], f[1], f[2], f[3], f[4], f[5], '', 'DS13', '', '1'].join('\t')).join('\n');
     window.__bundle = (async () => { const cs = new CompressionStream('gzip'), w = cs.writable.getWriter(); w.write(new TextEncoder().encode(tsv)); w.close();
       const buf = new Uint8Array(await new Response(cs.readable).arrayBuffer()); let bin = ''; buf.forEach(c => bin += String.fromCharCode(c)); return btoa(bin); })();
     let sets = [];
     const seeds = [{ cat: 'Relay + Socket', name: 'OMRON MY4N (4 ขั้ว) + Socket', ok: 1, note: 'n', src: 'https://example.com/my4 | ใบ Estimate', parts: [{ role: 'หลัก', kw: ['MY4N'] }, { role: 'Socket', kw: ['PYFZ-14', 'PYF14A'] }, { role: 'Clip', kw: ['PYC-A1'], optional: 1 }] },
+      { cat: 'Magnetic contactor', name: 'FUJI SC-03 + Thermal relay', ok: 1, note: 'n', src: 'https://example.com/sc', parts: [{ role: 'หลัก', kw: ['SC-03'] }, { role: 'Thermal relay', kw: ['TR-0N', 'TR-ON'] }] },
+      { cat: 'Magnetic contactor', name: 'FUJI SC-0 + Thermal relay', ok: 1, note: 'n', src: 'https://example.com/sc', parts: [{ role: 'หลัก', kw: ['=SC-0'] }, { role: 'Thermal relay', kw: ['TR-0N', 'TR-ON'] }] },
+      { cat: 'Test terminal', name: 'Test terminal Type B', ok: 1, note: 'n', src: 'ใบ Estimate', parts: [{ role: 'หลัก', kw: ['B-CTT'], per: 2 }, { role: 'Cover', kw: ['=B-C'] }] },
       { cat: 'Timer + Socket', name: 'OMRON H3CR-A8 + Socket', ok: 0, note: 'n2', src: 'https://example.com/h3cr', parts: [{ role: 'หลัก', kw: ['H3CR-A8'] }, { role: 'Socket', kw: ['P2CF-08'] }] }];
     Object.defineProperty(G, 'run', { configurable: true, get() {
       const inner = d.get.call(G); let ok = () => {};
@@ -44,7 +49,9 @@ const { chromium } = require('playwright');
   await p.locator('button:has-text("ชุดแนะนำจาก Catalog")').first().click(); await p.waitForTimeout(1500);
   const dlg = p.locator('[aria-label="ชุดแนะนำจาก Catalog"]'), dt = await dlg.innerText();
   check('catalog: models matched to CODEs in Item stock, missing ones named, confirmed / check badges, source links', /43401016 \(Stock 48\)/.test(dt) && /46420024 \(Stock 69\)/.test(dt) && /ไม่พบใน Stock \(PYC-A1\)/.test(dt) && /ยืนยันแล้ว/.test(dt) && /ควรตรวจ/.test(dt) && await dlg.locator('a[href="https://example.com/my4"]').count() === 1, dt.slice(0, 500));
-  check('catalog: by default only sets whose main item is in Stock are ticked', /นำเข้า 1 ชุดที่เลือก/.test(dt));
+  check('catalog: "=SC-0" is that model only (SC-03 in Stock is not taken), "TR-ON/3" spelling found, the B-C cover is not the B-CTT terminal', /หลัก: 42200001/.test(dt) && /Thermal relay: 42200005/.test(dt) && /หลัก: ไม่พบใน Stock \(SC-0\)/.test(dt) && /หลัก ×2: 46320001/.test(dt) && /Cover: 46330005/.test(dt), dt);
+  check('catalog: by default only sets whose main item is in Stock are ticked', /นำเข้า 3 ชุดที่เลือก/.test(dt));
+  await dlg.locator('label:has-text("FUJI SC-03") input').uncheck(); await dlg.locator('label:has-text("Test terminal Type B") input').uncheck();
   await dlg.locator('button:has-text("นำเข้า")').click(); await p.waitForTimeout(800);
   const sv = (await p.evaluate(() => window.__saved))[0] || [];
   check('catalog import: one set saved with CODE options, the clip kept as a model keyword', sv.length === 1 && sv[0].parts[0].opts[0].code === '43401016' && sv[0].parts[1].opts[0].code === '46420024' && sv[0].parts[2].opts[0].kw === 'PYC-A1' && !sv[0].parts[2].opts[0].code && sv[0].parts[2].optional, sv);
