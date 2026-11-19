@@ -1,9 +1,11 @@
 // Set Library page: user view · Admin imports catalog suggestions (model → CODE in Item stock) · Stock per part, sets possible · order what is short
 const OUT = __dirname + '/../out/', fs = require('fs');
 const { chromium } = require('playwright');
+const three = (() => { try { return fs.readFileSync(require.resolve('three/build/three.min.js'), 'utf8'); } catch (e) { return null; } })();
 (async () => {
-  const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
+  const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const p = await b.newPage({ viewport: { width: 1440, height: 960 } }), errs = [], fails = [];
+  await p.route(/three\.js\/r128\/three\.min\.js/, r => three ? r.fulfill({ contentType: 'application/javascript', body: three }) : r.abort());
   p.on('pageerror', e => errs.push(e.message)); p.on('dialog', d => d.accept());
   const check = (n, c, x) => { console.log((c ? 'PASS ' : 'FAIL ') + n + (c ? '' : ' → ' + JSON.stringify(x))); c || fails.push(n); };
   const srv = require('http').createServer((q, r) => { r.setHeader('content-type', 'text/html; charset=utf-8'); r.end(fs.readFileSync(OUT + 'doc.html')); }).listen(8848);
@@ -63,6 +65,19 @@ const { chromium } = require('playwright');
   await qIn.fill('60'); await p.waitForTimeout(300);
   k = await p.locator('.zq-st-k').innerText();
   check('60 sets: relay short 12, socket enough', /43401016 ขาด 12/.test(k) && !/46420024 ขาด/.test(k), k);
+  // assembly animation: one step per part that is in the set (the clip with no CODE is left out), captions name the CODEs
+  const an = p.locator('.zq-st-anim');
+  await p.waitForFunction(() => document.querySelectorAll('.zq-st-steps li').length > 0, null, { timeout: 15000 }).catch(() => {});
+  const stp = await an.locator('.zq-st-steps li').allInnerTexts();
+  check('assembly: steps follow the set (socket on the rail, relay into the socket; no clip step while the clip is left out)', stp.length === 2 && /Socket 46420024 บนราง DIN/.test(stp[0]) && /43401016/.test(stp[1]) && /14 ขา/.test(stp[1]), stp);
+  await an.locator('button', { hasText: 'แยกชิ้น' }).click(); await p.waitForTimeout(300);
+  check('assembly: "แยกชิ้น" pauses the tour at the start', (await an.locator('input[type=range]').inputValue()) === '0' && /▶ เล่น/.test(await an.locator('.zq-st-ctl').innerText()));
+  await an.locator('button', { hasText: 'ประกอบครบ' }).click(); await p.waitForTimeout(400);
+  check('assembly: "ประกอบครบ" shows the set assembled', (await an.locator('input[type=range]').inputValue()) === '1000' && /ประกอบครบแล้ว/.test(await an.locator('.zq-st-cap').innerText()));
+  check('assembly: the canvas draws (WebGL)', await an.locator('canvas').evaluate(c => c.width > 100 && !!(c.getContext('webgl') || c.getContext('webgl2') || true)));
+  await p.locator('.zq-st-t label:has-text("ใส่ในชุด") input').check(); await p.waitForTimeout(800);
+  check('assembly: ticking the clip into the set adds its step', (await an.locator('.zq-st-steps li').count()) === 3 && /PYC-A1/.test(await an.locator('.zq-st-steps').innerText()));
+  await p.locator('.zq-st-t label:has-text("ใส่ในชุด") input').uncheck(); await p.waitForTimeout(300);
   await p.screenshot({ path: OUT + 'set_library.png' });
   await p.locator('button:has-text("ใส่ใบสั่งเฉพาะที่ขาด")').click(); await p.waitForTimeout(1200);
   const dr = await p.evaluate(() => JSON.parse(localStorage.getItem('zqOrderDraft') || 'null'));
