@@ -19,7 +19,7 @@ var BOM_PROJ_HEADER = ['PROJECT', 'TITLE', 'REV', 'FILE', 'ITEMS', 'NEED_DATE', 
 var BOM_ITEM_SHEET = 'BomItems';
 var BOM_ITEM_HEADER = ['PROJECT', 'CODE', 'QTY', 'MATERIAL', 'TYPE', 'RATED', 'MAKER', 'REMARK', 'ITEM'];
 var BOM_SNAP_SHEET = 'BomSnap', BOM_SNAP_CHUNK = 40000;
-var BOM_SNAP_VER = 3;                                 // v2: + ผู้สั่งล่าสุด (LastOfRequest_By) · v3: + พยากรณ์ของขาด (fc) — older snapshots are rebuilt once
+var BOM_SNAP_VER = 4;                                 // v2: + ผู้สั่งล่าสุด (LastOfRequest_By) · v3: + พยากรณ์ของขาด (fc) · v4: + stockRows, no empty-stock builds — older snapshots are rebuilt once
 var BOM_DEF = { process: 'auto', autoClose: 0, formCode: 'PLf200-011-0-1/1', formRev: 'Rev.1', orderBy: 'DS13' };
 
 function bomCfg_() {
@@ -303,17 +303,17 @@ function bomCompute_() {
   var want = {};
   active.forEach(function (p) { p.need = bomNeed_(p, sched, cfg); (itemsBy[p.project] || []).forEach(function (it) { want[ordCodeKey_(it.code)] = 1; }); });
   // onhand (all locations) + descriptions
-  var stock = {};
-  try {
-    var rows = stockData_();
-    for (var i = 0; i < rows.length; i++) {
-      var pr = rows[i], tb = pr.indexOf('\t'); if (tb < 0) continue;
-      var k = ordCodeKey_(pr.substring(0, tb)); if (!want[k]) continue;
-      var f = pr.split('\t'), q = saNum_(f[3]), o = stock[k] || (stock[k] = { desc: f[1], unit: f[4], onhand: 0, by: '' });
-      if (!o.by && f[7]) o.by = String(f[7]).trim();
-      if (q != null) o.onhand = Math.round((o.onhand + q) * 1000) / 1000;
-    }
-  } catch (e) {}
+  // A failed Item stock read used to be swallowed here → every CODE "ไม่พบใน Stock" / ขาด. Now: retry once, then throw
+  // (bomSnapBuild_ keeps the last good snapshot and records why).
+  var stock = {}, rows = bomStockRows_();
+  for (var i = 0; i < rows.length; i++) {
+    var pr = rows[i], tb = pr.indexOf('\t'); if (tb < 0) continue;
+    var k = ordCodeKey_(pr.substring(0, tb)); if (!want[k]) continue;
+    var f = pr.split('\t'), q = saNum_(f[3]), o = stock[k] || (stock[k] = { desc: f[1], unit: f[4], onhand: 0, by: '' });
+    if (!o.by && f[7]) o.by = String(f[7]).trim();
+    if (q != null) o.onhand = Math.round((o.onhand + q) * 1000) / 1000;
+  }
+  var stockRows = rows.length; rows = null;
   // incoming = Pending Order not closed (≤ 1 year)
   var inc = {};
   try {
@@ -378,7 +378,7 @@ function bomCompute_() {
   });
   projects.sort(function (a, b) { return (a.status === 'active' ? 0 : 1) - (b.status === 'active' ? 0 : 1) || (a.daysLeft == null ? 9e9 : a.daysLeft) - (b.daysLeft == null ? 9e9 : b.daysLeft); });
   codes.sort(function (a, b) { return (a.balance - b.balance) || String(a.code).localeCompare(String(b.code)); });
-  return { v: BOM_SNAP_VER, projects: projects, codes: codes, cfg: cfg, built: nowStr_(), stockTime: (stockInfo_() || {}).time || '', poTime: (poInfo_() || {}).time || '',
+  return { v: BOM_SNAP_VER, projects: projects, codes: codes, cfg: cfg, built: nowStr_(), stockRows: stockRows, stockTime: (stockInfo_() || {}).time || '', poTime: (poInfo_() || {}).time || '',
     schedTime: (schedSyncInfo_() || {}).time || '' };
 }
 
@@ -434,7 +434,32 @@ function getBomSummary() { apiOnly_();
     return out;
   });
 }
-function bomSnapBuild_() { var s = bomCompute_(); bomSnapPut_(s); return s; }
+// Item stock rows for the calculation. Item stock has data (STOCK_META.rows > 0) but the read failed or came back
+// empty → retry straight from the sheet once, then throw instead of booking against an empty stock.
+function bomStockRows_() {
+  var meta = null; try { meta = stockMeta_(); } catch (e) {}
+  var expect = meta && meta.rows > 0, rows = null, err = '';
+  for (var n = 0; n < 2; n++) {
+    try { rows = stockData_(); } catch (e) { rows = null; err = e && e.message || String(e); }
+    if (rows && (rows.length > 1 || !expect)) return rows;
+    console.warn('bomStockRows_ try ' + (n + 1) + ': ' + (rows ? rows.length + ' rows' : err));
+    _stockMem = null; Utilities.sleep(2000);
+  }
+  if (!expect) return rows || [];
+  throw new Error('อ่าน Item stock ไม่สำเร็จ' + (err ? ' (' + err + ')' : ' (ได้ 0 แถว จาก ' + meta.rows + ')'));
+}
+// A failed calculation never replaces a good snapshot: the old one stays, with the error shown on the page.
+function bomSnapBuild_() {
+  var s;
+  try { s = bomCompute_(); } catch (e) {
+    var msg = e && e.message || String(e), old = null;
+    console.warn('bomSnapBuild_', msg);
+    try { old = bomSnapGet_(); } catch (e2) {}
+    if (old && old.v === BOM_SNAP_VER) { old.err = msg; old.errAt = nowStr_(); old.errT = Date.now(); bomSnapPut_(old); return old; }
+    throw e;
+  }
+  bomSnapPut_(s); return s;
+}
 // called after Stock / Pending Order / Schedule syncs (only when there are BOM projects)
 function bomRefresh_() { if (ss_().getSheetByName(BOM_PROJ_SHEET)) bomSnapBuild_(); }
 function bomView_(snap) {
@@ -448,6 +473,7 @@ function bomView_(snap) {
 function getBom(token) { apiOnly_();
   var t0 = Date.now(), snap = bomSnapGet_();
   if (snap && snap.v !== BOM_SNAP_VER) snap = null;
+  if (snap && snap.err && Date.now() - (snap.errT || 0) > 3e5) { try { snap = bomSnapBuild_(); } catch (e) {} }   // last build failed → retry on open (≤ every 5 min)
   if (!snap) snap = ss_().getSheetByName(BOM_PROJ_SHEET) ? bomSnapBuild_() : { projects: [], codes: [], cfg: bomCfg_() };
   var out = bomView_(snap); out.admin = isAdmin_(token); out.cfg = bomCfg_();
   try { out.exports = bomExpLast_(); } catch (e) { out.exports = {}; }
