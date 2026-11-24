@@ -29,6 +29,7 @@ const E=f=>{try{f();return''}catch(e){return e.message}};
 let g=c.getLugGuide('tok');
 T('no sheet rows → the checked catalog data (91 lugs, groups, 231 devices)',!g.custom&&g.T.length===91&&g.D.length===231&&g.F.PYF14A&&g.F.PYF14A_N&&g.admin,{custom:g.custom,T:g.T.length});
 T('catalog data: rechecked values (JST R5.5-5 L 19.8, BW50 M5 from Fuji, TP48X M3.5 = A)',g.T.find(t=>t.id==='47180005').L===19.8&&g.F.MCCB_BW50.cf==='B'&&g.F.TP4.cf==='A');
+T('catalog data: answers 24/11 (Fuji rear kit M8 stud, PYF14A-E finger-safe = A, RV1.25-3 blue → 1.5–2.5 sq)',g.F.MCCB_REAR.cn==='stud'&&g.F.MCCB_REAR.sc==='M8'&&g.F.PYF14A_N.cf==='A'&&g.T.find(t=>t.id==='47180078').wire==='1.5, 2.5'&&g.D.find(x=>x.it==='46420014').f==='PYF14A_N');
 T('catalog data: the MY4N relay lists its three sockets',g.D.find(x=>x.it==='43401016').f==='PYF14A,PYF14A_N,PYFZ');
 T('catalog data: every device points at existing groups',g.D.every(x=>x.f.split(',').every(k=>g.F[k])),g.D.filter(x=>!x.f.split(',').every(k=>g.F[k])).slice(0,3));
 g=c.saveLug('tok','F',{key:'PYF14A',n:'Omron Socket PYF14A (MY4N)',cn:'captive',sc:'M3',a:'0.5',b:'1.5',w:'6',cf:'A',ov:{'47280021':['0','แคบ'],'x':[7,'']}},'PYF14A');
