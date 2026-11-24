@@ -99,6 +99,7 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
   <a href="#docs"><span>08.1</span>เอกสาร Spec (ใน Pending Order)</a>
   <a href="#order"><span>09</span>Order Item (ใบสั่ง)</a>
   <a href="#setlib"><span>09.1</span>ชุดอุปกรณ์</a>
+  <a href="#lugs"><span>09.2</span>หางปลา × อุปกรณ์</a>
   <a href="#approval"><span>10</span>การอนุมัติใบสั่ง</a>
   <a href="#ordtrack"><span>10.1</span>ติดตามใบสั่ง และแจ้งเตือนของเข้า</a>
   <a href="#alert"><span>11</span>Stock Alert</a>
@@ -356,6 +357,29 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
   </ul>
 </section>
 
+<section id="lugs">
+  <h2><span class="no">09.2</span>หางปลา × อุปกรณ์ <span class="role r-u">ทุกคน</span></h2>
+  <p class="lead">เมนู <span class="ui">หางปลา × อุปกรณ์</span> (กลุ่มคลังและจัดซื้อ) บอกว่าหางปลา (Ring / Spade / Flat blade / Pin / Cord end / Cable lug) รหัสไหนใช้กับขั้วของอุปกรณ์ไหนได้ พร้อม Stock ของหางปลาแต่ละรหัสจาก Item stock · ข้อมูลเริ่มต้น: หางปลา 91 รหัส · กลุ่มขั้วต่อ 53 กลุ่ม · อุปกรณ์ 231 รายการ (ตรวจกับ Catalog 11/2026)</p>
+  <ol class="steps">
+    <li><div><b>ค้นจากอุปกรณ์</b>: พิมพ์ CODE หรือชื่อ (เช่น MY4N, SC-03, PT30) · แต่ละขั้วต่อแสดงชนิดขั้ว สกรู ช่วงสายที่รับได้ ความกว้างหางปลาสูงสุด แล้วรายการหางปลาที่ใช้ได้ <b>✓ ใช้ได้</b> ก่อน <b>△ มีเงื่อนไข</b> (พร้อมเหตุผล) เรียงตามรหัสที่มี Stock · Relay ที่เสียบ Socket จะแสดงทุก Socket ที่ใช้ได้ (เช่น PYF14A, PYF14A-N/-E แบบกันนิ้ว, PYFZ-14)</div></li>
+    <li><div><b>ค้นจากหางปลา</b>: ภาพหางปลาพร้อมขนาด (d2 รู, W กว้าง, L ยาว, t หนา ฯลฯ), อ้างอิง catalog, ความเชื่อมั่น A/B/C และอุปกรณ์ทั้งหมดที่ใช้หางปลานี้ได้ · ตัวกรอง <b>ไม่มีอุปกรณ์รองรับ</b> หาหางปลาที่ไม่มีอุปกรณ์ในระบบใช้</div></li>
+    <li><div><b>ตารางรวม</b>: กลุ่มขั้วต่อ × ชนิดหางปลา บอกจำนวนรหัสที่ ✓ / △ · กดชื่อกลุ่มไปที่อุปกรณ์</div></li>
+    <li><div>ปุ่ม <span class="ui">+ ใบสั่ง</span> ส่งหางปลารหัสนั้นไปหน้า Order Item ตาม <b>จำนวนต่อใบสั่ง</b> ที่ตั้งไว้ (เริ่มต้น 100)</div></li>
+  </ol>
+  <h3>ระบบตัดสินว่า "ใช้ได้" อย่างไร</h3>
+  <ul>
+    <li>ชนิดขั้วต้องรับชนิดหางปลานั้น (สกรูยก/ถอดได้ · สกรู Captive · Captive เฉพาะ Spade · Box clamp · แผ่นกด · Push-in · Stud)</li>
+    <li>ขนาดสายของหางปลาต้องอยู่ในช่วงที่ขั้วรับได้ (Twin cord end คิด 2 เส้นรวมกัน)</li>
+    <li>ขั้วสกรูกับ Ring / Spade / Cable lug: ขนาดรูต้องตรงกับสกรู และหางปลาต้องกว้างไม่เกินที่ขั้วกำหนด (เช่น VF2-3M กว้าง 6.6 mm ใช้กับ PYF14A ที่รับ ≤ 6 mm ไม่ได้)</li>
+    <li>△ = ใช้ได้แต่มีเงื่อนไข เช่น Ring กับสกรู Captive ต้องถอดสกรูออกก่อน, Cord end กับขั้วสกรูกด</li>
+  </ul>
+  <h3>แก้ไขข้อมูล <span class="role r-a">ADMIN</span></h3>
+  <ul>
+    <li><span class="ui">+ เพิ่มอุปกรณ์</span> / <span class="ui">+ เพิ่มหางปลา</span> / <span class="ui">+ เพิ่มกลุ่มขั้วต่อ</span> (ตามแท็บที่เปิด) และ <span class="ui">✎ แก้…</span> ในหน้ารายละเอียด · ผลทุกหน้าคำนวณใหม่ทันทีจากค่าที่แก้</li>
+    <li>กลุ่มขั้วต่อมีช่อง <b>ข้อยกเว้นต่อหางปลา</b> บรรทัดละ <code>CODE=0|1|2 เหตุผล</code> ใช้เมื่อของจริงต่างจากกฎ (0 ห้ามใช้ · 1 ใช้ได้ · 2 มีเงื่อนไข)</li>
+    <li>ความเชื่อมั่น: <b>A</b> ตรง catalog · <b>B</b> เทียบเท่า/อนุมาน · <b>C</b> ประมาณการ ควรตรวจของจริง · ข้อมูลเก็บในชีต <b>LugGuide</b> (บันทึกครั้งแรกจะคัดลอกข้อมูลเริ่มต้นลงชีต)</li>
+  </ul>
+</section>
 <section id="approval">
   <h2><span class="no">10</span>การอนุมัติใบสั่ง</h2>
   <div class="flow"><span>ผู้สั่ง (DES)</span><i>→</i><span>CHK ตรวจสอบ</span><i>→</i><span>APP อนุมัติ</span><i>→</i><span>แจ้งผลผู้สั่ง</span></div>
