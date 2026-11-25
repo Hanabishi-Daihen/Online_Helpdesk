@@ -111,7 +111,7 @@ function syncShipInner_(why, force) {
   try {
     var first = shipFirst_(url), prev = shipInfo_();
     var got = first, off = 0, enc = null, cols = null, hash = null, chunk = 0, kept = 0, skipped = 0, bytes = 0, tmp = null, ss = null;
-    var idx = {}, sum = {}, out = [], depts = {}, oldest = '', newest = '';
+    var idx = {}, sum = {}, out = [], depts = {}, oldest = '', newest = '', SA = { agg: {}, desc: {} };   // SA: monthly totals for สถิติและต้นทุน
     var flush = function (groups) {
       Object.keys(groups).forEach(function (cat) {
         var ls = groups[cat], parts = [ls];
@@ -170,8 +170,9 @@ function syncShipInner_(why, force) {
         if (!cat) { skipped++; return; }                    // stock / T / PH … categories are not projects
         var dept = g('dept').toUpperCase() || '-', d8 = shipDate_(g('date')), cost = shipNum_(g('cost'));
         (groups[cat] = groups[cat] || []).push([g('code'), g('desc'), d8, g('doc'), dept, g('loc'), shipNum_(g('qty')), g('unit'), shipNum_(g('uc')), cost, g('user')].join('\t'));
-        var k = dept + '\t' + cat, s = sum[k] || (sum[k] = [dept, cat, 0, 0, '']);
-        s[2]++; s[3] += cost; if (d8 > s[4]) s[4] = d8;
+        var k = dept + '\t' + cat, s = sum[k] || (sum[k] = [dept, cat, 0, 0, '', 0]);
+        s[2]++; s[3] += cost; if (d8 > s[4]) s[4] = d8; if (cost > 0) s[5] += cost;   // [5] = returns (positive cost)
+        statAggAdd_(SA, g('code'), g('desc'), g('unit'), dept, d8, shipNum_(g('qty')), cost);
         depts[dept] = 1; kept++;
         if (d8 && (!oldest || d8 < oldest)) oldest = d8; if (d8 > newest) newest = d8;
       };
@@ -216,7 +217,10 @@ function syncShipInner_(why, force) {
     info.range = oldest && newest ? shipShow_(oldest) + ' – ' + shipShow_(newest) : '';
     info.msg = 'อัปเดต ' + kept.toLocaleString() + ' บรรทัด · ' + info.projects + ' โปรเจกต์ · ' + info.depts + ' แผนก (' + info.mb + ' MB, ' + info.sec + ' วินาที)';
     audit_([['System', 'ซิงค์ข้อมูล Shipment จาก OneDrive', '', info.why + ' · ' + info.msg]]);
+    try { statAggSave_(SA); } catch (e) { console.warn('statAggSave_', e); }
+    SA = null;
     if (Date.now() - t0 < 240000) { try { bomRefresh_(); info.msg += ' · คำนวณ Booking BOM ใหม่แล้ว'; } catch (e) { console.warn('ship → bomRefresh_', e); } }   // Booking BOM: what MF has issued
+    if (Date.now() - t0 < 280000) { if (statRebuild_('Shipment')) info.msg += ' · สรุปสถิติใหม่แล้ว'; }   // สถิติและต้นทุน
   } catch (e) {
     info.ok = false; info.msg = e.message || String(e);
     try { if (tmp && ss) ss.deleteSheet(tmp); } catch (x) {}

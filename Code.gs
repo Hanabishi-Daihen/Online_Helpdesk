@@ -2026,6 +2026,7 @@ function pendingPost_(why) {
   };
   step('Booking BOM', function () { bomRefresh_(); });
   step('ติดตามใบสั่ง', function () { if (typeof trkScanSafe_ === 'function') trkScanSafe_('Pending Order'); });
+  step('สถิติ', function () { if (typeof statBuild_ === 'function' && schedProp_('SHIP_VER')) statBuild_(); });
   var secs = Math.round((Date.now() - t0) / 1000), info = { time: nowStr_(), why: why, ok: !fail.length, secs: secs, steps: done, fail: fail };
   schedProp_('PO_POST_LAST', JSON.stringify(info));
   try {
@@ -2054,6 +2055,7 @@ function stockPost_(why) {
   rows = null;
   step('Booking BOM', function () { bomRefresh_(); });
   step('ติดตามใบสั่ง', function () { if (typeof trkScanSafe_ === 'function') trkScanSafe_('Item stock'); });
+  step('สถิติ', function () { if (typeof statBuild_ === 'function' && schedProp_('SHIP_VER')) statBuild_(); });
   var secs = Math.round((Date.now() - t0) / 1000), info = { time: nowStr_(), why: why, ok: !fail.length, secs: secs, steps: done, fail: fail };
   schedProp_('STOCK_POST_LAST', JSON.stringify(info));
   try {                                             // show the result on the sync card
