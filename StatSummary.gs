@@ -53,29 +53,36 @@ function statMonths_(n, now) { var out = [], d = new Date(now); d.setDate(1); fo
 function statR_(v, n) { var p = Math.pow(10, n == null ? 2 : n); return Math.round((Number(v) || 0) * p) / p; }
 function statMedian_(a) { if (!a.length) return null; a = a.slice().sort(function (x, y) { return x - y; }); var m = Math.floor(a.length / 2); return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; }
 function statD8t_(d8) { return d8 && d8.length === 8 ? new Date(+d8.substring(0, 4), +d8.substring(4, 6) - 1, +d8.substring(6, 8)).getTime() : null; }
+function statProjC_(code) { return /^\d{4}PP\d{4}C\d{3,}$/i.test(String(code || '')); }   // By Project CODE: 4556PP1030C00201
 function statGroupOf_(code) { return String(code).substring(0, 4); }
 
 // ── build ─────────────────────────────────────────────────────────────
 function statBuild_() {
   var t0 = Date.now(), now = t0, today = new Date(); today = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-  var S = { v: 1, built: nowStr_(), notes: [] }, M24 = statMonths_(24, now), M12 = {}; statMonths_(12, now).forEach(function (m) { M12[m] = 1; });
+  // our unit only: Item stock / Pending Order lines ordered by the unit (DS13), MF issues to CONTROL WIRING,
+  // and By Project CODEs (16 digits with the project number + C: 4556PP1030C00201)
+  var by = String((bomCfg_() || {}).orderBy || 'DS13').trim().toUpperCase();
+  var S = { v: 2, built: nowStr_(), notes: [], scope: { by: by, dept: 'CONTROL WIRING' } }, M24 = statMonths_(24, now), M12 = {}; statMonths_(12, now).forEach(function (m) { M12[m] = 1; });
   // Item stock: onhand / LASTCOST / LASTSHIPDT per CODE (all locations)
   var stock = {};
   var hasStock = !!schedProp_('STOCK_SS_ID');                         // never create the Item stock workbook from here
   if (hasStock) try {
     stockData_().forEach(function (row) {
       var f = row.split('\t'); var k = ordCodeKey_(f[0]); if (!k) return;
-      var s = stock[k] || (stock[k] = { desc: f[1] || '', spec: f[2] || '', unit: f[4] || '', on: 0, cost: 0, lu: '', act: '' });
+      var s = stock[k] || (stock[k] = { desc: f[1] || '', spec: f[2] || '', unit: f[4] || '', on: 0, cost: 0, lu: '', act: '', mine: false });
+      if (String(f[7] || '').trim().toUpperCase() === by) s.mine = true;
       var q = saNum_(f[3]), c = saNum_(f[STOCK_COST_COL]); if (q != null) s.on += q; if (c && c > s.cost) s.cost = c;
       var lu = f[STOCK_LU_COL] || ''; if (lu > s.lu) s.lu = lu; if (f[STOCK_ACT_COL] === '0') s.act = '0';
     });
   } catch (e) { S.notes.push('อ่าน Item stock ไม่สำเร็จ: ' + (e.message || e)); }
-  // 1 · usage from the monthly totals
+  var ours = function (k) { return statProjC_(k) || !!(stock[k] && stock[k].mine); };
+  // 1 · usage from the monthly totals: MF → CONTROL WIRING, plus By Project CODEs wherever they were issued
   var A = null; try { A = statAgg_(); } catch (e) { S.notes.push('อ่านยอดเบิกรายเดือนไม่สำเร็จ: ' + (e.message || e)); }
   var use = {}, dept = {}, months = {};
   if (A) {
     A.list.forEach(function (r) {
       var code = r[0], dp = r[1], ym = r[2];
+      if (!BOM_SHIP_DEPT.test(dp) && !statProjC_(code)) return;
       if (M24.indexOf(ym) >= 0) { var dm = dept[dp] || (dept[dp] = {}), x = dm[ym] || (dm[ym] = [0, 0]); x[0] += r[5] - r[6]; x[1] += 1; months[ym] = 1; }
       if (!M12[ym]) return;
       var u = use[code] || (use[code] = { q: 0, r: 0, c: 0, cr: 0, d: {} });
@@ -88,17 +95,20 @@ function statBuild_() {
     var tot = 0; M24.forEach(function (m) { tot += (dept[dp][m] || [0])[0]; });
     return { name: dp, $m: M24.map(function (m) { return statR_((dept[dp][m] || [0])[0], 0); }), n: M24.map(function (m) { return (dept[dp][m] || [0, 0])[1]; }), $tot: statR_(tot, 0) };
   }).sort(function (a, b) { return b.$tot - a.$tot; });
-  var codes = Object.keys(use).map(function (k) { var u = use[k], n = nameOf(k); return { code: k, desc: n.desc, unit: n.unit, q: statR_(u.q), r: statR_(u.r), $c: statR_(u.c - u.cr, 0), $cr: statR_(u.cr, 0), rp: u.q ? statR_(u.r / u.q * 100, 1) : 0, depts: Object.keys(u.d).length }; });
+  var codes = Object.keys(use).map(function (k) { var u = use[k], n = nameOf(k); return { code: k, desc: n.desc, unit: n.unit, q: statR_(u.q), r: statR_(u.r), $c: statR_(u.c - u.cr, 0), $cr: statR_(u.cr, 0), rp: u.q ? statR_(u.r / u.q * 100, 1) : 0, depts: Object.keys(u.d).length, mine: !!(stock[k] && stock[k].mine), pc: statProjC_(k) }; });
   S.$topCost = codes.slice().sort(function (a, b) { return b.$c - a.$c; }).slice(0, STAT_TOP);
   S.topQty = codes.slice().sort(function (a, b) { return b.q - a.q; }).slice(0, STAT_TOP);
   S.returns = codes.filter(function (c) { return c.r > 0; }).sort(function (a, b) { return b.r - a.r; }).slice(0, STAT_TOP);
   S.$costAll12 = statR_(codes.reduce(function (s, c) { return s + c.$c; }, 0), 0);
   S.$share20 = S.$costAll12 ? statR_(S.$topCost.slice(0, 20).reduce(function (s, c) { return s + c.$c; }, 0) / S.$costAll12 * 100, 1) : 0;
   S.codes12 = codes.length;
+  var mineC = codes.filter(function (c) { return c.mine || c.pc; });
+  S.$mineCost12 = statR_(mineC.reduce(function (s, c) { return s + c.$c; }, 0), 0); S.mine12 = mineC.length;
   // projects: cost per project and type (title from Booking BOM / schedule)
   try {
     var m = shipMeta_(), names = m ? shipNames_(m) : {}, P = {};
     (m ? m.sum : []).forEach(function (s) {
+      if (!BOM_SHIP_DEPT.test(s[0])) return;                             // MF → CONTROL WIRING only
       var p = P[s[1]] || (P[s[1]] = { cat: s[1], n: 0, $c: 0, $cr: 0, last: '' });
       p.n += s[2]; p.$c += -s[3]; if (s[5]) p.$cr += s[5]; if (s[4] > p.last) p.last = s[4];
     });
@@ -119,23 +129,26 @@ function statBuild_() {
   var V = 0, grp = {}, dead = [], low = [], over = [], lt0 = 30;
   try { lt0 = fcCfg_().lt; } catch (e) {}
   var rt = {}; if (hasStock) try { rt = rtMap_(stock); } catch (e) {}
+  var pcN = 0, pcV = 0;
   Object.keys(stock).forEach(function (k) {
+    if (!ours(k)) return;
+    var pc = statProjC_(k);
     var s = stock[k], val = s.on > 0 ? s.on * (s.cost || 0) : 0, u = use[k], lu = s.lu;
     if (s.on > 0) {
-      V += val;
+      V += val; if (pc) { pcN++; pcV += val; }
       var bi = !lu ? 4 : lu >= B[0].from ? 0 : lu >= B[1].from ? 1 : lu >= B[2].from ? 2 : 3; B[bi].n++; B[bi].$v += val;
       var idle = lu ? Math.round((today - statD8t_(lu)) / 864e5) : null;
-      if (bi > 0) dead.push({ code: k, desc: s.desc + (s.spec ? ' ' + s.spec : ''), unit: s.unit, on: statR_(s.on), $v: statR_(val, 0), last: lu ? shipShow_(lu) : '', idle: idle, act: s.act !== '0' });
+      if (bi > 0) dead.push({ code: k, desc: s.desc + (s.spec ? ' ' + s.spec : ''), unit: s.unit, on: statR_(s.on), $v: statR_(val, 0), last: lu ? shipShow_(lu) : '', idle: idle, act: s.act !== '0', pc: pc });
     }
     var g = grp[statGroupOf_(k)] || (grp[statGroupOf_(k)] = { g: statGroupOf_(k), n: 0, $v: 0, $use: 0, q: 0 });
     if (s.on > 0) { g.n++; g.$v += val; } if (u) { g.$use += u.c - u.cr; g.q += u.q; }
-    if (u && u.q > u.r && s.on >= 0) {
+    if (!pc && u && u.q > u.r && s.on >= 0) {                        // By Project parts are one-off: no cover / Min-Max
       var daily = (u.q - u.r) / 365, cover = daily > 0 ? Math.round(s.on / daily) : null, lt = sa[k] && sa[k].lt > 0 ? sa[k].lt : rt[k] || lt0;
       var row = { code: k, desc: s.desc + (s.spec ? ' ' + s.spec : ''), unit: s.unit, on: statR_(s.on), use12: statR_(u.q - u.r), cover: cover, lt: lt, $v: statR_(val, 0) };
       if (cover != null && cover < lt) low.push(row); else if (cover != null && cover > 730) over.push(row);
     }
   });
-  S.stock = { $value: statR_(V, 0), buckets: B.map(function (b) { return { name: b.name, n: b.n, $v: statR_(b.$v, 0) }; }), items: Object.keys(stock).filter(function (k) { return stock[k].on > 0; }).length };
+  S.stock = { $value: statR_(V, 0), buckets: B.map(function (b) { return { name: b.name, n: b.n, $v: statR_(b.$v, 0) }; }), items: Object.keys(stock).filter(function (k) { return ours(k) && stock[k].on > 0; }).length, pcN: pcN, $pcV: statR_(pcV, 0) };
   S.$dead = dead.slice().sort(function (a, b) { return b.$v - a.$v; }).slice(0, STAT_TOP);
   S.dead = dead.slice().sort(function (a, b) { return (b.idle == null ? 9e9 : b.idle) - (a.idle == null ? 9e9 : a.idle) || b.on - a.on; }).slice(0, STAT_TOP).map(function (x) { var o = {}; Object.keys(x).forEach(function (k) { if (k !== '$v') o[k] = x[k]; }); return o; });
   S.groups = Object.keys(grp).map(function (k) { var g = grp[k]; return { g: g.g, n: g.n, q: statR_(g.q), $v: statR_(g.$v, 0), $use: statR_(g.$use, 0), turn: g.$v > 0 ? statR_(g.$use / g.$v, 2) : null }; })
@@ -143,11 +156,11 @@ function statBuild_() {
   S.low = low.sort(function (a, b) { return a.cover / a.lt - b.cover / b.lt; }).slice(0, STAT_TOP);
   S.over = over.sort(function (a, b) { return b.$v - a.$v || b.cover - a.cover; }).slice(0, STAT_TOP);
   // 4 · purchasing
-  try { S.po = statPo_(today, stock, rt, lt0); } catch (e) { S.notes.push('สรุป Pending Order ไม่สำเร็จ: ' + (e.message || e)); }
+  try { S.po = statPo_(today, stock, rt, lt0, by); } catch (e) { S.notes.push('สรุป Pending Order ไม่สำเร็จ: ' + (e.message || e)); }
   // suggested Min / Max from 12-month use: Min = use per day × lead time × 1.5 · Max = Min + 90 days of use
   var mm = [];
   Object.keys(use).forEach(function (k) {
-    var u = use[k], net = u.q - u.r; if (!(net > 0)) return;
+    var u = use[k], net = u.q - u.r; if (!(net > 0) || statProjC_(k) || !(stock[k] && stock[k].mine)) return;   // items the unit orders for stock
     var daily = net / 365, lt = sa[k] && sa[k].lt > 0 ? sa[k].lt : rt[k] || lt0, mn = Math.ceil(daily * lt * 1.5), mx = Math.ceil(mn + daily * 90), cur = sa[k] || {};
     if (cur.notUse) return;
     var off = cur.min == null || cur.max == null || Math.abs(cur.min - mn) > Math.max(2, mn * 0.5) || Math.abs(cur.max - mx) > Math.max(2, mx * 0.5);
@@ -198,13 +211,14 @@ function statBom_(now) {
 }
 
 // Pending Order: lead time per CODE (Request → PO → due), open-line ageing, lines past their due date
-function statPo_(today, stock, rt, lt0) {
+function statPo_(today, stock, rt, lt0, by) {
   var b = pendingBundle_(false), txt = b && b.b64 ? shipUnB64_(b.b64) : '', from = today - 730 * 864e5;
   var lt = {}, ages = [0, 0, 0, 0], late = [], prpo = [], podue = [], openN = 0;
   txt.split('\n').forEach(function (l) {
     var g = l.split('\t'); if (g.length < 10) return;
     var k = ordCodeKey_(g[0]), req = bomDate_(g[6]), iss = bomDate_(g[8]), due = bomDate_(g[9]) || bomDate_(g[7]), done = ORD_PO_DONE.test(g[4] || ''), cancel = /cancel|ยกเลิก/i.test(g[4] || '');
     if (cancel || !k) return;
+    if (by && String(g[12] || '').trim().toUpperCase() !== by && !statProjC_(k)) return;   // the unit's lines only
     if (req != null && req >= from && due != null && due >= req) {
       var x = lt[k] || (lt[k] = { d: [], a: [], b: [] }); x.d.push((due - req) / 864e5);
       if (iss != null && iss >= req) { x.a.push((iss - req) / 864e5); prpo.push((iss - req) / 864e5); if (due >= iss) { x.b.push((due - iss) / 864e5); podue.push((due - iss) / 864e5); } }
