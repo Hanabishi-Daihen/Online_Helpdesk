@@ -280,7 +280,7 @@
   function logout(all) {
     var t = st.tok, p = document.getElementById("zq-me-p"); p && p.classList.remove("on");
     ls(K, null); ls(K, null, 1); ls("zqSesUser", null); ls("zqSesUser", null, 1); st.tok = ""; st.user = null; window.__zqAuthAdmin = null;
-    var fin = false, go = function () { if (fin) return; fin = true; emit("zq-auth-out"); topGo(function () { st.out = true; show("ออกจากระบบแล้ว", true); }); };
+    var fin = false, go = function () { if (fin) return; fin = true; emit("zq-auth-out"); topGo(function () { st.out = true; show(); mode("intro"); }); };   /* signed out → back to the first page (START HERE · เข้าสู่ระบบ) */
     setTimeout(go, 2500);                                                       // don't wait long for the server
     return call("authLogout", [t, !!all]).catch(function () {}).then(go);
   }

@@ -94,13 +94,14 @@ const cdn = r => { const u = r.request().url(); for (const [re, p] of MAP) { con
   // sign out: Apps Script nests the page in iframes, so no location.reload() (white page); the app URL opens in the top window
   await p.evaluate(() => { window.zqApp = window.zqApp || {}; window.zqApp.url = location.origin + '/?signed-out'; });
   await p.click('#zq-me'); await p.click('#zq-me-p button:has-text("ออกจากระบบ")'); await p.waitForTimeout(2500);
-  check('sign out: app URL opened in the top window, sign-in page shown', /signed-out/.test(p.url()) && await A.count() === 1 && await p.evaluate(() => !localStorage.getItem('zqSes')), p.url());
+  check('sign out: app URL opened in the top window, the first page (START HERE) shown', /signed-out/.test(p.url()) && await A.count() === 1 && await A.getAttribute('data-mode') === 'intro' && await p.locator('#za-go').isVisible() && await p.evaluate(() => !localStorage.getItem('zqSes')), p.url());
   // when the top window cannot be opened: the sign-in page comes up in place and Admin mode is dropped
   await p.goto('http://localhost:8832/'); await p.waitForTimeout(1200); await p.click('#za-go'); await p.waitForTimeout(500);
   await p.fill('#za-id', 'admin1'); await p.fill('#za-pw', 'Admin2026x'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(3200);
   await p.evaluate(() => { window.zqApp = window.zqApp || {}; window.zqApp.url = ''; if (window.__ZQ_BOOT__ && window.__ZQ_BOOT__.r) window.__ZQ_BOOT__.r.getAppUrl = ''; });
   await p.click('#zq-me'); await p.click('#zq-me-p button:has-text("ออกจากระบบ")'); await p.waitForTimeout(1500);
-  check('sign out without top window: sign-in page in place, Admin mode off', await A.count() === 1 && await A.getAttribute('data-mode') === 'form' && !/ADMIN/.test(await p.locator('aside:not(.za-cap)').innerText()));
+  check('sign out without top window: back to the first page (START HERE · เข้าสู่ระบบ), Admin mode off', await A.count() === 1 && await A.getAttribute('data-mode') === 'intro' && await p.locator('#za-go').isVisible() && !/ADMIN/.test(await p.locator('aside:not(.za-cap)').innerText()));
+  await p.click('#za-go'); await p.waitForTimeout(500);
   await p.fill('#za-id', 'somchai@example.co.th'); await p.fill('#za-pw', 'Passw0rd99'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(3400);
   const sb3 = await p.locator('aside:not(.za-cap)').innerText().catch(e => 'ERR ' + e.message); check('next sign-in after that works', await A.count() === 0 && /S\.Somchai/.test(sb3), [await A.count(), sb3.slice(-120)]);
   // phone
