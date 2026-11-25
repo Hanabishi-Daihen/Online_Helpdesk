@@ -62,8 +62,9 @@ const cdn = r => { const u = r.request().url(); for (const [re, p] of MAP) { con
   check('wrong password message', /ไม่ถูกต้อง/.test(await p.locator('.za-msg').innerText()));
   await p.click('.za-tabs button:nth-child(2)'); await p.fill('#za-name', 'New User'); await p.fill('#za-email', 'new@example.co.th'); await p.fill('#za-pw', 'Abcdef12'); await p.fill('#za-pw2', 'Abcdef12');
   check('password rules all green', (await p.locator('.za-rules span.ok').count()) === 3);
-  await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(300);
-  await p.locator('.za-otp input').first().fill('111111'); await p.click('.za-card .za-btn[type=submit]'); await p.waitForTimeout(300);
+  await p.click('.za-card .za-btn[type=submit]'); await p.waitForSelector('.za-otp input', { timeout: 10000 }).catch(() => {});
+  await p.locator('.za-otp input').first().fill('111111'); await p.click('.za-card .za-btn[type=submit]');
+  await p.waitForFunction(() => /ไม่ถูกต้อง/.test((document.querySelector('.za-msg') || {}).innerText || ''), null, { timeout: 10000 }).catch(() => {});   // the answer comes back after a fake server delay
   check('wrong code message', /ไม่ถูกต้อง/.test(await p.locator('.za-msg').innerText()));
   await p.locator('.za-otp input').first().fill('123456'); await p.click('.za-card .za-btn[type=submit]');
   await p.waitForFunction(() => /รอ Admin อนุมัติ/.test((document.querySelector('.za-card') || {}).innerText || ''), null, { timeout: 4000 }).catch(() => {});

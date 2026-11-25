@@ -19,6 +19,7 @@ const { chromium } = require('playwright');
   const u = p.locator('input[autocomplete=username]'); if (await u.count()) await u.fill('a.admin');
   const pw = p.locator('input[type=password]'); await pw.first().fill('control'); await pw.first().press('Enter'); await p.waitForTimeout(1500);
   await p.locator('aside nav button:has-text("ตั้งค่าระบบ")').first().click(); await p.waitForTimeout(1200);
+  await p.locator('.zq-sett-tabs button', { hasText: 'เมนู' }).click(); await p.waitForTimeout(300);   // the layout card sits under ☰ เมนู
   const ed = p.locator('section[aria-label="จัดหมวดและลำดับเมนู"]');
   check('Settings: menu layout editor lists the groups and menus', await ed.count() === 1 && /สถิติและต้นทุน/.test(await ed.innerText()) && await ed.locator('input[aria-label^="ชื่อหมวด"]').count() >= 3, await ed.innerText().catch(() => ''));
   await ed.locator('input[aria-label="ชื่อหมวดใหม่"]').fill('หน่วยงาน DS13'); await ed.locator('button:has-text("+ เพิ่มหมวด")').click();
