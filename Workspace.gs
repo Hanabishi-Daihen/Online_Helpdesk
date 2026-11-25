@@ -277,7 +277,7 @@ function wsMyDay_(admin) {
   }); });
   out.bomShort.sort(function (a, b) { return (a.daysLeft == null ? 9e9 : a.daysLeft) - (b.daysLeft == null ? 9e9 : b.daysLeft); });
   var exp = {}; try { exp = bomExpLast_(); } catch (e) {}
-  out.projects = projs.map(function (p) { return { project: p.project, title: p.title, needDate: p.needDate, daysLeft: p.daysLeft, count: p.count, total: p.total, last: (exp[p.project] || [])[0] || null }; })
+  out.projects = projs.map(function (p) { return { project: p.project, title: p.title, needDate: p.needDate, daysLeft: p.daysLeft, count: p.count, total: p.total, last: (exp[p.project] || [])[0] || null, ship: p.ship && p.ship.alert ? { pct: p.ship.pct, full: p.ship.full, n: p.ship.n, last: p.ship.last, closeOn: p.ship.closeOn } : null }; })
     .sort(function (a, b) { return (a.daysLeft == null ? 9e9 : a.daysLeft) - (b.daysLeft == null ? 9e9 : b.daysLeft); });
   // orders (last 120 days) — the browser picks "mine" by the DES'D name it remembers
   out.orders = [];

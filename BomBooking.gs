@@ -19,7 +19,7 @@ var BOM_PROJ_HEADER = ['PROJECT', 'TITLE', 'REV', 'FILE', 'ITEMS', 'NEED_DATE', 
 var BOM_ITEM_SHEET = 'BomItems';
 var BOM_ITEM_HEADER = ['PROJECT', 'CODE', 'QTY', 'MATERIAL', 'TYPE', 'RATED', 'MAKER', 'REMARK', 'ITEM'];
 var BOM_SNAP_SHEET = 'BomSnap', BOM_SNAP_CHUNK = 40000;
-var BOM_SNAP_VER = 4;                                 // v2: + ผู้สั่งล่าสุด (LastOfRequest_By) · v3: + พยากรณ์ของขาด (fc) · v4: + stockRows, no empty-stock builds — older snapshots are rebuilt once
+var BOM_SNAP_VER = 5;                                 // v2: + ผู้สั่งล่าสุด (LastOfRequest_By) · v3: + พยากรณ์ของขาด (fc) · v4: + stockRows, no empty-stock builds · v5: + ship (Shipment issued) — older snapshots are rebuilt once
 var BOM_DEF = { process: 'auto', autoClose: 0, formCode: 'PLf200-011-0-1/1', formRev: 'Rev.1', orderBy: 'DS13' };
 
 function bomCfg_() {
@@ -299,6 +299,8 @@ function bomCompute_() {
     });
     if (closed.length) audit_([['System', 'ปิดโปรเจกต์ BOM อัตโนมัติ', '', closed.join(', ')]]);
   }
+  // Shipment: parts already issued by MF → alert, close after 14 days (BomShip.gs)
+  try { bomShipStep_(projs, itemsBy, sched, cfg, today); } catch (e) { console.warn('bomShipStep_', e); }
   var active = projs.filter(function (p) { return p.status === 'active'; });
   var want = {};
   active.forEach(function (p) { p.need = bomNeed_(p, sched, cfg); (itemsBy[p.project] || []).forEach(function (it) { want[ordCodeKey_(it.code)] = 1; }); });
@@ -374,7 +376,7 @@ function bomCompute_() {
     var n = p.need || (p.status === 'active' ? bomNeed_(p, sched, cfg) : { t: null, label: '' });
     return { project: p.project, title: p.title, rev: p.rev, file: p.file, status: p.status, imported: p.imported, closed: p.closed, note: p.note,
       needDate: bomFmt_(n.t), needSrc: n.src || '', needLabel: n.label || '', needManual: p.needManual, daysLeft: n.t != null ? Math.round((n.t - today) / 864e5) : null,
-      count: c, total: its.length, items: its };
+      count: c, total: its.length, items: its, ship: p.ship || null };
   });
   projects.sort(function (a, b) { return (a.status === 'active' ? 0 : 1) - (b.status === 'active' ? 0 : 1) || (a.daysLeft == null ? 9e9 : a.daysLeft) - (b.daysLeft == null ? 9e9 : b.daysLeft); });
   codes.sort(function (a, b) { return (a.balance - b.balance) || String(a.code).localeCompare(String(b.code)); });
@@ -428,9 +430,9 @@ function bomSnapGet_() {
 // menu badge: CODEs that are "ไม่พอ" (Onhand + incoming < all bookings) — same rule as the CODE tab filter
 function getBomSummary() { apiOnly_();
   return wsCached_('bomsum', ['bom'], '', function () {
-    var s = bomSnapGet_() || {}, out = { short: 0, late: 0, projects: 0 };
+    var s = bomSnapGet_() || {}, out = { short: 0, late: 0, projects: 0, ship: 0 };
     (s.codes || []).forEach(function (c) { if (c.short) out.short++; });
-    (s.projects || []).forEach(function (p) { if (p.status !== 'active') return; out.projects++; out.late += (p.count && p.count.late) || 0; });
+    (s.projects || []).forEach(function (p) { if (p.status !== 'active') return; out.projects++; out.late += (p.count && p.count.late) || 0; if (p.ship && p.ship.alert) out.ship++; });
     return out;
   });
 }

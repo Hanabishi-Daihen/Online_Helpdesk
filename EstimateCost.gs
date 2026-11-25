@@ -216,6 +216,7 @@ function syncShipInner_(why, force) {
     info.range = oldest && newest ? shipShow_(oldest) + ' – ' + shipShow_(newest) : '';
     info.msg = 'อัปเดต ' + kept.toLocaleString() + ' บรรทัด · ' + info.projects + ' โปรเจกต์ · ' + info.depts + ' แผนก (' + info.mb + ' MB, ' + info.sec + ' วินาที)';
     audit_([['System', 'ซิงค์ข้อมูล Shipment จาก OneDrive', '', info.why + ' · ' + info.msg]]);
+    if (Date.now() - t0 < 240000) { try { bomRefresh_(); info.msg += ' · คำนวณ Booking BOM ใหม่แล้ว'; } catch (e) { console.warn('ship → bomRefresh_', e); } }   // Booking BOM: what MF has issued
   } catch (e) {
     info.ok = false; info.msg = e.message || String(e);
     try { if (tmp && ss) ss.deleteSheet(tmp); } catch (x) {}
@@ -273,12 +274,9 @@ function shipNames_(m) {
   } catch (e) { console.warn('shipNames_ bom', e); }
   return out;
 }
-// the lines of one project (every department — the page filters), newest ship date first
-function getEstCost(token, proj) { apiOnly_();
-  requireAdmin_(token);
-  var cat = shipCat_(proj);
-  if (!cat) throw new Error('เลขโปรเจกต์ไม่ถูกต้อง — ใช้รูปแบบ PP103001 / PP1030D01 หรือ 1030P1');
-  var m = shipMeta_(); if (!m) throw new Error('ยังไม่มีข้อมูล Shipment — ตั้งค่าลิงก์และกดซิงค์ที่ ตั้งค่าระบบ → ☁ แหล่งข้อมูล OneDrive');
+// the stored lines of one CATEGORY (every department) → [CODE, DESCRIPTION, yyyymmdd, DOCNUM, CUSTNAME, LOCATION, QTY, UNIT, UNITCOST, COST, AUDTUSER]
+// (also read by Booking BOM — BomShip.gs)
+function shipLines_(m, cat) {
   var rows = m.idx[cat] || [], C = CacheService.getScriptCache(), key = 'shipP_' + m.ver + '_' + cat, txt = null;
   try { txt = C.get(key); if (txt) txt = shipUnB64_(txt); } catch (e) { txt = null; }
   if (txt == null) {
@@ -296,6 +294,15 @@ function getEstCost(token, proj) { apiOnly_();
     var f = l.split('\t');
     return [f[0], f[1], f[2], f[3], f[4], f[5], Number(f[6]) || 0, f[7], Number(f[8]) || 0, Number(f[9]) || 0, f[10] || ''];
   }) : [];
+  return lines;
+}
+// the lines of one project (every department — the page filters), newest ship date first
+function getEstCost(token, proj) { apiOnly_();
+  requireAdmin_(token);
+  var cat = shipCat_(proj);
+  if (!cat) throw new Error('เลขโปรเจกต์ไม่ถูกต้อง — ใช้รูปแบบ PP103001 / PP1030D01 หรือ 1030P1');
+  var m = shipMeta_(); if (!m) throw new Error('ยังไม่มีข้อมูล Shipment — ตั้งค่าลิงก์และกดซิงค์ที่ ตั้งค่าระบบ → ☁ แหล่งข้อมูล OneDrive');
+  var lines = shipLines_(m, cat);
   lines.sort(function (a, b) { return a[2] < b[2] ? 1 : a[2] > b[2] ? -1 : 0; });
   return { cat: cat, project: shipProj_(cat), cols: ['CODE', 'DESCRIPTION', 'DATE', 'DOCNUM', 'CUSTNAME', 'LOCATION', 'QTY', 'UNIT', 'UNITCOST', 'COST', 'AUDTUSER'], lines: lines };
 }

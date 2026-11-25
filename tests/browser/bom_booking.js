@@ -51,7 +51,7 @@ const { chromium } = require('playwright');
   // ── edit a project ──
   // ── new layout: KPI cards filter the list · views vs actions · next step · ⋯ menu · tabs ──
   const kc = p.locator('.zq-bx-kc');
-  check('layout: KPI cards are buttons (5 + overstock), the view switch and the action buttons are apart', await kc.count() === 6 && await p.locator('.zq-bx-seg button').count() === 2 && await p.locator('.zq-bx-act button:has-text("จองจาก Stock")').count() === 1 && await p.locator('.zq-bx-act button:has-text("Import BOM")').count() === 1);
+  check('layout: KPI cards are buttons (6 incl. เบิกแล้ว ยังไม่ปิด + overstock), the view switch and the action buttons are apart', await kc.count() === 7 && await p.locator('.zq-bx-seg button').count() === 2 && await p.locator('.zq-bx-act button:has-text("จองจาก Stock")').count() === 1 && await p.locator('.zq-bx-act button:has-text("Import BOM")').count() === 1);
   await kc.nth(3).click(); await p.waitForTimeout(300);
   const rk = await p.locator('.zq-bx-li').count();
   await kc.nth(3).click(); await p.waitForTimeout(300);
