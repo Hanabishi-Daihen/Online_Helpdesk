@@ -1,0 +1,45 @@
+// Booking BOM: the "ฟอร์ม BOM" download (sheets BOM / วิธีกรอก / ตัวอย่าง, the columns the importer reads) and the 3-step Import guide;
+// a form filled in and imported back is read correctly (title from A2, not the form heading in A1)
+const OUT = __dirname + '/../out/', fs = require('fs'), path = require('path');
+const { chromium } = require('playwright');
+const XL = require(path.join(__dirname, '../node_modules/xlsx'));
+(async () => {
+  const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
+  const ctx = await b.newContext({ viewport: { width: 1440, height: 960 }, acceptDownloads: true }), p = await ctx.newPage(), errs = [], fails = [];
+  await p.route(/cdnjs\.cloudflare\.com\/ajax\/libs\/xlsx\//, r => r.fulfill({ contentType: 'application/javascript', body: fs.readFileSync(path.join(__dirname, '../node_modules/xlsx/dist/xlsx.full.min.js'), 'utf8') }));
+  p.on('pageerror', e => errs.push(e.message)); p.on('dialog', d => d.accept());
+  const check = (n, c, x) => { console.log((c ? 'PASS ' : 'FAIL ') + n + (c ? '' : ' → ' + JSON.stringify(x))); c || fails.push(n); };
+  const srv = require('http').createServer((q, r) => { r.setHeader('content-type', 'text/html; charset=utf-8'); r.end(fs.readFileSync(OUT + 'doc.html')); }).listen(8854);
+  await p.goto('http://localhost:8854/'); await p.waitForTimeout(1500);
+  await p.locator('aside nav button:has-text("Booking BOM")').first().click(); await p.waitForTimeout(1500);
+  check('user: "📄 ฟอร์ม BOM" for everyone, no Import button', await p.locator('.zq-bx-act button:has-text("ฟอร์ม BOM")').count() === 1 && await p.locator('.zq-bx-imp').count() === 0);
+  const [dl] = await Promise.all([p.waitForEvent('download', { timeout: 15000 }), p.locator('.zq-bx-act button:has-text("ฟอร์ม BOM")').click()]);
+  const fp = OUT + 'bom_form.xlsx'; await dl.saveAs(fp);
+  const wb = XL.readFile(fp), rows = XL.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+  check('form: sheets BOM (first) · วิธีกรอก · ตัวอย่าง; file name asks to rename with PROJECT RevN', wb.SheetNames.join() === 'BOM,วิธีกรอก,ตัวอย่าง' && /PROJECT_RevN/.test(dl.suggestedFilename()), [wb.SheetNames, dl.suggestedFilename()]);
+  check('form: header in row 3 with CODE in column C, B = PROJECT, H = QTY', rows[2][1] === 'PROJECT' && rows[2][2] === 'CODE' && rows[2][7] === 'QTY', rows.slice(0, 3));
+  const how = XL.utils.sheet_to_json(wb.Sheets['วิธีกรอก'], { header: 1, defval: '' }).map(r => r.join(' ')).join('\n');
+  check('form: how-to sheet explains A2, row 3, required columns, Rev in the file name, replace on re-import', /A2/.test(how) && /แถวที่ 3/.test(how) && /บังคับ/.test(how) && /Rev1/.test(how) && /แทนที่/.test(how), how.slice(0, 300));
+  // fill it in and import it back (Admin)
+  const ws = wb.Sheets.BOM; XL.utils.sheet_add_aoa(ws, [['Local Control Cabinet (LCC)'], ['', ''], ['ITEM', 'PROJECT', 'CODE', 'MATERIAL', 'TYPE', 'RATED', 'MAKER', 'QTY', 'REMARK'], [1, 'PP1099A01', '42050002', 'MCB', '', '', '', 3, ''], [2, 'PP1099A01', '43401027', 'RELAY', '', '', '', 5, '']], { origin: 'A2' });
+  XL.utils.sheet_add_aoa(ws, [['แบบฟอร์ม BOM · Booking BOM — ดูวิธีกรอกที่ชีต "วิธีกรอก"']], { origin: 'A1' });
+  const filled = OUT + 'PP1099A01 Rev2.xlsx'; XL.writeFile(wb, filled);
+  await p.locator('button', { hasText: /Admin|ปลดล็อค/ }).first().click(); await p.waitForTimeout(400);
+  const u = p.locator('input[autocomplete=username]'); if (await u.count()) await u.fill('a.admin');
+  const pw = p.locator('input[type=password]'); await pw.first().fill('control'); await pw.first().press('Enter'); await p.waitForTimeout(1500);
+  await p.locator('aside nav button:has-text("Booking BOM")').first().click(); await p.waitForTimeout(1500);
+  const imp = p.locator('.zq-bx-imp');
+  const st = await imp.evaluate(e => { const c = getComputedStyle(e); return { bg: c.backgroundColor, h: e.offsetHeight }; });
+  check('Admin: Import BOM is a big blue button with a sub-label', st.bg === 'rgb(29, 78, 216)' && st.h >= 44 && /Import BOM/.test(await imp.innerText()) && /นำเข้าไฟล์ Excel/.test(await imp.innerText()), st);
+  await imp.click(); await p.waitForTimeout(400);
+  const g = await p.locator('.zq-bx-guide').innerText();
+  check('Import: 3 steps (download form · fill · drop the file) with the required columns', (await p.locator('.zq-bx-steps li').count()) === 3 && /ดาวน์โหลดฟอร์ม BOM/.test(g) && /B PROJECT/.test(g) && /H QTY/.test(g) && /ปิด Import BOM/.test(await imp.innerText()), g);
+  await p.locator('.zq-bx-cols summary').click();
+  check('Import: every column explained, required ones marked', (await p.locator('.zq-bx-cols tbody tr').count()) === 9 && /บังคับ/.test(await p.locator('.zq-bx-cols').innerText()));
+  await p.locator('.zq-bm-drop input[type=file]').setInputFiles(filled); await p.waitForTimeout(2500);
+  const pv = await p.locator('.zq-bm-p').first().innerText().catch(() => '');
+  check('the filled form imports: PP1099A01, title from A2 (not the A1 heading), Rev 2 from the file name, 2 CODEs', /PP1099A01/.test(pv) && /Local Control Cabinet/.test(pv) && !/แบบฟอร์ม BOM/.test(pv) && /2/.test(pv), pv.slice(0, 400));
+  await p.screenshot({ path: OUT + 'bom_form.png' });
+  check('no page errors', errs.length === 0, errs);
+  srv.close(); await b.close(); process.exit(fails.length || errs.length ? 1 : 0);
+})();

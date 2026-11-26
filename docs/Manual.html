@@ -505,7 +505,15 @@ footer{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;color:
     <li>แท็บ <span class="ui">เทียบ Shipment</span> แสดงทีละ CODE: ต้องใช้ / เบิกแล้ว / ✅ เบิกครบ · ◐ บางส่วน · — ยังไม่เบิก</li>
     <li>หลาย Unit ใช้เลขโปรเจกต์เดียวกัน (เช่น PP1048<b>A</b>02 กับ PP1048<b>B</b>02 → CATEGORY 1048P2): บรรทัดที่ DOCNUM มีเลขเต็ม (เช่น MF241A/PP1048B02-01) นับให้ Unit นั้นเท่านั้น ที่เหลือแบ่งตามวันที่ต้องใช้ — Unit ที่ต้องใช้ก่อนได้ก่อนเท่าที่ต้องการ</li>
   </ul>
+  <h3>📄 ฟอร์ม BOM (.xlsx) <span class="role r-u">ทุกคน</span></h3>
+  <p>ปุ่ม <span class="ui">📄 ฟอร์ม BOM (.xlsx)</span> ดาวน์โหลดแบบฟอร์ม Excel ที่ Import ได้ทันที มี 3 ชีต: <b>BOM</b> (ชีตแรก ใช้กรอก) · <b>วิธีกรอก</b> · <b>ตัวอย่าง</b></p>
+  <ul>
+    <li>A2 = ชื่องาน (เช่น Local Control Cabinet (LCC)) · แถว 3 = หัวตาราง (ห้ามแก้คำว่า CODE ในคอลัมน์ C) · กรอกรายการตั้งแต่แถว 4 หนึ่งแถวต่อหนึ่ง CODE</li>
+    <li>บังคับ: <b>B PROJECT · C CODE · H QTY</b> (มากกว่า 0) · ไม่บังคับ: A ITEM · D MATERIAL (ว่าง = ใช้ชื่อจาก Item stock) · E TYPE · F RATED · G MAKER · I REMARK</li>
+    <li>ไฟล์เดียวใส่ได้หลายโปรเจกต์ · ตั้งชื่อไฟล์ให้มี Rev เช่น <b>PP1048B02 Rev1.xlsx</b> (ระบบอ่าน Revision จากชื่อไฟล์) · ส่งไฟล์ให้ Admin Import</li>
+  </ul>
   <h3>Import BOM <span class="role r-a">ADMIN</span></h3>
+  <p>ปุ่มสีน้ำเงิน <span class="ui">⬆ Import BOM</span> เปิดหน้า Import 3 ขั้นตอน: ① ดาวน์โหลดฟอร์ม ② กรอกรายการ ③ ลากไฟล์มาวาง แล้วตรวจตัวอย่างก่อนกดยืนยัน · "ดูความหมายทุกคอลัมน์" อธิบายแต่ละคอลัมน์และบอกว่าคอลัมน์ไหนบังคับ</p>
   <ol class="steps">
     <li><div>ปุ่ม <span class="ui">⬆ Import BOM</span> (ขวาบน) กด <span class="ui">📂 เลือกไฟล์ BOM (.xlsx)</span> หรือลากไฟล์มาวาง เลือกได้หลายไฟล์ ครั้งละไม่เกิน 10 ไฟล์ กด <span class="ui">📂 เพิ่มไฟล์ BOM</span> เพื่อเพิ่มทีละชุดได้ คอลัมน์ B = PROJECT, C = CODE, H = จำนวน ระบบหาแถวหัวตารางจากคำว่า CODE ในคอลัมน์ C</div></li>
     <li><div>ตรวจตัวอย่าง: ชื่อใน Stock, Onhand, CODE ที่ไม่พบ (สีแดง) และโปรเจกต์ที่มีอยู่แล้ว (จะถูกแทนที่ทั้งชุดเป็น Revision ใหม่) โปรเจกต์ที่ยังไม่ต้องการนำเข้า กด <span class="ui">✕ ไม่นำเข้า</span></div></li>
