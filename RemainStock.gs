@@ -385,6 +385,7 @@ function rsCompute_(rows, admin) {
   }
   var want = {}; Object.keys(items).forEach(function (k) { want[k] = 1; });
   var hist = rsHist_(want), year = new Date().getFullYear(), out = [], total = 0, start = schedProp_('RS_HIST_START') || '';
+  var cs = {}; try { if (typeof csAll_ === 'function') cs = csAll_(false); } catch (e) {}   // ทะเบียน CODE เลิกใช้: leftover stock → consider scrap
   Object.keys(items).forEach(function (k) {
     var it = items[k], tg = tags[k] || null;
     it.qty = Math.round(it.qty * 1000) / 1000;
@@ -395,7 +396,7 @@ function rsCompute_(rows, admin) {
     delete it.lu; delete it.on; delete it.off;
     rsStill_(it);
     var why = [];
-    if (it.inactive) why.push('off');
+    if (it.inactive || (cs[k] && cs[k].level === 'off')) why.push('off');
     if (it.still != null && it.still >= cfg.days) why.push('still');
     if (cfg.rqnYears > 0 && it.rqnAge != null && it.rqnAge >= cfg.rqnYears) why.push('rqn');
     if (tg && (tg.tag === 'last' || tg.tag === 'sub')) why.push(tg.tag);

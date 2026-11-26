@@ -190,6 +190,7 @@ function saCompute_() {
   } catch (e) {}
   var bk = {}; try { bk = bomBooked_(); } catch (e) {}              // Booking BOM: stock already reserved for projects
   var od = saOrders_();                                               // orders written in Order Item, not yet in Pending Order
+  var cs = {}; try { if (typeof csAll_ === 'function') cs = csAll_(false); } catch (e) {}   // ทะเบียน CODE เลิกใช้ (CodeStatus.gs)
   var out = [], cnt = { high: 0, mid: 0, low: 0, part: 0, ord: 0, wait: 0, nomin: 0, over: 0, ok: 0, off: 0, out: 0 };
   Object.keys(items).forEach(function (k) {
     var it = items[k], s = set[k] || {}, P = pend[k] || { qty: 0, list: [], stale: 0 };
@@ -204,7 +205,9 @@ function saCompute_() {
     it.inactive = !!(it._off && !it._on); delete it._on; delete it._off;     // ACTIVE = 0 in the Official system
     it.lastUsed = stockLuDmy_(it.lastUsed || '');
     var eff = it.qty - it.booked, avail = eff + it.pend + it.ordQty, lv;   // eff = onhand left after BOM bookings · + ordered in Order Item
-    if (it.notUse || it.inactive) lv = 'off';
+    var C = cs[k] && !cs[k].auto ? cs[k] : null;
+    it.cs = C || (it.inactive ? { level: 'off', reason: 'official', auto: 'official' } : it.notUse ? { level: 'off', reason: 'sa', detail: it.note, auto: 'sa' } : null);
+    if (it.notUse || it.inactive || (C && C.level === 'off')) lv = 'off';
     else if (it.min == null) lv = 'nomin';                    // ยังไม่ตั้ง Min → ไม่แจ้งเตือน (แสดงป้าย "หมด" ถ้าคงเหลือ ≤ 0)
     else if (eff < it.min) {
       if (avail >= it.min) lv = eff + it.pend >= it.min ? 'wait' : 'ord';   // enough once it arrives · 'ord' = only thanks to an order not yet in Pending

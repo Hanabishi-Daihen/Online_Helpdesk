@@ -516,7 +516,7 @@ function ordSig_(o) {
   ]);
 }
 function saveOrder(o) { apiOnly_();
-  var base = o && typeof o._base === 'string' ? o._base : '', force = !!(o && o._force);
+  var base = o && typeof o._base === 'string' ? o._base : '', force = !!(o && o._force), csAck = o && o._csAck || null, csTok = o && o._csTok || '', csNote = [];
   var x = ordClean_(o || {});
   return withLock_(function () {
     var s = ordSheet_(), all = ordAll_(), now = nowStr_();
@@ -526,6 +526,8 @@ function saveOrder(o) { apiOnly_();
     if (x.id && !cur) throw new Error('ไม่พบใบสั่ง ' + x.id + ' (อาจถูกลบไปแล้ว)');
     if (cur && base && !force && ordSig_(cur) !== base)
       throw new Error('CONFLICT: ใบสั่ง ' + cur.id + ' ถูกแก้ไขโดยผู้อื่นเมื่อ ' + (cur.updated || '-') + ' หลังจากที่คุณเปิดใบสั่งนี้');
+    // ทะเบียน CODE เลิกใช้ (CodeStatus.gs): a ⛔ CODE newly added is refused unless Admin confirms it with a reason
+    if (x.otype !== 'project' && typeof csOrderCheck_ === 'function') csNote = csOrderCheck_(x.items, cur ? cur.items : [], csAck, csTok);
     if (cur) {
       x.created = cur.created; x.status = 'Saved'; x.pdf = ''; x.xlsx = '';
       var ap = cur.approval;                        // any edit voids a pending / given approval → must be re-submitted
@@ -548,6 +550,7 @@ function saveOrder(o) { apiOnly_();
     writeText_(s, row, 1, ordObjToRow_(x));
     x.row = row; ordMemoPut_(x); dataBump_('ORD_VER');
     audit_([['User', cur ? 'แก้ไขใบสั่ง (Order Item)' : 'สร้างใบสั่ง (Order Item)', x.id, x.spec + ' · ' + x.rqn + ' · ' + x.items.length + ' รายการ · ' + x.des]]);
+    if (csNote.length) audit_([['Admin', 'สั่ง CODE เลิกใช้ (Admin ยืนยัน)', x.id, csNote.join(' · ')]]);
     x.row = row;
     return { order: ordPub_(x), orders: ordPubRecent_() };
   });
