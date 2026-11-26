@@ -35,6 +35,7 @@ const L=[
  `46700402,TERMINAL UK6N,${dmy(ago(2))},MF3,CONTROL WIRING,1048P2,WH1,300,PC,20,-6000,U1`,
  `47280030,LUG VF2-3M,${dmy(ago(2))},MF4,CONTROL WIRING,1048P2,WH1,500,PC,1,-500,U1`,            // not in the BOM
  `10190005,HEX BOLT,${dmy(ago(3))},T1,TANKING,1048P2,WH2,50,PC,2,-100,U3`,                 // another department: not ours
+ `SV024269,Service Charge Installation Glass,${dmy(ago(2))},S1,CONTROL WIRING,1048P2,WH1,1,Job,25980,-25980,U1`,   // service job: never counted
  `4556PP1048C00201,ANNUNCIATOR,${dmy(ago(2))},A1,ASSEMBLY,1048P2,WH1,1,EA,3000,-3000,U2`,   // By Project CODE: ours wherever issued
  `42046001,MCB C6,${dmy(ago(30))},OLD,CONTROL WIRING,P99901,WH1,99,PC,100,-9900,U1`];   // older than 24 months
 FILE=Buffer.from(H+'\r\n'+L.join('\r\n')+'\r\n','utf8');props.SHIP_SRC_URL='https://example.sharepoint.com/:x:/g/personal/s_somchai/ABCDEF';
@@ -44,10 +45,10 @@ c.bomItems_=()=>({PP1048B02:[{code:'42046001',qty:4},{code:'46700402',qty:100},{
 c.schedCached_=()=>[];
 // Item stock: CODE DESC COMMENT QTY UNIT LOC PICK BY LASTCOST REQ | LASTSHIPDT ACTIVE (packed)
 const srow=(code,desc,qty,cost,lu,act,by)=>[code,desc,'',qty,'PC','STORE1','',by||'DS13',cost,'',lu,act==null?'1':act].join('\t');
-props.STOCK_SS_ID='STOCKSS';c.stockData_=()=>[srow('42046001','MCB C6',3,100,ymd(ago(1))),srow('46700402','TERMINAL UK6N',5000,20,ymd(ago(2))),srow('99990001','OLD RELAY',40,500,ymd(ago(40)),'0'),srow('99990002','NEVER USED',10,30,''),srow('88880001','OTHER UNIT PART',999,1000,ymd(ago(50)),'1','STORE/PL'),srow('4556PP1030C00201','LEFTOVER PANEL PART',2,5000,ymd(ago(20))),srow('77770001','NEW SPARE (ordered, not used yet)',5,100,'')];
+props.STOCK_SS_ID='STOCKSS';c.stockData_=()=>[srow('42046001','MCB C6',3,100,ymd(ago(1))),srow('46700402','TERMINAL UK6N',5000,20,ymd(ago(2))),srow('99990001','OLD RELAY',40,500,ymd(ago(40)),'0'),srow('99990002','NEVER USED',10,30,''),srow('88880001','OTHER UNIT PART',999,1000,ymd(ago(50)),'1','STORE/PL'),srow('4556PP1030C00201','LEFTOVER PANEL PART',2,5000,ymd(ago(20))),srow('77770001','NEW SPARE (ordered, not used yet)',5,100,''),srow('SV024154','Service charge installation glass',1,20774,'')];
 c.saSettings_=()=>({'42046001':{min:1,max:2,lt:0}});c.rtMap_=()=>({'42046001':45});
 const pend=[['42046001','PR1','PO1','','Open','MCB',dmy(ago(3)),'',dmy(ago(3,10)),dmy(ago(1,1)),'','','DS13','5','PC'],['42046001','PR2','PO2','','Received','MCB',dmy(ago(6)),'',dmy(ago(6,12)),dmy(ago(4,20)),'','','DS13','5','PC'],
-  ['46700402','PR3','','','Open','TB',dmy(ago(5)),'','','','','','DS13','10','PC'],['88880001','PR9','PO9','','Open','X',dmy(ago(8)),'',dmy(ago(8,9)),dmy(ago(6)),'','','STORE/PL','1','PC'],['42046001','PR7','PO7','','On P/O','MCB OLD',dmy(ago(48)),'',dmy(ago(48,9)),dmy(ago(46)),'','','DS13','2','PC'],['77770001','PR6','PO6','','Received','SPARE',dmy(ago(20)),'',dmy(ago(20,9)),dmy(ago(18)),'','','DS13','5','PC']].map(r=>r.join('\t')).join('\n');
+  ['46700402','PR3','','','Open','TB',dmy(ago(5)),'','','','','','DS13','10','PC'],['88880001','PR9','PO9','','Open','X',dmy(ago(8)),'',dmy(ago(8,9)),dmy(ago(6)),'','','STORE/PL','1','PC'],['42046001','PR7','PO7','','On P/O','MCB OLD',dmy(ago(48)),'',dmy(ago(48,9)),dmy(ago(46)),'','','DS13','2','PC'],['77770001','PR6','PO6','','Received','SPARE',dmy(ago(20)),'',dmy(ago(20,9)),dmy(ago(18)),'','','DS13','5','PC'],['SV024154','PR5','PO5','','Open','SERVICE',dmy(ago(30)),'',dmy(ago(30,9)),dmy(ago(29)),'','','DS13','1','Job']].map(r=>r.join('\t')).join('\n');
 c.pendingBundle_=()=>({hash:'p',b64:zlib2.gzipSync(Buffer.from(pend)).toString('base64')});
 let r=c.syncShipNow('');
 T('Shipment sync ok and the summary is built with it',r.ok&&/สรุปสถิติใหม่แล้ว/.test(r.msg),r.msg);
@@ -78,4 +79,5 @@ const U=u.getStatSummary('');
 T('user: same summary without any "$" (money) key, quantities kept',!/"\$/.test(JSON.stringify(U))&&U.topQty.length&&!U.admin&&U.stock.items===6,Object.keys(U));
 T('user cannot rebuild',/Admin/.test(E(()=>u.statRebuild(''))));
 T('page may call them (allow-list)',['getStatSummary','statRebuild'].every(f=>!!c.API_FNS[f]));
+T('SV… service jobs are in no statistic (usage, project cost, stock, waiting, purchasing)',!JSON.stringify(c.getStatSummary('')).includes('SV02'),JSON.stringify(c.getStatSummary('')).match(/.{60}SV02.{60}/));
 console.log(ok+' passed, '+bad+' failed');process.exit(bad?1:0);

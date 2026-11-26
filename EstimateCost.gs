@@ -170,8 +170,9 @@ function syncShipInner_(why, force) {
         if (!cat) { skipped++; return; }                    // stock / T / PH … categories are not projects
         var dept = g('dept').toUpperCase() || '-', d8 = shipDate_(g('date')), cost = shipNum_(g('cost'));
         (groups[cat] = groups[cat] || []).push([g('code'), g('desc'), d8, g('doc'), dept, g('loc'), shipNum_(g('qty')), g('unit'), shipNum_(g('uc')), cost, g('user')].join('\t'));
-        var k = dept + '\t' + cat, s = sum[k] || (sum[k] = [dept, cat, 0, 0, '', 0]);
+        var k = dept + '\t' + cat, s = sum[k] || (sum[k] = [dept, cat, 0, 0, '', 0, 0]);
         s[2]++; s[3] += cost; if (d8 > s[4]) s[4] = d8; if (cost > 0) s[5] += cost;   // [5] = returns (positive cost)
+        if (/^SV/i.test(g('code'))) s[6] += cost;   // [6] = service jobs (SV…): สถิติและต้นทุน leaves them out
         statAggAdd_(SA, g('code'), g('desc'), g('unit'), dept, d8, shipNum_(g('qty')), cost);
         depts[dept] = 1; kept++;
         if (d8 && (!oldest || d8 < oldest)) oldest = d8; if (d8 > newest) newest = d8;

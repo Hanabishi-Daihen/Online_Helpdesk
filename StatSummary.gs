@@ -53,6 +53,7 @@ function statMonths_(n, now) { var out = [], d = new Date(now); d.setDate(1); fo
 function statR_(v, n) { var p = Math.pow(10, n == null ? 2 : n); return Math.round((Number(v) || 0) * p) / p; }
 function statMedian_(a) { if (!a.length) return null; a = a.slice().sort(function (x, y) { return x - y; }); var m = Math.floor(a.length / 2); return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; }
 function statD8t_(d8) { return d8 && d8.length === 8 ? new Date(+d8.substring(0, 4), +d8.substring(4, 6) - 1, +d8.substring(6, 8)).getTime() : null; }
+function statSkip_(code) { return /^SV/i.test(String(code || '').trim()); }   // SV… = service jobs: never counted in any statistic
 function statProjC_(code) { return /^\d{4}PP\d{4}C\d{3,}$/i.test(String(code || '')); }   // By Project CODE: 4556PP1030C00201
 function statGroupOf_(code) { return String(code).substring(0, 4); }
 
@@ -62,7 +63,7 @@ function statBuild_() {
   // our unit only: Item stock / Pending Order lines ordered by the unit (DS13), MF issues to CONTROL WIRING,
   // and By Project CODEs (16 digits with the project number + C: 4556PP1030C00201)
   var by = String((bomCfg_() || {}).orderBy || 'DS13').trim().toUpperCase();
-  var S = { v: 3, built: nowStr_(), notes: [], scope: { by: by, dept: 'CONTROL WIRING' } }, M24 = statMonths_(24, now), M12 = {}; statMonths_(12, now).forEach(function (m) { M12[m] = 1; });
+  var S = { v: 4, built: nowStr_(), notes: [], scope: { by: by, dept: 'CONTROL WIRING' } }, M24 = statMonths_(24, now), M12 = {}; statMonths_(12, now).forEach(function (m) { M12[m] = 1; });
   // Item stock: onhand / LASTCOST / LASTSHIPDT per CODE (all locations)
   var stock = {};
   var hasStock = !!schedProp_('STOCK_SS_ID');                         // never create the Item stock workbook from here
@@ -75,14 +76,14 @@ function statBuild_() {
       var lu = f[STOCK_LU_COL] || ''; if (lu > s.lu) s.lu = lu; if (f[STOCK_ACT_COL] === '0') s.act = '0';
     });
   } catch (e) { S.notes.push('อ่าน Item stock ไม่สำเร็จ: ' + (e.message || e)); }
-  var ours = function (k) { return statProjC_(k) || !!(stock[k] && stock[k].mine); };
+  var ours = function (k) { return !statSkip_(k) && (statProjC_(k) || !!(stock[k] && stock[k].mine)); };
   // 1 · usage from the monthly totals: MF → CONTROL WIRING, plus By Project CODEs wherever they were issued
   var A = null; try { A = statAgg_(); } catch (e) { S.notes.push('อ่านยอดเบิกรายเดือนไม่สำเร็จ: ' + (e.message || e)); }
   var use = {}, dept = {}, months = {};
   if (A) {
     A.list.forEach(function (r) {
       var code = r[0], dp = r[1], ym = r[2];
-      if (!BOM_SHIP_DEPT.test(dp) && !statProjC_(code)) return;
+      if (statSkip_(code) || (!BOM_SHIP_DEPT.test(dp) && !statProjC_(code))) return;
       if (M24.indexOf(ym) >= 0) { var dm = dept[dp] || (dept[dp] = {}), x = dm[ym] || (dm[ym] = [0, 0]); x[0] += r[5] - r[6]; x[1] += 1; months[ym] = 1; }
       if (!M12[ym]) return;
       var u = use[code] || (use[code] = { q: 0, r: 0, c: 0, cr: 0, d: {} });
@@ -110,7 +111,7 @@ function statBuild_() {
     (m ? m.sum : []).forEach(function (s) {
       if (!BOM_SHIP_DEPT.test(s[0])) return;                             // MF → CONTROL WIRING only
       var p = P[s[1]] || (P[s[1]] = { cat: s[1], n: 0, $c: 0, $cr: 0, last: '' });
-      p.n += s[2]; p.$c += -s[3]; if (s[5]) p.$cr += s[5]; if (s[4] > p.last) p.last = s[4];
+      p.n += s[2]; p.$c += -(s[3] - (s[6] || 0)); if (s[5]) p.$cr += s[5];   // [6] = service jobs (SV…), left out if (s[4] > p.last) p.last = s[4];
     });
     var typeOf = function (t) { t = String(t || '').toUpperCase(); var x = /\b(LCC|RCC|MCC|CP|RP|PCP|CRP|AC\/DC|DC|MARSHALLING|MK|TB)\b/.exec(t); return x ? x[1] : t ? 'อื่น ๆ' : 'ไม่ทราบชนิด'; };
     var pl = Object.keys(P).map(function (k) { var p = P[k], nm = names[k] || {}; return { project: nm.no || shipProj_(k), cat: k, title: nm.title || nm.cust || '', type: typeOf(nm.title || ''), n: p.n, $c: statR_(p.$c, 0), $cr: statR_(p.$cr, 0), last: shipShow_(p.last), d8: p.last }; })
@@ -194,12 +195,12 @@ function statBom_(now) {
   var lines = {}, over = {}, out = [];
   projs.forEach(function (p) {
     var cat = shipCat_(p.project), d8 = bomShipD8_(p.imported), need = {}, got = {}, key = bomKey_(p.project);
-    (itemsBy[p.project] || []).forEach(function (it) { var c = ordCodeKey_(it.code); if (c) need[c] = (need[c] || 0) + (Number(it.qty) || 0); });
+    (itemsBy[p.project] || []).forEach(function (it) { var c = ordCodeKey_(it.code); if (c && !statSkip_(c)) need[c] = (need[c] || 0) + (Number(it.qty) || 0); });
     if (!lines[cat]) { try { lines[cat] = shipLines_(m, cat); } catch (e) { lines[cat] = []; } }
     lines[cat].forEach(function (f) {
       if (!BOM_SHIP_DEPT.test(f[4] || '') || String(f[2]) < d8) return;
       var x = /PP\d{4}[A-Z]{1,2}\d{2}/.exec(String(f[3] || '').toUpperCase()); if (x && bomKey_(x[0]) !== key) return;   // another unit's line
-      var c = ordCodeKey_(f[0]), q = Number(f[6]) || 0; if (!c) return;
+      var c = ordCodeKey_(f[0]), q = Number(f[6]) || 0; if (!c || statSkip_(c)) return;
       got[c] = (got[c] || 0) + ((Number(f[9]) || 0) > 0 ? -Math.abs(q) : Math.abs(q));
     });
     var nc = Object.keys(need), issued = 0, under = 0, extra = Object.keys(got).filter(function (c) { return !need[c] && got[c] > 0; });
@@ -231,7 +232,7 @@ function statPo_(today, stock, rt, lt0, by, rows) {
   var lt = {}, ages = [0, 0, 0, 0], late = [], prpo = [], podue = [], openN = 0, stale = [];
   (rows || statPend_()).forEach(function (g) {
     var k = ordCodeKey_(g[0]), req = bomDate_(g[6]), iss = bomDate_(g[8]), due = bomDate_(g[9]) || bomDate_(g[7]), done = ORD_PO_DONE.test(g[4] || ''), cancel = /cancel|ยกเลิก/i.test(g[4] || '');
-    if (cancel || !k) return;
+    if (cancel || !k || statSkip_(k)) return;
     if (by && String(g[12] || '').trim().toUpperCase() !== by && !statProjC_(k)) return;   // the unit's lines only
     if (req != null && req >= from && due != null && due >= req) {
       var x = lt[k] || (lt[k] = { d: [], a: [], b: [] }); x.d.push((due - req) / 864e5);

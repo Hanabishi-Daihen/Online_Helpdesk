@@ -2137,7 +2137,7 @@ zqE(zqStTbl,{title:"Min / Max ที่แนะนำจากการใช�
 extra:go?zqE("button",{type:"button",className:"zq-bm-c",onClick:()=>go("stockalert")},"ไปตั้งค่าใน Stock Alert"):null,
 cols:[["CODE",r=>C(r.code)],["รายการ",Desc],["เบิก/ปี",r=>zqStN(r.use12)+" "+r.unit,1],["Lead time",r=>r.lt+" วัน"+(r.ltSrc==="set"?" (ตั้งเอง)":r.ltSrc==="rt"?" (StockRT)":" (ค่าเริ่มต้น)"),1],["Onhand",r=>zqStN(r.on),1],["ปัจจุบัน",r=>(r.curMin==null?"-":r.curMin)+" / "+(r.curMax==null?"-":r.curMax),1],["แนะนำ",r=>zqE("b",{},r.min+" / "+r.max),1]].concat(A?[["มูลค่าเบิก/ปี",r=>zqStB(r.$c),1]]:[])}))};
 return zqE("div",{className:"zq-apg zq-sx"},zqE("style",{},zqBomCss+zqSetCss+zqStCss),hero,err?zqE("div",{className:"zq-em-msg err"},err):null,
-(d.notes||[]).length?zqE("div",{className:"zq-em-warn"},d.notes.join(" · ")):null,A&&(d.v||1)<3?zqE("div",{className:"zq-em-warn"},"สรุปนี้คำนวณด้วยเกณฑ์เดิม — กด ↻ คำนวณใหม่ เพื่อใช้เกณฑ์ล่าสุด (ลืมปิด PO เกิน 3 ปี · รอใช้งาน)"):null,tab==="bom"?bom():tab==="stock"?stock():tab==="po"?po():use())},
+(d.notes||[]).length?zqE("div",{className:"zq-em-warn"},d.notes.join(" · ")):null,A&&(d.v||1)<4?zqE("div",{className:"zq-em-warn"},"สรุปนี้คำนวณด้วยเกณฑ์เดิม — กด ↻ คำนวณใหม่ เพื่อใช้เกณฑ์ล่าสุด (ลืมปิด PO เกิน 3 ปี · รอใช้งาน · ไม่นับ CODE งาน Service SV…)"):null,tab==="bom"?bom():tab==="stock"?stock():tab==="po"?po():use())},
 /* Admin: create / edit a set */
 zqSetEd=({set:s0,SC,cats,onClose:close,onSaved})=>{const[s,setS]=Q.useState(s0),[fq,setFq]=Q.useState({}),[busy,setBusy]=Q.useState(!1),[err,setErr]=Q.useState("");
 Q.useEffect(()=>{const k=e=>{e.key==="Escape"&&close()};window.addEventListener("keydown",k);return()=>window.removeEventListener("keydown",k)},[]);
