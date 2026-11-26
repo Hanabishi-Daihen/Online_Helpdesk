@@ -62,7 +62,7 @@ function statBuild_() {
   // our unit only: Item stock / Pending Order lines ordered by the unit (DS13), MF issues to CONTROL WIRING,
   // and By Project CODEs (16 digits with the project number + C: 4556PP1030C00201)
   var by = String((bomCfg_() || {}).orderBy || 'DS13').trim().toUpperCase();
-  var S = { v: 2, built: nowStr_(), notes: [], scope: { by: by, dept: 'CONTROL WIRING' } }, M24 = statMonths_(24, now), M12 = {}; statMonths_(12, now).forEach(function (m) { M12[m] = 1; });
+  var S = { v: 3, built: nowStr_(), notes: [], scope: { by: by, dept: 'CONTROL WIRING' } }, M24 = statMonths_(24, now), M12 = {}; statMonths_(12, now).forEach(function (m) { M12[m] = 1; });
   // Item stock: onhand / LASTCOST / LASTSHIPDT per CODE (all locations)
   var stock = {};
   var hasStock = !!schedProp_('STOCK_SS_ID');                         // never create the Item stock workbook from here
@@ -223,7 +223,7 @@ function statPend_() {
   var b = pendingBundle_(false), txt = b && b.b64 ? shipUnB64_(b.b64) : '';
   return txt ? txt.split('\n').map(function (l) { return l.split('\t'); }).filter(function (g) { return g.length >= 10; }) : [];
 }
-// open lines older than 3 years are most likely received / used but never closed in the system (PH): listed apart,
+// open lines more than 3 years past their due date (no due date: their request date) are most likely received / used but never closed in the system (PH): listed apart,
 // not counted as open, aged or late
 var STAT_STALE_D = 3 * 365;
 function statPo_(today, stock, rt, lt0, by, rows) {
@@ -238,8 +238,8 @@ function statPo_(today, stock, rt, lt0, by, rows) {
       if (iss != null && iss >= req) { x.a.push((iss - req) / 864e5); prpo.push((iss - req) / 864e5); if (due >= iss) { x.b.push((due - iss) / 864e5); podue.push((due - iss) / 864e5); } }
     }
     if (!done) {
-      var age = req != null ? (today - req) / 864e5 : due != null ? (today - due) / 864e5 : null;
-      if (age != null && age > STAT_STALE_D) { stale.push({ code: k, name: g[5] || (stock[k] || {}).desc || '', pr: g[1], po: g[2], status: g[4], req: bomFmt_(req), due: bomFmt_(due), years: Math.round(age / 365 * 10) / 10, qty: Number(g[13]) || 0, unit: g[14] || '', by: g[12] || '' }); return; }
+      var age = req != null ? (today - req) / 864e5 : null, over = due != null ? (today - due) / 864e5 : age;   // past its due date (else its request date)
+      if (over != null && over > STAT_STALE_D) { stale.push({ code: k, name: g[5] || (stock[k] || {}).desc || '', pr: g[1], po: g[2], status: g[4], req: bomFmt_(req), due: bomFmt_(due), years: Math.round(over / 365 * 10) / 10, days: Math.round(over), qty: Number(g[13]) || 0, unit: g[14] || '', by: g[12] || '' }); return; }
       openN++;
       if (age != null) ages[age <= 30 ? 0 : age <= 60 ? 1 : age <= 90 ? 2 : 3]++;   // 91 days – 3 years
       if (due != null && due < today) late.push({ code: k, name: g[5] || (stock[k] || {}).desc || '', pr: g[1], po: g[2], status: g[4], due: bomFmt_(due), days: Math.round((today - due) / 864e5), qty: Number(g[13]) || 0, unit: g[14] || '', by: g[12] || '' });

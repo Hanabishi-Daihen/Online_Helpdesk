@@ -67,7 +67,7 @@ T('stock: days of cover — MCB 3 left at 98/yr is below its 45-day lead time; t
 T('stock: turnover per CODE group',S.groups.find(g=>g.g==='4670').turn===statTurn(),S.groups);
 function statTurn(){return Math.round(6000/(5000*20)*100)/100}
 T('purchasing: open lines aged, the line past its due date listed',S.po.open===2&&S.po.ages.reduce((a,b)=>a+b[1],0)===2&&!S.po.late.some(x=>x.pr==='PR9')&&!S.po.late.some(x=>x.pr==='PR7')&&S.po.late.length===1&&S.po.late[0].pr==='PR1',S.po);
-T('purchasing: an open line older than 3 years is listed apart (likely never closed), not open / aged / late',S.po.staleN===1&&S.po.stale[0].pr==='PR7'&&S.po.stale[0].years>=3.9,S.po);
+T('purchasing: an open line more than 3 years past its due date is listed apart (likely never closed), not open / aged / late',S.po.staleN===1&&S.po.stale[0].pr==='PR7'&&S.po.stale[0].years>=3.7&&S.po.stale[0].days>1095,S.po);
 T('purchasing: median PR → PO days',S.po.prpo>=5&&S.po.prpo<=7,S.po.prpo);
 const mm=S.minmax.find(x=>x.code==='42046001');
 T('usage: the unit\'s share — By Project CODE and DS13-ordered CODEs flagged',S.topQty.find(x=>x.code==='4556PP1048C00201').pc&&S.topQty.find(x=>x.code==='42046001').mine&&S.$mineCost12>0,S.topQty);
