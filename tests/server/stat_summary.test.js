@@ -44,10 +44,10 @@ c.bomItems_=()=>({PP1048B02:[{code:'42046001',qty:4},{code:'46700402',qty:100},{
 c.schedCached_=()=>[];
 // Item stock: CODE DESC COMMENT QTY UNIT LOC PICK BY LASTCOST REQ | LASTSHIPDT ACTIVE (packed)
 const srow=(code,desc,qty,cost,lu,act,by)=>[code,desc,'',qty,'PC','STORE1','',by||'DS13',cost,'',lu,act==null?'1':act].join('\t');
-props.STOCK_SS_ID='STOCKSS';c.stockData_=()=>[srow('42046001','MCB C6',3,100,ymd(ago(1))),srow('46700402','TERMINAL UK6N',5000,20,ymd(ago(2))),srow('99990001','OLD RELAY',40,500,ymd(ago(40)),'0'),srow('99990002','NEVER USED',10,30,''),srow('88880001','OTHER UNIT PART',999,1000,ymd(ago(50)),'1','STORE/PL'),srow('4556PP1030C00201','LEFTOVER PANEL PART',2,5000,ymd(ago(20)))];
+props.STOCK_SS_ID='STOCKSS';c.stockData_=()=>[srow('42046001','MCB C6',3,100,ymd(ago(1))),srow('46700402','TERMINAL UK6N',5000,20,ymd(ago(2))),srow('99990001','OLD RELAY',40,500,ymd(ago(40)),'0'),srow('99990002','NEVER USED',10,30,''),srow('88880001','OTHER UNIT PART',999,1000,ymd(ago(50)),'1','STORE/PL'),srow('4556PP1030C00201','LEFTOVER PANEL PART',2,5000,ymd(ago(20))),srow('77770001','NEW SPARE (ordered, not used yet)',5,100,'')];
 c.saSettings_=()=>({'42046001':{min:1,max:2,lt:0}});c.rtMap_=()=>({'42046001':45});
 const pend=[['42046001','PR1','PO1','','Open','MCB',dmy(ago(3)),'',dmy(ago(3,10)),dmy(ago(1,1)),'','','DS13','5','PC'],['42046001','PR2','PO2','','Received','MCB',dmy(ago(6)),'',dmy(ago(6,12)),dmy(ago(4,20)),'','','DS13','5','PC'],
-  ['46700402','PR3','','','Open','TB',dmy(ago(5)),'','','','','','DS13','10','PC'],['88880001','PR9','PO9','','Open','X',dmy(ago(8)),'',dmy(ago(8,9)),dmy(ago(6)),'','','STORE/PL','1','PC']].map(r=>r.join('\t')).join('\n');
+  ['46700402','PR3','','','Open','TB',dmy(ago(5)),'','','','','','DS13','10','PC'],['88880001','PR9','PO9','','Open','X',dmy(ago(8)),'',dmy(ago(8,9)),dmy(ago(6)),'','','STORE/PL','1','PC'],['42046001','PR7','PO7','','On P/O','MCB OLD',dmy(ago(48)),'',dmy(ago(48,9)),dmy(ago(46)),'','','DS13','2','PC'],['77770001','PR6','PO6','','Received','SPARE',dmy(ago(20)),'',dmy(ago(20,9)),dmy(ago(18)),'','','DS13','5','PC']].map(r=>r.join('\t')).join('\n');
 c.pendingBundle_=()=>({hash:'p',b64:zlib2.gzipSync(Buffer.from(pend)).toString('base64')});
 let r=c.syncShipNow('');
 T('Shipment sync ok and the summary is built with it',r.ok&&/สรุปสถิติใหม่แล้ว/.test(r.msg),r.msg);
@@ -60,12 +60,14 @@ T('projects: CONTROL WIRING cost and returns per project, type from the BOM titl
 const bp=S.bom.projects.find(p=>p.project==='PP1048B02');
 T('BOM vs issued: 2 of 3 BOM CODEs issued, 1 extra CODE (the lug), accuracy 2/(3+1)',bp&&bp.issued===2&&bp.notIssued===1&&bp.extra===1&&bp.extraCodes[0]==='47280030'&&bp.acc===50,bp);
 T('BOM vs issued: a project with nothing issued gets no score',!S.bom.projects.find(p=>p.project==='PP1050B01'));
-T('stock: only the unit CODEs (ordered by DS13) + By Project leftovers; another unit part left out',S.stock.$value===3*100+5000*20+40*500+10*30+2*5000&&S.stock.buckets[0].n===2&&S.stock.buckets[3].n===1&&S.stock.buckets[4].n===1&&S.stock.pcN===1&&S.stock.$pcV===10000&&S.stock.items===5,S.stock);
+T('stock: only the unit CODEs (ordered by DS13) + By Project leftovers; another unit part left out',S.stock.$value===3*100+5000*20+40*500+10*30+2*5000+5*100&&S.stock.buckets[5].wait&&S.stock.buckets[5].n===1&&S.stock.buckets[0].n===2&&S.stock.buckets[3].n===1&&S.stock.buckets[4].n===1&&S.stock.pcN===1&&S.stock.$pcV===10000&&S.stock.items===6,S.stock);
+T('never issued but a PR/PO within 5 years → รอใช้งาน, not in the idle lists',S.waiting.some(x=>x.code==='77770001'&&x.pr)&&!S.$dead.some(x=>x.code==='77770001')&&!S.dead.some(x=>x.code==='77770001')&&S.dead.some(x=>x.code==='99990002'),[S.waiting,S.dead]);
 T('stock: idle list by value (Admin) and by idle days (all); the By Project leftover flagged',S.$dead.some(x=>x.code==='4556PP1030C00201'&&x.pc)&&S.$dead.find(x=>!x.pc).code==='99990001'&&S.dead.some(x=>x.code==='99990002')&&!('$v' in S.dead[0]),[S.$dead,S.dead]);
 T('stock: days of cover — MCB 3 left at 98/yr is below its 45-day lead time; terminal 5000 at 300/yr is over 2 years',S.low.some(x=>x.code==='42046001'&&x.lt===45)&&S.over.some(x=>x.code==='46700402'),[S.low,S.over]);
 T('stock: turnover per CODE group',S.groups.find(g=>g.g==='4670').turn===statTurn(),S.groups);
 function statTurn(){return Math.round(6000/(5000*20)*100)/100}
-T('purchasing: open lines aged, the line past its due date listed',S.po.open===2&&S.po.ages.reduce((a,b)=>a+b[1],0)===2&&!S.po.late.some(x=>x.pr==='PR9')&&S.po.late.length===1&&S.po.late[0].pr==='PR1',S.po);
+T('purchasing: open lines aged, the line past its due date listed',S.po.open===2&&S.po.ages.reduce((a,b)=>a+b[1],0)===2&&!S.po.late.some(x=>x.pr==='PR9')&&!S.po.late.some(x=>x.pr==='PR7')&&S.po.late.length===1&&S.po.late[0].pr==='PR1',S.po);
+T('purchasing: an open line older than 3 years is listed apart (likely never closed), not open / aged / late',S.po.staleN===1&&S.po.stale[0].pr==='PR7'&&S.po.stale[0].years>=3.9,S.po);
 T('purchasing: median PR → PO days',S.po.prpo>=5&&S.po.prpo<=7,S.po.prpo);
 const mm=S.minmax.find(x=>x.code==='42046001');
 T('usage: the unit\'s share — By Project CODE and DS13-ordered CODEs flagged',S.topQty.find(x=>x.code==='4556PP1048C00201').pc&&S.topQty.find(x=>x.code==='42046001').mine&&S.$mineCost12>0,S.topQty);
@@ -73,7 +75,7 @@ T('Min/Max: from use × lead time (StockRT 45 d) and 90 days of use, shown besid
 // a user: no money anywhere
 const u=mk();Object.assign(u,{stockData_:c.stockData_});u.__user={e:'u@x',n:'S.Somchai',a:0};u.isAdmin_=()=>false;
 const U=u.getStatSummary('');
-T('user: same summary without any "$" (money) key, quantities kept',!/"\$/.test(JSON.stringify(U))&&U.topQty.length&&!U.admin&&U.stock.items===5,Object.keys(U));
+T('user: same summary without any "$" (money) key, quantities kept',!/"\$/.test(JSON.stringify(U))&&U.topQty.length&&!U.admin&&U.stock.items===6,Object.keys(U));
 T('user cannot rebuild',/Admin/.test(E(()=>u.statRebuild(''))));
 T('page may call them (allow-list)',['getStatSummary','statRebuild'].every(f=>!!c.API_FNS[f]));
 console.log(ok+' passed, '+bad+' failed');process.exit(bad?1:0);

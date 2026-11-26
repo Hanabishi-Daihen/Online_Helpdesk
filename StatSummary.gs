@@ -125,7 +125,11 @@ function statBuild_() {
   // 3 · stock health
   var sa = {}; try { sa = saSettings_(); } catch (e) {}
   var y = function (n) { return statYm_(now - n * 365 * 864e5) + '01'; };
-  var B = [['ไม่เกิน 1 ปี', y(1)], ['1–2 ปี', y(2)], ['2–3 ปี', y(3)], ['เกิน 3 ปี', '0'], ['ไม่เคยเบิก', null]].map(function (b) { return { name: b[0], from: b[1], n: 0, $v: 0 }; });
+  // never issued but a PR / PO in the last 5 years = still planned for use (not idle stock)
+  var pend = []; try { pend = statPend_(); } catch (e) { S.notes.push('อ่าน Pending Order ไม่สำเร็จ: ' + (e.message || e)); }
+  var lastReq = {}; pend.forEach(function (g) { var k = ordCodeKey_(g[0]), r = bomDate_(g[6]) || bomDate_(g[8]); if (k && r != null && !(lastReq[k] >= r)) lastReq[k] = r; });
+  var B = [['ไม่เกิน 1 ปี', y(1)], ['1–2 ปี', y(2)], ['2–3 ปี', y(3)], ['เกิน 3 ปี', '0'], ['ไม่เคยเบิก', null], ['ไม่เคยเบิก · มี PR/PO ใน 5 ปี (รอใช้งาน)', null]].map(function (b, i) { return { name: b[0], from: b[1], n: 0, $v: 0, wait: i === 5 }; });
+  var waitL = [];
   var V = 0, grp = {}, dead = [], low = [], over = [], lt0 = 30;
   try { lt0 = fcCfg_().lt; } catch (e) {}
   var rt = {}; if (hasStock) try { rt = rtMap_(stock); } catch (e) {}
@@ -136,9 +140,11 @@ function statBuild_() {
     var s = stock[k], val = s.on > 0 ? s.on * (s.cost || 0) : 0, u = use[k], lu = s.lu;
     if (s.on > 0) {
       V += val; if (pc) { pcN++; pcV += val; }
-      var bi = !lu ? 4 : lu >= B[0].from ? 0 : lu >= B[1].from ? 1 : lu >= B[2].from ? 2 : 3; B[bi].n++; B[bi].$v += val;
+      var lr = lastReq[k], recent = lr != null && today - lr < 5 * 365 * 864e5;
+      var bi = !lu ? (recent ? 5 : 4) : lu >= B[0].from ? 0 : lu >= B[1].from ? 1 : lu >= B[2].from ? 2 : 3; B[bi].n++; B[bi].$v += val;
       var idle = lu ? Math.round((today - statD8t_(lu)) / 864e5) : null;
-      if (bi > 0) dead.push({ code: k, desc: s.desc + (s.spec ? ' ' + s.spec : ''), unit: s.unit, on: statR_(s.on), $v: statR_(val, 0), last: lu ? shipShow_(lu) : '', idle: idle, act: s.act !== '0', pc: pc });
+      if (bi === 5) waitL.push({ code: k, desc: s.desc + (s.spec ? ' ' + s.spec : ''), unit: s.unit, on: statR_(s.on), $v: statR_(val, 0), pr: bomFmt_(lr), pc: pc });
+      else if (bi > 0) dead.push({ pr: lr != null ? bomFmt_(lr) : '', code: k, desc: s.desc + (s.spec ? ' ' + s.spec : ''), unit: s.unit, on: statR_(s.on), $v: statR_(val, 0), last: lu ? shipShow_(lu) : '', idle: idle, act: s.act !== '0', pc: pc });
     }
     var g = grp[statGroupOf_(k)] || (grp[statGroupOf_(k)] = { g: statGroupOf_(k), n: 0, $v: 0, $use: 0, q: 0 });
     if (s.on > 0) { g.n++; g.$v += val; } if (u) { g.$use += u.c - u.cr; g.q += u.q; }
@@ -148,7 +154,8 @@ function statBuild_() {
       if (cover != null && cover < lt) low.push(row); else if (cover != null && cover > 730) over.push(row);
     }
   });
-  S.stock = { $value: statR_(V, 0), buckets: B.map(function (b) { return { name: b.name, n: b.n, $v: statR_(b.$v, 0) }; }), items: Object.keys(stock).filter(function (k) { return ours(k) && stock[k].on > 0; }).length, pcN: pcN, $pcV: statR_(pcV, 0) };
+  S.stock = { $value: statR_(V, 0), buckets: B.map(function (b) { return { name: b.name, n: b.n, $v: statR_(b.$v, 0), wait: b.wait }; }), items: Object.keys(stock).filter(function (k) { return ours(k) && stock[k].on > 0; }).length, pcN: pcN, $pcV: statR_(pcV, 0) };
+  S.waiting = waitL.sort(function (a, b) { return b.$v - a.$v; }).slice(0, STAT_TOP);
   S.$dead = dead.slice().sort(function (a, b) { return b.$v - a.$v; }).slice(0, STAT_TOP);
   S.dead = dead.slice().sort(function (a, b) { return (b.idle == null ? 9e9 : b.idle) - (a.idle == null ? 9e9 : a.idle) || b.on - a.on; }).slice(0, STAT_TOP).map(function (x) { var o = {}; Object.keys(x).forEach(function (k) { if (k !== '$v') o[k] = x[k]; }); return o; });
   S.groups = Object.keys(grp).map(function (k) { var g = grp[k]; return { g: g.g, n: g.n, q: statR_(g.q), $v: statR_(g.$v, 0), $use: statR_(g.$use, 0), turn: g.$v > 0 ? statR_(g.$use / g.$v, 2) : null }; })
@@ -156,7 +163,7 @@ function statBuild_() {
   S.low = low.sort(function (a, b) { return a.cover / a.lt - b.cover / b.lt; }).slice(0, STAT_TOP);
   S.over = over.sort(function (a, b) { return b.$v - a.$v || b.cover - a.cover; }).slice(0, STAT_TOP);
   // 4 · purchasing
-  try { S.po = statPo_(today, stock, rt, lt0, by); } catch (e) { S.notes.push('สรุป Pending Order ไม่สำเร็จ: ' + (e.message || e)); }
+  try { S.po = statPo_(today, stock, rt, lt0, by, pend); } catch (e) { S.notes.push('สรุป Pending Order ไม่สำเร็จ: ' + (e.message || e)); }
   // suggested Min / Max from 12-month use: Min = use per day × lead time × 1.5 · Max = Min + 90 days of use
   var mm = [];
   Object.keys(use).forEach(function (k) {
@@ -211,11 +218,18 @@ function statBom_(now) {
 }
 
 // Pending Order: lead time per CODE (Request → PO → due), open-line ageing, lines past their due date
-function statPo_(today, stock, rt, lt0, by) {
-  var b = pendingBundle_(false), txt = b && b.b64 ? shipUnB64_(b.b64) : '', from = today - 730 * 864e5;
-  var lt = {}, ages = [0, 0, 0, 0], late = [], prpo = [], podue = [], openN = 0;
-  txt.split('\n').forEach(function (l) {
-    var g = l.split('\t'); if (g.length < 10) return;
+// Pending Order lines (split) — read once per build
+function statPend_() {
+  var b = pendingBundle_(false), txt = b && b.b64 ? shipUnB64_(b.b64) : '';
+  return txt ? txt.split('\n').map(function (l) { return l.split('\t'); }).filter(function (g) { return g.length >= 10; }) : [];
+}
+// open lines older than 3 years are most likely received / used but never closed in the system (PH): listed apart,
+// not counted as open, aged or late
+var STAT_STALE_D = 3 * 365;
+function statPo_(today, stock, rt, lt0, by, rows) {
+  var from = today - 730 * 864e5;
+  var lt = {}, ages = [0, 0, 0, 0], late = [], prpo = [], podue = [], openN = 0, stale = [];
+  (rows || statPend_()).forEach(function (g) {
     var k = ordCodeKey_(g[0]), req = bomDate_(g[6]), iss = bomDate_(g[8]), due = bomDate_(g[9]) || bomDate_(g[7]), done = ORD_PO_DONE.test(g[4] || ''), cancel = /cancel|ยกเลิก/i.test(g[4] || '');
     if (cancel || !k) return;
     if (by && String(g[12] || '').trim().toUpperCase() !== by && !statProjC_(k)) return;   // the unit's lines only
@@ -224,9 +238,10 @@ function statPo_(today, stock, rt, lt0, by) {
       if (iss != null && iss >= req) { x.a.push((iss - req) / 864e5); prpo.push((iss - req) / 864e5); if (due >= iss) { x.b.push((due - iss) / 864e5); podue.push((due - iss) / 864e5); } }
     }
     if (!done) {
+      var age = req != null ? (today - req) / 864e5 : due != null ? (today - due) / 864e5 : null;
+      if (age != null && age > STAT_STALE_D) { stale.push({ code: k, name: g[5] || (stock[k] || {}).desc || '', pr: g[1], po: g[2], status: g[4], req: bomFmt_(req), due: bomFmt_(due), years: Math.round(age / 365 * 10) / 10, qty: Number(g[13]) || 0, unit: g[14] || '', by: g[12] || '' }); return; }
       openN++;
-      var age = req != null ? (today - req) / 864e5 : null;
-      if (age != null) ages[age <= 30 ? 0 : age <= 60 ? 1 : age <= 90 ? 2 : 3]++;
+      if (age != null) ages[age <= 30 ? 0 : age <= 60 ? 1 : age <= 90 ? 2 : 3]++;   // 91 days – 3 years
       if (due != null && due < today) late.push({ code: k, name: g[5] || (stock[k] || {}).desc || '', pr: g[1], po: g[2], status: g[4], due: bomFmt_(due), days: Math.round((today - due) / 864e5), qty: Number(g[13]) || 0, unit: g[14] || '', by: g[12] || '' });
     }
   });
@@ -236,7 +251,8 @@ function statPo_(today, stock, rt, lt0, by) {
     var r = rt[k] || null; if (r && Math.abs(d - r) <= Math.max(7, r * 0.5)) return;
     diff.push({ code: k, desc: stock[k] ? stock[k].desc + (stock[k].spec ? ' ' + stock[k].spec : '') : '', n: lt[k].d.length, pend: Math.round(d), prpo: lt[k].a.length ? Math.round(statMedian_(lt[k].a)) : null, podue: lt[k].b.length ? Math.round(statMedian_(lt[k].b)) : null, rt: r });
   });
-  return { open: openN, ages: [['≤ 30 วัน', ages[0]], ['31–60 วัน', ages[1]], ['61–90 วัน', ages[2]], ['เกิน 90 วัน', ages[3]]],
+  return { open: openN, ages: [['≤ 30 วัน', ages[0]], ['31–60 วัน', ages[1]], ['61–90 วัน', ages[2]], ['91 วัน – 3 ปี', ages[3]]], staleN: stale.length,
+    stale: stale.sort(function (a, b) { return b.years - a.years; }).slice(0, STAT_TOP),
     prpo: prpo.length ? Math.round(statMedian_(prpo)) : null, podue: podue.length ? Math.round(statMedian_(podue)) : null, def: lt0,
     late: late.sort(function (a, b) { return b.days - a.days; }).slice(0, STAT_TOP), lateN: late.length,
     diff: diff.sort(function (a, b) { return b.n - a.n; }).slice(0, STAT_TOP) };
