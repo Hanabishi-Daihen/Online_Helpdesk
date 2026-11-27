@@ -1,0 +1,48 @@
+# Push the code to Apps Script and update the web app deployment — run by hand (Actions → deploy → Run workflow).
+# Runs the tests first; nothing is deployed when a test fails.
+# Repository secrets (Settings → Secrets and variables → Actions):
+#   CLASPRC_JSON   contents of ~/.clasprc.json after `clasp login` on a PC (the Google account that owns the script)
+#   SCRIPT_ID      Apps Script → Project Settings → Script ID
+#   DEPLOYMENT_ID  Apps Script → Deploy → Manage deployments → the web app's Deployment ID
+name: deploy
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: 'Version note (shown in Manage deployments)'
+        required: false
+        default: ''
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install clasp
+        run: npm install -g @google/clasp@2.4.2
+      - name: Sign in and point at the script
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+        run: |
+          test -n "$CLASPRC_JSON" && test -n "$SCRIPT_ID" || { echo "Set the secrets CLASPRC_JSON and SCRIPT_ID first"; exit 1; }
+          printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
+          printf '{"scriptId":"%s","rootDir":"."}' "$SCRIPT_ID" > .clasp.json
+      - name: Push the code (every .gs, index.html, OrderApprovalPage.html, appsscript.json)
+        run: clasp push --force
+      - name: New version on the web app
+        env:
+          DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+          NOTE: ${{ github.event.inputs.note }}
+        run: |
+          test -n "$DEPLOYMENT_ID" || { echo "Set the secret DEPLOYMENT_ID first"; exit 1; }
+          clasp deploy --deploymentId "$DEPLOYMENT_ID" --description "${NOTE:-$(git log -1 --pretty=%s | cut -c1-90)} (${GITHUB_SHA::7})"
+      - name: Remove the credentials
+        if: always()
+        run: rm -f ~/.clasprc.json .clasp.json

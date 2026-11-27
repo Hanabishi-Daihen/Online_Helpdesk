@@ -1,0 +1,6 @@
+# clasp pushes only what Apps Script runs: every .gs file, the two pages and the manifest
+**/**
+!*.gs
+!index.html
+!OrderApprovalPage.html
+!appsscript.json
