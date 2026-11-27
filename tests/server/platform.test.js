@@ -57,4 +57,14 @@ T('unit: the orderer is copied to Booking BOM and Stock Alert settings',u2.bomCf
 T('unit: checks',/รหัสผู้สั่ง/.test(E(()=>u.saveUnitCfg('',{mfDept:'X',projLetter:'C',codeLen:8})))&&/4–20/.test(E(()=>u.saveUnitCfg('',{by:'A',mfDept:'X',projLetter:'C',codeLen:2}))));
 const u3=mk();u3.__user={e:'u:s',n:'S',a:0};u3.isAdmin_=()=>false;
 T('unit: users read, only Admin saves',!!u3.getUnitCfg('').cfg&&/Admin only/.test(E(()=>u3.saveUnitCfg('',{by:'X'}))));
+// ติดตามใบสั่ง showed 7 while the badge said 8: the version moved before the sheet write was committed
+{const seq=[],x=mk();x.SpreadsheetApp={flush:()=>seq.push('flush')};const sp=x.PropertiesService.getScriptProperties;
+ x.PropertiesService={getScriptProperties:()=>{const P=sp();return{...P,setProperty:(k,v)=>{seq.push('set '+k);P.setProperty(k,v)}}}};
+ x.dataBump_('ORD_VER');T('dataBump_: sheet writes committed (flush) before the version moves',seq.join(',')==='flush,set ORD_VER',seq);
+ seq.length=0;x.withLock_(()=>seq.push('fn'));T('withLock_: flush before the lock opens',seq.join(',')==='fn,flush',seq)}
+{const x=mk();x.Utilities.base64EncodeWebSafe=a=>Buffer.from(a.map(b=>b&255)).toString('base64');let n=0;props.ORD_VER='1';
+ const v1=x.wsCached_('t_race',['ord'],'',()=>{n++;props.ORD_VER='2';return{rows:7}});
+ const v2=x.wsCached_('t_race',['ord'],'',()=>{n++;return{rows:8}});
+ T('wsCached_: data changed while computing → answered but not kept (next call computes again)',v1.rows===7&&v2.rows===8&&n===2,[v1,v2,n]);
+ const v3=x.wsCached_('t_race',['ord'],'',()=>{n++;return{rows:9}});T('wsCached_: a stable answer is kept',v3.rows===8&&v3.cached&&n===2,[v3,n])}
 console.log(ok+' passed, '+bad+' failed');process.exit(bad?1:0);

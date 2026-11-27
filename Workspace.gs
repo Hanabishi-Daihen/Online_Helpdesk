@@ -87,7 +87,10 @@ function wsCached_(name, keys, extra, fn) {
   var raw = [name, ordToday_(), extra].concat(keys.map(function (k) { return P[k] || ''; })).join('|');
   var key = 'ws_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, raw)).replace(/=+$/, '');
   var hit = ordCacheGet_(key); if (hit) { hit.cached = true; return hit; }
-  var v = fn(); ordCachePut_(key, v, 21600); return v;
+  var v = fn(), P2 = null; try { P2 = getPulse(); } catch (e) {}
+  // data changed while computing → the answer may mix old and new rows: return it, but do not keep it for 6 h
+  if (P2 && keys.some(function (k) { return String(P2[k] || '') !== String(P[k] || ''); })) return v;
+  ordCachePut_(key, v, 21600); return v;
 }
 // after Stock / Pending Order / schedule syncs: compute the shared pages now, so the first viewer does not wait
 function wsWarm_(why) {

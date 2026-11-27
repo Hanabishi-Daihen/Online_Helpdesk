@@ -2883,6 +2883,10 @@ const[d,setD]=Q.useState(null),[err,setErr]=Q.useState(""),[f,setF]=zqKeep("trk.
 const setMine=v=>{setMine0(v);zqOrLs("zqTrkMine",v?"1":"0")};
 const load=m=>zqSwr("getOrderTrack",[nl],r=>{setD(r);setErr("")},{noCache:m!==1}).catch(e=>setErr(zqTh(e&&e.message||e)));
 Q.useEffect(()=>{load(1);return zqOnPulse(["ord","oa","po","ntf"],load)},[]);
+/* self-heal: the menu badge and the list come from the same server data — if their "ยังไม่ครบ" counts differ, one of them is
+   an old copy: ask the server again for both, once per mismatch */
+Q.useEffect(()=>{const W=window,h=()=>{const s=W.__zqTrkS;if(!s||!d||!d.orders)return;const n=d.orders.filter(o=>!/^(done|rejected|cancel)$/.test(o.stage)).length,k=s.open+"|"+n+"|"+d.time;if(s.open===n||W.__zqTrkFix===k)return;W.__zqTrkFix=k;
+zqSwr("getOrderTrack",[nl],r=>{setD(r);setErr("")},{force:1}).catch(()=>{});wl("getOrderTrackSummary").then(r=>{W.__zqTrkS=r;W.dispatchEvent(new Event("zq:trks"))}).catch(()=>{})};h();W.addEventListener("zq:trks",h);return()=>W.removeEventListener("zq:trks",h)},[d]);
 const ac=d&&d.ageCfg||{warn:2,over:3},myName=String(me||"").trim().toLowerCase(),qq=q.trim().toUpperCase();
 const pDay=v=>{const m=/^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(v||"");return m?new Date(+m[3],m[2]-1,+m[1]).getTime():null},cut=per?Date.now()-per*864e5:0;
 const base=d?d.orders.filter(o=>(!cut||(pDay(o.date)||0)>=cut)&&(!mine||myName&&String(o.des||"").trim().toLowerCase()===myName)&&(!qq||(o.id+" "+(o.spec||"")+" "+(o.rqn||"")+" "+(o.des||"")+" "+(o.remark||"")+" "+o.items.map(i=>i.code+" "+(i.material||"")+" "+i.pr+" "+i.po).join(" ")).toUpperCase().indexOf(qq)>=0)):[];

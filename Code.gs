@@ -97,7 +97,7 @@ function withLock_(fn) {
   var lock = LockService.getScriptLock();
   try { lock.waitLock(30000); } catch (e) { throw new Error('ระบบกำลังบันทึกข้อมูลของผู้ใช้อื่นอยู่ กรุณาลองอีกครั้งในไม่กี่วินาที'); }
   if (typeof ordMemoReset_ === 'function') ordMemoReset_();
-  try { return fn(); } finally { lock.releaseLock(); }
+  try { return fn(); } finally { try { SpreadsheetApp.flush(); } catch (e) {} lock.releaseLock(); }   // writes are visible to others before the lock opens
 }
 // the token of a signed-in Admin maps to { u: user, n: display name } for 6 h; __admName = who is acting in this call
 var __admName = '';
@@ -237,7 +237,9 @@ function verConflict_(kind, base, who) {
 //   bom   Booking BOM      rs     Stock ช่วยใช้             ord    Order Item list
 //   oa    order approvals  odb    DatabaseItemOrder        ntf    notifications (Tracking.gs)
 //   doc   FileList (DocSearch.gs)  isb  5-minute bucket: the case list re-reads the sheet to catch edits made by hand
-function dataBump_(key) { PropertiesService.getScriptProperties().setProperty(key, String(Date.now())); }
+// commit this execution's sheet writes BEFORE the version moves: a page that sees the new version must also see the new
+// rows — otherwise it caches the old list under the new version and never reloads (ติดตามใบสั่ง showed 7 while the badge said 8)
+function dataBump_(key) { try { SpreadsheetApp.flush(); } catch (e) {} PropertiesService.getScriptProperties().setProperty(key, String(Date.now())); }
 function getPulse() { apiOnly_();
   var P = PropertiesService.getScriptProperties().getProperties(), g = function (k) { return String(P[k] || ''); };
   var iv = issVer_().split(':');                                   // iss = real version · isb = 5-minute bucket (only the case list uses it)
