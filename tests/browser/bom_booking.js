@@ -14,6 +14,10 @@ const { chromium } = require('playwright');
     const G = window.google.script, d = Object.getOwnPropertyDescriptor(G, 'run'); window.__bk = [];
     const stock = [['42050002', 'MOTOR CIRCUIT BREAKER', 'PKZM0-10', '12', 'PCS', 'STORE1'], ['42050002', 'MOTOR CIRCUIT BREAKER', 'PKZM0-10', '3', 'PCS', 'STORE2'], ['43401027', 'AUXILIARY RELAY', 'RH4B-U', '10', 'PCS', 'STORE1'], ['42310010', 'CAM SWITCH', 'CA10 A222 EG', '4', 'PCS', 'STORE1'], ['10190005', 'HEX BOLT', 'M6x20', '50', 'PCS', 'STORE3'], ['00030001', 'OLD PART', '', '0', 'PCS', 'STORE9']];
     window.__srv = [];
+    // every open project also holds a By Project CODE (stock left by project 1034) booked from Stock · onhand 1 more than all bookings
+    window.__pj = v => { if (!v || !v.projects) return; const K = '4556PP1034C00701'; let n = 0;
+      v.projects.forEach(pr => { if (pr.status !== 'active') return; n++; if (pr.items.some(i => i.code === K)) return; pr.items.push({ item: '', code: K, qty: 2, material: 'TERMINAL BLOCK UK5N', st: 'ok', by: 'DS13', fromStock: 2, unit: 'PCS', pj: 1 }); pr.total++; pr.count.ok++; });
+      v.codes = (v.codes || []).filter(c => c.code !== K).concat([{ code: K, pj: 1, desc: 'TERMINAL BLOCK UK5N', unit: 'PCS', by: 'DS13', onhand: 2 * n + 1, incoming: 0, booked: 2 * n, balance: 1, max: null, over: false, short: false, known: true, projects: [], po: [] }]); v.pjL = 'C'; };
     const tsv = stock.map(f => [f[0], f[1], f[2], f[3], f[4], f[5], '', 'DS13', '', '1'].join('\t')).join('\n');
     window.__bundle = (async () => { const cs = new CompressionStream('gzip'), w = cs.writable.getWriter(); w.write(new TextEncoder().encode(tsv)); w.close();
       const buf = new Uint8Array(await new Response(cs.readable).arrayBuffer()); let bin = ''; buf.forEach(c => bin += String.fromCharCode(c)); return btoa(bin); })();
@@ -35,6 +39,7 @@ const { chromium } = require('playwright');
             else setTimeout(() => ok({ changes: ['42050002 1→5', '43401027 ⇄ X'], view: v }), 30);
             return;
           }
+          if (fn === 'getBom') inner.withSuccessHandler(v => { window.__pj(v); window.__bom = v; ok(v); });
           return inner.api(t, fn, a);
         } };
       return new Proxy(w, { get: (o, k) => k in o ? o[k] : inner[k] });
@@ -58,8 +63,12 @@ const { chromium } = require('playwright');
   check('layout: a KPI card filters the project list, clicking it again clears it', /กรอง: พร้อมเบิก/.test(await p.locator('main').innerText()) === false && await p.locator('.zq-bx-li').count() >= rk, rk);
   check('layout: grouped compact list + next-step box + detail tabs', await p.locator('.zq-bx-gh').count() >= 1 && await p.locator('.zq-bx-nx').count() === 1 && await p.locator('.zq-bx-dt [role=tab]').count() === 3 && await p.locator('th:has-text("จัดสรร")').count() === 1 && await p.locator('th:has-text("จาก Stock")').count() === 0);
   check('layout: close / delete live in the ⋯ menu, not on the page', await p.locator('.zq-bm-det button:has-text("ปิดโปรเจกต์")').count() === 0);
+  check('By Project CODE: not in the stock CODE list, a link to Order Project instead', !/4556PP1034C00701/.test(await p.locator('.zq-bm-det table.zq-bm-t').first().innerText()) && await p.locator('.zq-bm-det button:has-text("CODE By Project ที่จองไว้ 1 รายการ")').count() === 1 && /รายการ CODE \(\d+\)/.test(await p.locator('.zq-bx-dt [role=tab]').first().innerText()) && /จอง 1/.test(await p.locator('.zq-bx-dt [role=tab]:has-text("Order Project")').innerText()));
   await p.locator('.zq-bx-dt [role=tab]:has-text("Order Project")').click(); await p.waitForTimeout(400);
-  const poRows = await p.locator('.zq-bm-det .zq-bm-t tbody tr').allInnerTexts();
+  const pjBox = await p.locator('.zq-bm-det .zq-bm-w').first().innerText();
+  check('Order Project: booked By Project CODE listed on top with its allocation, Admin can edit / remove it', /จองจาก Stock — CODE By Project \(1\)/.test(pjBox) && /4556PP1034C00701/.test(pjBox) && /Stock 2/.test(pjBox) && await p.locator('.zq-bm-det button[aria-label="ลบ 4556PP1034C00701"]').count() === 1, pjBox);
+  await p.locator('.zq-bm-det').screenshot({ path: OUT + 'bom_pj.png' });
+  const poRows = await p.locator('.zq-bm-det .zq-bm-t').last().locator('tbody tr').allInnerTexts();
   check('Order Project: the list shows straight away, every line (received / cancelled too), open ones first, no show / hide button', poRows.length === 4 && /ออก PO|รอออก PO/.test(poRows[0]) && poRows.some(r => /รับครบ|รับแล้ว/.test(r)) && poRows.some(r => /ยกเลิก/.test(r)) && await p.locator('.zq-bm-det button:has-text("ดูรายการ")').count() === 0 && await p.locator('.zq-bm-det button:has-text("ซ่อนรายการ")').count() === 0, poRows);
   await p.locator('.zq-bx-dt [role=tab]:has-text("รายการ CODE")').click(); await p.waitForTimeout(200);
   await p.locator('button[aria-label="คำสั่งเพิ่มเติม"]').click(); await p.waitForTimeout(200);
@@ -88,6 +97,16 @@ const { chromium } = require('playwright');
   check('edit: saves the whole new list with the starting list\'s signature, the swap and the reason',
     !!A && its.find(x => x.code === code0).qty === 5 && !its.find(x => x.code === code1) && !its.find(x => x.code === code2) && !!its.find(x => x.code === '42310010') && A[4]['42310010'] === code2 && /=/.test(A[3]) && A[5] === 'ลูกค้าเปลี่ยนรุ่น', A);
   check('edit: back to the table with the result', await p.locator('table.zq-bk-e').count() === 0 && /บันทึกแล้ว/.test(await p.locator('.zq-em-msg').first().innerText().catch(() => '')));
+  // ── fix a wrong By Project CODE from the Order Project tab ──
+  await p.locator('.zq-bx-dt [role=tab]:has-text("Order Project")').click(); await p.waitForTimeout(300);
+  await p.locator('.zq-bm-det button[aria-label="แก้จำนวน 4556PP1034C00701"]').click(); await p.fill('input[aria-label="จำนวนใหม่ 4556PP1034C00701"]', '1');
+  await p.locator('.zq-bm-det button:has-text("บันทึก")').first().click(); await p.waitForTimeout(500);
+  let L2 = (await p.evaluate(() => window.__bk)).filter(x => x[0] === 'bomSaveItems').pop()[1];
+  check('Order Project: edit qty saves the whole list with the new qty + signature + reason', L2[2].find(x => x.code === '4556PP1034C00701').qty === 1 && L2[2].length > 1 && /4556PP1034C00701=2/.test(L2[3]) && /แก้จำนวน/.test(L2[5]), L2);
+  await p.locator('.zq-bx-dt [role=tab]:has-text("Order Project")').click().catch(() => {}); await p.waitForTimeout(300);
+  await p.locator('.zq-bm-det button[aria-label="ลบ 4556PP1034C00701"]').click(); await p.waitForTimeout(500);
+  L2 = (await p.evaluate(() => window.__bk)).filter(x => x[0] === 'bomSaveItems').pop()[1];
+  check('Order Project: 🗑 removes the wrong CODE (rest kept)', !L2[2].some(x => x.code === '4556PP1034C00701') && L2[2].length > 0 && /ลบ CODE By Project/.test(L2[5]), L2);
   // ── the cart ──
   await p.locator('button:has-text("จองจาก Stock")').first().click(); await p.waitForTimeout(500);
   await p.waitForSelector('.zq-shop-c', { timeout: 8000 }).catch(() => {});
@@ -118,6 +137,19 @@ const { chromium } = require('playwright');
   const bk = (await p.evaluate(() => window.__bk)).find(x => x[0] === 'bomBook'), R = bk && bk[1][1];
   check('cart: books the project (upper-case), date, title, CODE × 2', !!R && R.project === 'PP1099A01' && R.mode === 'new' && R.needDate === '01/12/2026' && R.items.length === 1 && R.items[0].code === '42050002' && R.items[0].qty === 2, R);
   check('cart: emptied, and the new project opens', await p.evaluate(() => JSON.parse(localStorage.getItem('zqBomCart')).items.length) === 0 && /PP1099A01/.test(await p.locator('.zq-bm-det').innerText().catch(() => '')));
+  // ── over-booking guard in the cart ──
+  await p.evaluate(() => { localStorage.setItem('zqBomCart', JSON.stringify({ mode: 'add', project: window.__bom.projects.find(x => x.status === 'active').project, items: [{ code: '4556PP1034C00701', qty: '2', desc: 'TERMINAL BLOCK UK5N', unit: 'PCS' }, { code: '42050002', qty: '99', desc: 'MOTOR CIRCUIT BREAKER', unit: 'PCS', onhand: 15 }] })); window.dispatchEvent(new Event('zq:bomcart')); });
+  await p.locator('button:has-text("จองจาก Stock")').first().click(); await p.waitForTimeout(500);
+  const ct = await p.locator('.zq-bk-c').innerText();
+  await p.locator('.zq-bk-c').screenshot({ path: OUT + 'bom_pj_cart.png' });
+  check('cart: By Project CODE over free → tagged, blocked with the free qty; book disabled', /By Project/.test(ct) && /จองได้ไม่เกินของว่าง 1/.test(ct) && await go.isDisabled(), ct);
+  await p.fill('input[aria-label="จำนวน 4556PP1034C00701"]', '1'); await p.waitForTimeout(100);
+  check('cart: stock CODE over free still needs "ยืนยันจองเกิน"', await go.isDisabled() && await p.locator('input[aria-label="ยืนยันจองเกิน 42050002"]').count() === 1);
+  await p.locator('input[aria-label="ยืนยันจองเกิน 42050002"]').check(); await p.waitForTimeout(100);
+  check('cart: within free + ticked → can book', !(await go.isDisabled()));
+  await go.click(); await p.waitForTimeout(600);
+  const bk2 = (await p.evaluate(() => window.__bk)).filter(x => x[0] === 'bomBook').pop()[1][1];
+  check('cart: sends the ticked stock CODE as allowShort (never the By Project one)', JSON.stringify(bk2.allowShort) === '["42050002"]' && bk2.items.find(x => x.code === '4556PP1034C00701').qty === 1, bk2);
   // ── from the item panel ──
   await p.evaluate(() => window.dispatchEvent(new CustomEvent('zq:item', { detail: '46700501' }))); await p.waitForTimeout(1500);
   const ib = p.locator('button:has-text("จอง BOM")').first();

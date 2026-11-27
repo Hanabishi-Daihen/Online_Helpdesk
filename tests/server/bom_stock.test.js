@@ -49,4 +49,9 @@ const sv=c.bomSnapGet_();sv.errT=Date.now()-6e5;c.bomSnapPut_(sv);g=c.getBom('se
 T('getBom: older error → rebuilt and cleared once stock reads again',!g.err&&code(g,'42040008').known,g.err);
 mode='throw';META={rows:0};c.bomSnapPut_(Object.assign(c.bomSnapGet_(),{v:3}));
 T('Item stock really empty (never synced) → compute still runs (all not found)',(()=>{mode='empty';const x=c.bomSnapBuild_();return !x.err&&code(x,'42040008').known===false})());
+// a By Project CODE booked into a project → marked pj (the page shows it under Order Project, not the stock list)
+mode='ok';META={rows:3};STOCK.push('4556PP1034C00701\tTerminal block\tUK5N\t4\tPCS\tSTORE2');
+c.importBom('session',[{project:'PP1045A01',title:'MCC',rev:'A',file:'bom.xlsx',items:[{code:'42040008',qty:1},{code:'4556PP1034C00701',qty:2}]}]);
+{const x=c.bomSnapBuild_(),pp=x.projects.find(p=>p.project==='PP1045A01')||{items:[]},a=pp.items.find(i=>i.code==='4556PP1034C00701')||{},b=pp.items.find(i=>i.code==='42040008')||{};
+T('By Project CODE: item and CODE row marked pj, stock CODE not · letter sent for the cart',a.pj===1&&b.pj===0&&code(x,'4556PP1034C00701').pj===1&&x.pjL==='C'&&a.fromStock===2,[a,b,x.pjL])}
 console.log(ok+' passed, '+bad+' failed');process.exit(bad?1:0);

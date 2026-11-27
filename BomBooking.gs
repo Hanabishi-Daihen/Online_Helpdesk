@@ -19,7 +19,7 @@ var BOM_PROJ_HEADER = ['PROJECT', 'TITLE', 'REV', 'FILE', 'ITEMS', 'NEED_DATE', 
 var BOM_ITEM_SHEET = 'BomItems';
 var BOM_ITEM_HEADER = ['PROJECT', 'CODE', 'QTY', 'MATERIAL', 'TYPE', 'RATED', 'MAKER', 'REMARK', 'ITEM'];
 var BOM_SNAP_SHEET = 'BomSnap', BOM_SNAP_CHUNK = 40000;
-var BOM_SNAP_VER = 5;                                 // v2: + ผู้สั่งล่าสุด (LastOfRequest_By) · v3: + พยากรณ์ของขาด (fc) · v4: + stockRows, no empty-stock builds · v5: + ship (Shipment issued) — older snapshots are rebuilt once
+var BOM_SNAP_VER = 6;                                 // v2: + ผู้สั่งล่าสุด (LastOfRequest_By) · v3: + พยากรณ์ของขาด (fc) · v4: + stockRows, no empty-stock builds · v5: + ship (Shipment issued) · v6: + pj (By Project CODEs) — older snapshots are rebuilt once
 var BOM_DEF = { process: 'auto', autoClose: 0, formCode: 'PLf200-011-0-1/1', formRev: 'Rev.1', orderBy: 'DS13' };
 
 function bomCfg_() {
@@ -206,6 +206,33 @@ function bomDiff_(before, after, swap) {
   return out;
 }
 function bomNote_(old, add) { var n = String(old || ''); return ordStr_((n ? n + ' · ' : '') + add, 500).slice(-500); }
+// Over-booking guard (inside withLock_, so two Admins booking at the same time see each other's rows):
+// need = { CODE: qty this request adds to the active bookings } · free = Item stock onhand − every active project's booking
+// (read live from the sheets, not the snapshot). A By Project CODE (4556PP1034C00701) is stock left by one project —
+// no PO will come for it — so it can never go over free. A stock CODE may, only when the Admin ticked "ยืนยันจองเกิน"
+// (allow[CODE]) — it then shows as ของขาด and is ordered.
+function bomFreeCheck_(need, allow) {
+  var codes = Object.keys(need).filter(function (k) { return need[k] > 0; });
+  if (!codes.length) return;
+  allow = allow || {};
+  var act = {}, booked = {}, on = {}, want = {}, items = bomItems_();
+  bomProjects_().forEach(function (p) { if (p.status === 'active') act[p.project] = 1; });
+  codes.forEach(function (k) { want[k] = 1; });
+  Object.keys(items).forEach(function (pk) { if (act[pk]) items[pk].forEach(function (it) { var k = ordCodeKey_(it.code); if (want[k]) booked[k] = (booked[k] || 0) + (Number(it.qty) || 0); }); });
+  stockRowsFor_(want).forEach(function (row) {
+    var t = row.indexOf('\t'); if (t < 0) return;
+    var k = ordCodeKey_(row.substring(0, t)); if (!want[k]) return;
+    var q = saNum_(row.split('\t')[3]); if (q != null) on[k] = (on[k] || 0) + q;
+  });
+  var r3 = function (n) { return Math.round(n * 1000) / 1000; }, bad = [];
+  codes.forEach(function (k) {
+    var free = r3((on[k] || 0) - (booked[k] || 0)), pj = unitProjC_(k);
+    if (need[k] <= free + 1e-9 || (!pj && allow[k])) return;
+    bad.push(k + ' ขอ ' + r3(need[k]) + ' ว่าง ' + Math.max(0, free) + ' (คงเหลือ ' + r3(on[k] || 0) + ' − จองแล้ว ' + r3(booked[k] || 0) + ')' + (pj ? ' · CODE By Project จองเกินของที่มีไม่ได้' : ''));
+  });
+  if (bad.length) throw new Error('จองเกินของว่าง: ' + bad.join(', ') + ' — ตัวเลขบนหน้าจออาจเก่า (มีการจองเพิ่มระหว่างนี้) กด "โหลดใหม่" แล้วลดจำนวน' +
+    (bad.some(function (b) { return b.indexOf('By Project') < 0; }) ? ' หรือติ๊ก "ยืนยันจองเกิน" ที่ CODE Stock ที่จะสั่งเพิ่ม' : ''));
+}
 // Edit: the whole new list of the project (the page sends it), sig = the list the page started from (someone else saved in between → refuse)
 // swap = { NEWCODE: OLDCODE } for "เปลี่ยนอุปกรณ์" lines · note = why (shown in the audit log and the project note)
 function bomSaveItems(token, project, items, sig, swap, note) { apiOnly_();
@@ -219,6 +246,11 @@ function bomSaveItems(token, project, items, sig, swap, note) { apiOnly_();
     if (sig != null && bomSig_(before) !== String(sig)) throw new Error('รายการของ ' + key + ' ถูกแก้ไขโดยคนอื่นระหว่างนี้ — กด "โหลดใหม่" แล้วแก้อีกครั้ง');
     var d = bomDiff_(before, clean, swap);
     if (!d.length) return d;
+    if (p.status === 'active') {                                     // a By Project CODE raised / added → must fit what is free
+      var had = {}, need = {}; before.forEach(function (it) { var k = ordCodeKey_(it.code); had[k] = (had[k] || 0) + (Number(it.qty) || 0); });
+      clean.forEach(function (it) { if (unitProjC_(it.code) && it.qty > (had[it.code] || 0)) need[it.code] = it.qty - (had[it.code] || 0); });
+      bomFreeCheck_(need, null);
+    }
     bomWriteItems_(key, clean);
     var ps = ss_().getSheetByName(BOM_PROJ_SHEET);
     writeText_(ps, p.row, 5, [String(clean.length)]);
@@ -229,7 +261,7 @@ function bomSaveItems(token, project, items, sig, swap, note) { apiOnly_();
   var view = diff.length ? bomView_(bomSnapBuild_()) : getBom(token);
   return { view: view, changes: diff };
 }
-// Book in the system: req = { project, title, needDate, mode: 'new' | 'add', items: [{ code, qty, remark }], note }
+// Book in the system: req = { project, title, needDate, mode: 'new' | 'add', items: [{ code, qty, remark }], note, allowShort: [CODE] }
 // 'new' makes a project (FILE = "จองในระบบ") · 'add' adds to a project (same CODE → quantities add up)
 function bomBook(token, req) { apiOnly_();
   requireAdmin_(token);
@@ -243,7 +275,12 @@ function bomBook(token, req) { apiOnly_();
     var ps = bomSheet_(BOM_PROJ_SHEET, BOM_PROJ_HEADER), p = bomProjects_().filter(function (x) { return x.project === key; })[0], now = nowStr_();
     if (mode === 'new' && p) throw new Error('มีโปรเจกต์ ' + key + ' อยู่แล้ว — เลือก "เพิ่มเข้าโปรเจกต์ที่มีอยู่" แทน');
     if (mode === 'add' && !p) throw new Error('ไม่พบโปรเจกต์ ' + key);
-    var before = p ? (bomItems_()[key] || []) : [], merged = bomClean_(before.concat(add.map(function (it) { return { code: it.code, qty: it.qty, material: it.material, type: it.type, rated: it.rated, maker: it.maker, remark: it.remark }; })));
+    var before = p ? (bomItems_()[key] || []) : [], allow = {}, ask = {};
+    (Array.isArray(req.allowShort) ? req.allowShort : []).forEach(function (c) { var k = ordCodeKey_(c); if (k) allow[k] = 1; });
+    add.forEach(function (it) { ask[it.code] = (ask[it.code] || 0) + it.qty; });
+    if (p && p.status !== 'active') before.forEach(function (it) { var k = ordCodeKey_(it.code); if (ask[k] != null) ask[k] += Number(it.qty) || 0; });   // reopening brings its old rows back too
+    bomFreeCheck_(ask, allow);
+    var merged = bomClean_(before.concat(add.map(function (it) { return { code: it.code, qty: it.qty, material: it.material, type: it.type, rated: it.rated, maker: it.maker, remark: it.remark }; })));
     bomWriteItems_(key, merged);
     var d = bomDiff_(before, merged, null), tag = 'จองในระบบ ' + now.split(' ')[0] + ': ' + add.length + ' รายการ' + (why ? ' (' + why + ')' : '');
     if (p) {
@@ -360,19 +397,19 @@ function bomCompute_() {
       });
       var stt = need > 0 ? 'short' : late > 0 ? 'late' : onTime > 0 ? 'incoming' : 'ok';
       (res[d.p.project] = res[d.p.project] || []).push({ code: d.it.code, qty: d.it.qty, material: d.it.material || st.desc, type: d.it.type, rated: d.it.rated,
-        maker: d.it.maker, remark: d.it.remark, item: d.it.item, unit: st.unit, by: st.by || '', st: stt, fromStock: fromStock, onTime: onTime, late: late, short: Math.max(0, need),
+        maker: d.it.maker, remark: d.it.remark, item: d.it.item, pj: unitProjC_(k) ? 1 : 0, unit: st.unit, by: st.by || '', st: stt, fromStock: fromStock, onTime: onTime, late: late, short: Math.max(0, need),
         eta: bomFmt_(eta), known: !!stock[k] });
     });
     var incoming = ins.reduce(function (s2, x) { return s2 + x.qty; }, 0), bal = Math.round((st.onhand + incoming - booked) * 1000) / 1000;
     var mx = sa[k] && sa[k].max != null ? sa[k].max : null;
     var lt = sa[k] && sa[k].lt > 0 ? [sa[k].lt, 'set'] : rt[k] ? [rt[k], 'rt'] : [fcc.lt, 'def'], fc = null;
     try { fc = fcCode_(st.onhand, inc[k] || [], dl, sa[k] && sa[k].min != null && !sa[k].notUse ? sa[k].min : null, lt[0], lt[1], today); } catch (e) { console.warn('fcCode_', k, e); }   // Tracking.gs
-    codes.push({ code: k, desc: st.desc || (dl[0].it.material || ''), unit: st.unit, by: st.by || '', onhand: st.onhand, incoming: Math.round(incoming * 1000) / 1000,
+    codes.push({ code: k, pj: unitProjC_(k) ? 1 : 0, desc: st.desc || (dl[0].it.material || ''), unit: st.unit, by: st.by || '', onhand: st.onhand, incoming: Math.round(incoming * 1000) / 1000,
       booked: Math.round(booked * 1000) / 1000, balance: bal, max: mx, over: mx != null && bal > mx, short: bal < 0, known: !!stock[k],
       fc: fc, projects: dl.map(function (d) { return [d.p.project, d.it.qty]; }), po: (inc[k] || []).slice(0, 5).map(function (x) { return { qty: x.qty, due: bomFmt_(x.due), pr: x.pr, po: x.po, status: x.status }; }) });
   });
   var projects = projs.map(function (p) {
-    var its = p.status === 'active' ? (res[p.project] || []) : (itemsBy[p.project] || []).map(function (it) { return { code: it.code, qty: it.qty, material: it.material, type: it.type, rated: it.rated, maker: it.maker, remark: it.remark, item: it.item, st: 'closed' }; });
+    var its = p.status === 'active' ? (res[p.project] || []) : (itemsBy[p.project] || []).map(function (it) { return { code: it.code, qty: it.qty, material: it.material, type: it.type, rated: it.rated, maker: it.maker, remark: it.remark, item: it.item, pj: unitProjC_(it.code) ? 1 : 0, st: 'closed' }; });
     var c = { ok: 0, incoming: 0, late: 0, short: 0 }; its.forEach(function (x) { if (c[x.st] != null) c[x.st]++; });
     var n = p.need || (p.status === 'active' ? bomNeed_(p, sched, cfg) : { t: null, label: '' });
     return { project: p.project, title: p.title, rev: p.rev, file: p.file, status: p.status, imported: p.imported, closed: p.closed, note: p.note,
@@ -381,7 +418,7 @@ function bomCompute_() {
   });
   projects.sort(function (a, b) { return (a.status === 'active' ? 0 : 1) - (b.status === 'active' ? 0 : 1) || (a.daysLeft == null ? 9e9 : a.daysLeft) - (b.daysLeft == null ? 9e9 : b.daysLeft); });
   codes.sort(function (a, b) { return (a.balance - b.balance) || String(a.code).localeCompare(String(b.code)); });
-  return { v: BOM_SNAP_VER, projects: projects, codes: codes, cfg: cfg, built: nowStr_(), stockRows: stockRows, stockTime: (stockInfo_() || {}).time || '', poTime: (poInfo_() || {}).time || '',
+  return { v: BOM_SNAP_VER, projects: projects, codes: codes, cfg: cfg, pjL: unitCfg_().projLetter, built: nowStr_(), stockRows: stockRows, stockTime: (stockInfo_() || {}).time || '', poTime: (poInfo_() || {}).time || '',
     schedTime: (schedSyncInfo_() || {}).time || '' };
 }
 

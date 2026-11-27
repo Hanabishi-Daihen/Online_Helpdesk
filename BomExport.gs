@@ -110,7 +110,20 @@ function bomExportPrep(token, project, kind, prefix) { apiOnly_();
   } else {
     pre = bomKey_(prefix || bomProjPrefix_(key));
     if (pre.length < 4) throw new Error('Prefix ต้องยาวอย่างน้อย 4 ตัวอักษร');
-    var st2 = bomStockIdx_(function (k) { return k.indexOf(pre) >= 0 && !bomIs8_(k); });
+    // + By Project CODEs of other project numbers booked into this project ("จองจาก Stock"): only the booked qty
+    var bk = {}; (bomItems_()[key] || []).forEach(function (it) { var k = ordCodeKey_(it.code); if (unitProjC_(k) && k.indexOf(pre) < 0) bk[k] = (bk[k] || 0) + (Number(it.qty) || 0); });
+    var st2 = bomStockIdx_(function (k) { return (k.indexOf(pre) >= 0 && !bomIs8_(k)) || bk[k] != null; });
+    Object.keys(bk).sort().forEach(function (k) {
+      var s = st2[k], left = bk[k];
+      if (!s) { excluded.push({ code: k, material: '', qty: left, store: '', pk: '', unit: '', onhand: 0, locs: [], known: false, by: '', why: 'จองไว้ แต่ไม่พบใน Item stock' }); return; }
+      s.locs.forEach(function (L) {
+        if (left <= 0 || !(L.qty > 0)) return;
+        var q = Math.min(left, L.qty); left = Math.round((left - q) * 1000) / 1000;
+        rows.push({ code: s.code, material: s.desc, store: L.loc, pk: L.pk, qty: q, unit: s.unit, onhand: s.onhand, locs: s.locs, known: true, by: s.by, booked: 1 });
+      });
+      if (left > 0) excluded.push({ code: s.code, material: s.desc, qty: left, store: '', pk: '', unit: s.unit, onhand: s.onhand, locs: s.locs, known: true, by: s.by, why: 'จองไว้ ' + bk[k] + ' แต่ Onhand มี ' + s.onhand });
+      delete st2[k];
+    });
     Object.keys(st2).sort().forEach(function (k) {
       var s = st2[k];
       s.locs.forEach(function (L) {

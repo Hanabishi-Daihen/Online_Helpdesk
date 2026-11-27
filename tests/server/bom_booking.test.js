@@ -46,7 +46,8 @@ const nb=items().PP1050B01||[],pn=proj('PP1050B01');
 T('book new: project made (upper-case, from the cart, need date, "จองในระบบ")',r.created&&pn&&pn.file==='จองในระบบ'&&pn.needManual==='05/12/2026'&&pn.status==='active'&&pn.title==='LCC',pn);
 T('book new: same CODE in the cart adds up',nb.length===2&&nb.find(x=>x.code==='42040008').qty===3,nb);
 T('book new: a project that exists is refused (use "add")',/มีโปรเจกต์ PP1050B01 อยู่แล้ว/.test(E(()=>c.bomBook('session',{project:'PP1050B01',mode:'new',items:[{code:'42040008',qty:1}]}))));
-r=c.bomBook('session',{project:'PP1039D01',mode:'add',items:[{code:'42040008',qty:1},{code:'42046001',qty:2}]});
+T('book: more than free (onhand 5 − booked 5) without "ยืนยันจองเกิน" → refused with the live numbers',/จองเกินของว่าง: 42040008 ขอ 1 ว่าง 0 \(คงเหลือ 5 − จองแล้ว 5\)/.test(E(()=>c.bomBook('session',{project:'PP1039D01',mode:'add',items:[{code:'42040008',qty:1},{code:'42046001',qty:2}]})))&&items().PP1039D01.length===2);
+r=c.bomBook('session',{project:'PP1039D01',mode:'add',items:[{code:'42040008',qty:1},{code:'42046001',qty:2}],allowShort:['42040008']});
 const na=items().PP1039D01;
 T('book add: quantities add to the project, new CODEs join',!r.created&&na.find(x=>x.code==='42040008').qty===3&&na.find(x=>x.code==='42046001').qty===2&&na.length===3,na);
 T('book: other projects untouched',(items().PP1050B01||[]).length===2);
@@ -55,5 +56,19 @@ T('book: bad need date refused',/วว\/ดด\/ปปปป/.test(E(()=>c.bomB
 T('Admin only: a signed-in user cannot book or edit',(()=>{const u=mk();u.__trusted=true;u.__user={e:'u@x',n:'U',a:0};return /Admin|admin|สิทธิ์/.test(E(()=>u.bomBook('',{project:'PP2000A01',mode:'new',items:[{code:'1',qty:1}]})))&&/Admin|admin|สิทธิ์/.test(E(()=>u.bomSaveItems('','PP1039D01',[{code:'1',qty:1}])))})());
 c.bomProjectAction('session','PP1050B01','close');r=c.bomBook('session',{project:'PP1050B01',mode:'add',items:[{code:'42046001',qty:1}]});
 T('book add to a closed project: reopened, closed time cleared',r.reopened&&proj('PP1050B01').status==='active'&&!proj('PP1050B01').closed,proj('PP1050B01'));
+// By Project CODE (stock left by project 1034) booked into other projects: never over free, editable / removable
+c.stockData_=()=>['42040008\tMiniature circuit breaker\tPLS6-C32/3\t5\tPC\tSTORE1','42046001\tMiniature circuit breaker\tPLS6-C6/2-DC\t3\tPCS\tSTORE1','43401027\tAUXILIARY RELAY\tRH4B-U\t10\tPCS\tSTORE1','4556PP1034C00701\tTerminal block\tUK5N\t2\tPCS\tSTORE2','4556PP1034C00701\tTerminal block\tUK5N\t1\tPCS\tSTORE3'];
+c.bomBook('session',{project:'PP1039D01',mode:'add',items:[{code:'4556PP1034C00701',qty:2}]});
+T('By Project: booked within free (onhand 3)',(items().PP1039D01.find(x=>x.code==='4556PP1034C00701')||{}).qty===2);
+{const m=E(()=>c.bomBook('session',{project:'PP1050B01',mode:'add',items:[{code:'4556PP1034C00701',qty:2}],allowShort:['4556PP1034C00701']}));
+T('By Project: another Admin over-books → refused even with "ยืนยันจองเกิน"',/4556PP1034C00701 ขอ 2 ว่าง 1/.test(m)&&/By Project/.test(m)&&!(items().PP1050B01||[]).some(x=>x.code==='4556PP1034C00701'),m)}
+{const L=items().PP1039D01.map(x=>x.code==='4556PP1034C00701'?{...x,qty:4}:x);
+T('By Project: edit raising the qty over free → refused',/จองเกินของว่าง/.test(E(()=>c.bomSaveItems('session','PP1039D01',L,c.bomSig_(items().PP1039D01),null,''))))}
+{const L=items().PP1039D01.map(x=>x.code==='4556PP1034C00701'?{...x,qty:3}:x);c.bomSaveItems('session','PP1039D01',L,c.bomSig_(items().PP1039D01),null,'แก้จำนวน CODE By Project');
+T('By Project: edit up to free → saved',(items().PP1039D01.find(x=>x.code==='4556PP1034C00701')||{}).qty===3)}
+{const L=items().PP1039D01.filter(x=>x.code!=='4556PP1034C00701');r=c.bomSaveItems('session','PP1039D01',L,c.bomSig_(items().PP1039D01),null,'ลบ CODE By Project ที่จองผิด');
+T('By Project: wrong CODE removed → listed, and free again for another project',!items().PP1039D01.some(x=>x.code==='4556PP1034C00701')&&r.changes.some(x=>/−4556PP1034C00701/.test(x))&&!E(()=>c.bomBook('session',{project:'PP1050B01',mode:'add',items:[{code:'4556PP1034C00701',qty:3}]})),r.changes)}
+{const x=c.bomExportPrep('session','PP1050B01','project'),R=x.rows.filter(r=>r.code==='4556PP1034C00701');
+T('Export By Project: booked By Project CODE of another project number joins, booked qty only, split by location',R.length===2&&R[0].qty===2&&R[1].qty===1&&R.every(r=>r.booked===1),x.rows)}
 T('page may call both (allow-list)',!!c.API_FNS.bomBook&&!!c.API_FNS.bomSaveItems);
 console.log(ok+' passed, '+bad+' failed');process.exit(bad?1:0);
