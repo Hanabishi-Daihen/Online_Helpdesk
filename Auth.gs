@@ -24,7 +24,7 @@ var API_FNS = (function () {
   'changeAdminPassword checkDataVers checkOrderDup claimRemain closeRemainClaim createIssue deleteIssues ' +
   'deleteKitTemplate deleteOrder deleteOrderDbRow diagnose docLookup exportBomForm exportBomShortReport exportOrder ' +
   'exportRemainReport getAdminUsers getAppUrl getBom getBomOrdersAll getBomProjOrders getBomShortMailCfg getBomSummary ' +
-  'getDataVers getSetLib getSetSeeds saveSetLib deleteSetLib getLugGuide saveLug deleteLug getStatSummary statRebuild getCodeStatus saveCodeStatus deleteCodeStatus getEstCost getEstMeta getShipSource saveEstCfg setShipSource syncShipNow getDocIndex getDocPaths getDocSource getEmailConfig getEmailRoster getExportPdf getFeedback getForecast ' +
+  'getDataVers getSetLib getSetSeeds saveSetLib deleteSetLib getLugGuide saveLug deleteLug getStatSummary statRebuild getCodeStatus saveCodeStatus deleteCodeStatus getUnitCfg saveUnitCfg getEstCost getEstMeta getShipSource saveEstCfg setShipSource syncShipNow getDocIndex getDocPaths getDocSource getEmailConfig getEmailRoster getExportPdf getFeedback getForecast ' +
   'getIssueFull getIssues getIssuesVer getItem360 getKitTemplate getKitTemplates getMany getMyDay getNotify ' +
   'getOrderAgeSummary getOrderApprovalPulse getOrderBoot getOrderDb getOrderTemplate getOrderTrack getOrderTrackSummary ' +
   'getOrders getP360Cfg getPendingBundle getPendingMeta getPendingSource getProject360 getProjects getPublicTemplates ' +
@@ -55,9 +55,12 @@ function api(tok, fn, args) {
     var u = authSession_(tok);
     if (!u) throw new Error('AUTH_REQUIRED: เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่');
     __user = u;
+    if (u.r === 'viewer' && VIEWER_DENY[fn]) throw new Error('บัญชีของคุณเป็น "ผู้ดู" — ดูข้อมูลและแจ้งปัญหาได้ แต่สร้าง / บันทึก / Export ใบสั่ง และจองของไม่ได้ (ขอสิทธิ์จาก Admin)');
   } else if (tok) { try { __user = authSession_(tok); } catch (e) {} }
   return G[fn].apply(null, Array.isArray(args) ? args.slice(0, 20) : []);
 }
+// role "ผู้ดู" (viewer): sees everything a user sees and can report issues, but cannot write orders or book stock
+var VIEWER_DENY = { saveOrder: 1, exportOrder: 1, saveOrderKitPdf: 1, saveKitTemplate: 1, deleteKitTemplate: 1, submitOrderApproval: 1, claimRemain: 1, exportBomForm: 1, trackFillRef: 1 };
 // signed-in calls that are not page functions
 var AUTH_FNS = { authLogout: 1, authChangePassword: 1, authProfile: 1, authUsers: 1, authUserAction: 1, authSaveCfg: 1 };
 
@@ -76,14 +79,14 @@ function usrSheet_() { var s = sheet_(USR_SHEET, USR_HEAD); if (s.getLastRow() =
 function usrAll_() {
   var s = usrSheet_(), n = s.getLastRow() - 1;
   return n > 0 ? s.getRange(2, 1, n, USR_HEAD.length).getDisplayValues().map(function (r, i) {
-    var role = String(r[9] || '').toLowerCase() === 'admin' ? 'admin' : 'user';
+    var rv = String(r[9] || '').toLowerCase(), role = rv === 'admin' || rv === 'viewer' ? rv : 'user';   // viewer = ผู้ดู (no orders)
     return { row: i + 2, e: String(r[0]).trim().toLowerCase(), n: r[1], d: r[2], st: r[3] || 'active', s: r[4], h: r[5], c: r[6], t: r[7], note: r[8], role: role, admin: role === 'admin' };
   }).filter(function (u) { return u.e; }) : [];
 }
 function usrFind_(email) { email = authEmail_(email); return usrAll_().filter(function (u) { return u.e === email; })[0] || null; }
 function usrWrite_(u) {
   var s = usrSheet_(), row = u.row || s.getLastRow() + 1, rg = s.getRange(row, 1, 1, USR_HEAD.length);
-  fmtText_(rg); rg.setValues([[u.e, u.n || '', u.d || '', u.st || 'active', u.s || '', u.h || '', u.c || nowStr_(), u.t || '', u.note || '', u.role === 'admin' ? 'admin' : 'user']]);
+  fmtText_(rg); rg.setValues([[u.e, u.n || '', u.d || '', u.st || 'active', u.s || '', u.h || '', u.c || nowStr_(), u.t || '', u.note || '', u.role === 'admin' || u.role === 'viewer' ? u.role : 'user']]);
   u.row = row; return u;
 }
 function authEmail_(e) { e = String(e || '').trim().toLowerCase(); return /^[^@\s<>"']{1,64}@[a-z0-9.-]{3,190}\.[a-z]{2,24}$/.test(e) ? e : ''; }
@@ -97,10 +100,10 @@ function authPassCheck_(pw, email, name) {
   if (/^(password|12345678|qwerty12|daihen12|daihen123|abcd1234)/i.test(pw)) throw new Error('รหัสผ่านนี้เดาง่ายเกินไป');
   return pw;
 }
-function authPub_(u) { return { email: u.e, name: u.n, dept: u.d, status: u.st, admin: !!u.admin }; }
+function authPub_(u) { return { email: u.e, name: u.n, dept: u.d, status: u.st, admin: !!u.admin, role: u.role || 'user' }; }
 // Admin role from the session: the page turns Admin mode on (token '' — the server trusts the session, see isAdmin_)
 function authAdminInfo_(name) {
-  var names = []; try { names = admUsers_().map(function (a) { return a.n; }).concat(usrAll_().filter(function (u) { return u.admin && u.st === 'active'; }).map(function (u) { return u.n; })); } catch (e) {}
+  var names = []; try { names = admUsers_().map(function (a) { return a.n; }).concat(usrAll_().filter(function (u) { return u.admin && u.st === 'active'; }).map(function (u) { return u.n; })); } catch (e) { errLog_(e, 'Auth:103'); }
   return { token: 'session', user: '', name: name, names: names.filter(function (n, i) { return n && names.indexOf(n) === i; }) };
 }
 
@@ -110,7 +113,7 @@ function sesSheet_() { var s = sheet_(SES_SHEET, SES_HEAD); if (s.getLastRow() =
 function sesHash_(tok) { return Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, 'ses|' + String(tok), Utilities.Charset.UTF_8)).substring(0, 43); }
 function sesNew_(u, remember, device) {
   var tok = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, ''), h = sesHash_(tok);
-  var exp = Date.now() + (remember ? authCfg_().days * 864e5 : 12 * 3600e3), v = { e: u.e, n: u.n, d: u.d || '', a: u.admin ? 1 : 0, x: exp };
+  var exp = Date.now() + (remember ? authCfg_().days * 864e5 : 12 * 3600e3), v = { e: u.e, n: u.n, d: u.d || '', a: u.admin ? 1 : 0, r: u.role === 'viewer' ? 'viewer' : '', x: exp };
   withLock_(function () {
     var s = sesSheet_(), rg = s.getRange(s.getLastRow() + 1, 1, 1, SES_HEAD.length); fmtText_(rg);
     rg.setValues([[h, u.e, String(exp), nowStr_(), String(device || '').substring(0, 80)]]);
@@ -136,7 +139,7 @@ function authSession_(tok) {
     if (!hit || Number(hit[2]) < Date.now()) return null;
     var em = String(hit[1]), u = em.indexOf('admin:') === 0 ? authAdminUser_(em.substring(6)) : usrFind_(em);
     if (!u || u.st !== 'active') return null;
-    v = { e: u.e, n: u.n, d: u.d || '', a: u.admin ? 1 : 0, x: Number(hit[2]) };
+    v = { e: u.e, n: u.n, d: u.d || '', a: u.admin ? 1 : 0, r: u.role === 'viewer' ? 'viewer' : '', x: Number(hit[2]) };
     C.put('ses_' + h, JSON.stringify(v), 21600);
   }
   if (!v || v.x < Date.now()) return null;
@@ -265,7 +268,7 @@ function authForgotReset(email, code, pass, remember, device) {
 // → { user, cfg } for a valid session · { none: true }
 function authMe(tok) {
   var v = authSession_(tok); if (!v) return { none: true, on: authCfg_().on };
-  return { user: { email: v.e, name: v.n, dept: v.d, admin: !!v.a }, admin: v.a ? authAdminInfo_(v.n) : null, on: authCfg_().on };
+  return { user: { email: v.e, name: v.n, dept: v.d, admin: !!v.a, role: v.a ? 'admin' : v.r || 'user' }, admin: v.a ? authAdminInfo_(v.n) : null, on: authCfg_().on };
 }
 
 // ── signed in ──
@@ -304,7 +307,7 @@ function authUsers(token) {
   requireAdmin_(token);
   return { cfg: authCfg_(), users: usrAll_().map(function (u) { return { email: u.e, name: u.n, dept: u.d, status: u.st, role: u.role, created: u.c, last: u.t }; }) };
 }
-// act: approve | disable | enable | reject | delete | reset (→ temporary password) | signout | admin | user (role)
+// act: approve | disable | enable | reject | delete | reset (→ temporary password) | signout | admin | user | viewer (role)
 function authUserAction(token, email, act) {
   requireAdmin_(token); email = authEmail_(email); if (!email) throw new Error('อีเมลไม่ถูกต้อง');
   var temp = '';
@@ -314,14 +317,14 @@ function authUserAction(token, email, act) {
     if (act === 'approve' || act === 'enable') x.st = 'active';
     else if (act === 'disable') x.st = 'disabled';
     else if (act === 'reject') x.st = 'rejected';
-    else if (act === 'admin' || act === 'user') x.role = act;
+    else if (act === 'admin' || act === 'user' || act === 'viewer') x.role = act;
     else if (act === 'reset') { temp = 'Dh' + Math.random().toString(36).slice(2, 7) + Math.floor(10 + Math.random() * 89); x.s = Utilities.getUuid().replace(/-/g, ''); x.h = admHash_(x.s, temp); }
     else if (act !== 'signout') throw new Error('คำสั่งไม่ถูกต้อง');
     return usrWrite_(x);
   });
   if (!u) throw new Error('ไม่พบผู้ใช้ ' + email);
   if (act !== 'approve' && act !== 'enable') sesRevoke_(email);
-  audit_([['Admin', { approve: 'อนุมัติผู้ใช้', disable: 'ระงับผู้ใช้', enable: 'เปิดใช้ผู้ใช้', reject: 'ปฏิเสธผู้สมัคร', delete: 'ลบผู้ใช้', reset: 'รีเซ็ตรหัสผ่านผู้ใช้', signout: 'ออกจากระบบทุกเครื่อง (ผู้ใช้)', admin: 'ตั้งเป็น Admin', user: 'เปลี่ยนเป็นผู้ใช้ทั่วไป' }[act], '', u.n + ' <' + u.e + '>']]);
+  audit_([['Admin', { approve: 'อนุมัติผู้ใช้', disable: 'ระงับผู้ใช้', enable: 'เปิดใช้ผู้ใช้', reject: 'ปฏิเสธผู้สมัคร', delete: 'ลบผู้ใช้', reset: 'รีเซ็ตรหัสผ่านผู้ใช้', signout: 'ออกจากระบบทุกเครื่อง (ผู้ใช้)', admin: 'ตั้งเป็น Admin', user: 'เปลี่ยนเป็นผู้ใช้ทั่วไป (สั่งของได้)', viewer: 'ตั้งเป็นผู้ดู (สั่งของไม่ได้)' }[act], '', u.n + ' <' + u.e + '>']]);
   var out = authUsers(token); if (temp) out.temp = temp; return out;
 }
 function authSaveCfg(token, c) {
@@ -342,7 +345,7 @@ function authBoot_(u, admin) {
   var t0 = Date.now(), r = {}, v = null, keep = __user, tok = admin ? 'session' : '';
   __user = { e: u && u.e || '', n: u && u.n || '', d: u && u.d || '', a: admin ? 1 : 0 };
   try {
-    try { v = getDataVers(); } catch (e) {}
+    try { v = getDataVers(); } catch (e) { errLog_(e, 'Auth:345'); }
     var F = { getSettings: function () { return bootCfg_().settings; }, getSchedules: schedCached_, getPublicTemplates: function () { return bootCfg_().templates; },
       getIssues: function () { return getIssues(tok); }, getMyDay: function () { return getMyDay(tok); } };
     BOOT_FNS.forEach(function (n) { if (Date.now() - t0 > 12000) return; try { r[n] = (F[n] || globalThis[n])(); } catch (e) { console.warn('authBoot_ ' + n, e); } });

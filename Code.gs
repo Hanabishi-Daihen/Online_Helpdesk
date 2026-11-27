@@ -33,10 +33,10 @@ function doGet(e) { trustEntry_();
   // Start-up data rendered into the page: each google.script.run round trip costs ~1 s,
   // so the page answers these first calls locally instead (see bootCall in index.html).
   var t0 = Date.now(), boot = {}, vers = null;
-  try { vers = getDataVers(); } catch (e) {}                      // read before the data → conflict checks stay safe
+  try { vers = getDataVers(); } catch (e) { errLog_(e, 'Code:36'); }                      // read before the data → conflict checks stay safe
   // cached copies (bootCfg_ / schedCached_) → usually no spreadsheet is opened here; getPulse lets the first page loads keep their cache
   // with sign-in on, the page source carries no data (it is readable before signing in) — only the URL and the version stamps
-  var authOn = true; try { authOn = authCfg_().on; } catch (e) {}
+  var authOn = true; try { authOn = authCfg_().on; } catch (e) { errLog_(e, 'Code:39'); }
   (authOn ? [['getAppUrl', getAppUrl], ['getPulse', getPulse], ['authInfo', authInfo]] :
   [['getAppUrl', getAppUrl], ['getSettings', function () { return bootCfg_().settings; }], ['getSchedules', schedCached_],
    ['getPublicTemplates', function () { return bootCfg_().templates; }], ['getPulse', getPulse], ['authInfo', authInfo]])
@@ -74,6 +74,22 @@ function ensureIssueCols_(s) {
     if (dirty) s.getRange(1, 1, 1, NCOLS).setValues([h]);
   }
 }
+// ── error log: every caught error that used to vanish is written here (last 40 + count per day) → สุขภาพระบบ ──
+var __errN = 0;
+function errLog_(e, where) {
+  try {
+    console.warn('errLog_ ' + where + ': ' + (e && e.stack || e));
+    if (++__errN > 15) return;                                     // one bad run never floods the log
+    var P = PropertiesService.getScriptProperties(), L = {}; try { L = JSON.parse(P.getProperty('ERR_LOG') || '{}') || {}; } catch (x) { L = {}; }
+    var day = nowStr_().substring(0, 10), msg = String(e && e.message || e).substring(0, 140);
+    L.d = L.d || {}; L.d[day] = (L.d[day] || 0) + 1;
+    Object.keys(L.d).sort().slice(0, -14).forEach(function (k) { delete L.d[k]; });
+    L.l = [[nowStr_(), String(where).substring(0, 60), msg]].concat(L.l || []).slice(0, 40);
+    var js = JSON.stringify(L); while (js.length > 8500 && L.l.length > 5) { L.l.pop(); js = JSON.stringify(L); }
+    P.setProperty('ERR_LOG', js);
+  } catch (x) {}
+}
+function errLogGet_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('ERR_LOG') || '{}') || {}; } catch (e) { return {}; } }
 function nowStr_() { return Utilities.formatDate(new Date(), 'Asia/Bangkok', 'dd/MM/yyyy HH:mm:ss'); }
 function getAppUrl() { apiOnly_(); return ScriptApp.getService().getUrl(); }
 function parse_(v) { try { var a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
@@ -1418,7 +1434,7 @@ function cfgCachePut_(map) {
     var s = JSON.stringify(map), n = Math.ceil(s.length / 90000) || 1, o = { cfg_n: String(n) };
     for (var i = 0; i < n; i++) o['cfg_' + i] = s.substring(i * 90000, (i + 1) * 90000);
     CacheService.getScriptCache().putAll(o, 21600);
-  } catch (e) {}
+  } catch (e) { errLog_(e, 'Code:1437'); }
 }
 function cfgCacheGet_() {
   try {
@@ -1682,6 +1698,10 @@ function getSystemHealth(token) { apiOnly_();
   h.schedSync = schedSyncInfo_(); h.schedSrc = !!schedProp_('SCHED_SRC_URL');
   if (h.schedSrc && h.schedSync && !h.schedSync.ok) h.warn.push('ซิงค์ตารางงานจาก OneDrive ล่าสุดไม่สำเร็จ: ' + h.schedSync.msg);
   if (typeof fbNewCount_ === 'function') { h.fbNew = fbNewCount_(); if (h.fbNew) h.warn.push('มีข้อเสนอแนะใหม่จากผู้ใช้ ' + h.fbNew + ' รายการ (ดูด้านล่าง)'); }   // Insights.gs
+  var EL = errLogGet_(), today = nowStr_().substring(0, 10);
+  h.errDays = EL.d || {}; h.errors = (EL.l || []).slice(0, 20);
+  if ((h.errDays[today] || 0) >= 10) h.warn.push('มีข้อผิดพลาดเบื้องหลัง ' + h.errDays[today] + ' ครั้งวันนี้ — ดูรายการด้านล่าง');
+  try { if (String(PropertiesService.getScriptProperties().getProperty('ADMIN_PASSCODE') || '') === 'control') h.warn.push('รหัสเริ่มต้น ADMIN_PASSCODE ยังเป็นค่าเดิม "control" — เปลี่ยนใน Project Settings → Script properties (หรือลบเมื่อ Admin ทุกคนตั้งรหัสส่วนตัวแล้ว)'); } catch (e) { errLog_(e, 'health passcode'); }
   h.audit = getAuditLog(token, 30);
   return h;
 }
@@ -1918,6 +1938,7 @@ function stockWarm_(packed, hash) {
   }
   cache.put('stkd_' + hash.substring(0, 10) + '_n', String(n), STOCK_CACHE_TTL);
   _stockMem = { hash: hash, rows: packed };
+  try { stockIdxWarm_(packed, hash); } catch (e) { errLog_(e, 'stockWarm_ index'); }
   return n;
 }
 function stockData_() {
@@ -1932,7 +1953,7 @@ function stockData_() {
       try {
         var txt = Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(parts.join('')), 'application/x-gzip')).getDataAsString();
         _stockMem = { hash: hash, rows: txt.split('\n') }; return _stockMem.rows;
-      } catch (e) {}
+      } catch (e) { errLog_(e, 'Code:1956'); }
     }
   }
   var sh = stockSS_().getSheetByName(STOCK_SHEET);           // cache miss → read sheet once, then re-prime
@@ -1941,8 +1962,42 @@ function stockData_() {
   try { if (hash) stockWarm_(rows, hash); } catch (e) { _stockMem = { hash: hash, rows: rows }; }
   return rows;
 }
+// ── CODE index: Item stock rows split into 256 buckets by CODE (cache, per STOCK_HASH) ──────────────
+// A lookup of a few CODEs (Item 360, Order Item info, costs, the retired-CODE check, BOM preview) reads only
+// their buckets (~30 KB each) instead of unpacking all 190k rows. Built with the fast cache at sync time;
+// a missing bucket rebuilds the whole index from stockData_() once.
+var SIDX_N = 256, _sidxMem = null;
+function sidxOf_(k) { var h = 5381; for (var i = 0; i < k.length; i++) h = ((h << 5) + h + k.charCodeAt(i)) | 0; return (h >>> 0) % SIDX_N; }
+function stockIdxWarm_(packed, hash) {
+  var B = []; for (var i = 0; i < SIDX_N; i++) B.push([]);
+  for (var j = 0; j < packed.length; j++) { var p = packed[j], t = p.indexOf('\t'); if (t < 0) continue; B[sidxOf_(ordCodeKey_(p.substring(0, t)))].push(p); }
+  var pre = 'sidx_' + hash.substring(0, 10) + '_', put = {}, C = CacheService.getScriptCache();
+  B.forEach(function (rows, i) { put[pre + i] = rows.length ? Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(rows.join('\n'), 'text/plain')).getBytes()) : '-'; });
+  var keys = Object.keys(put);
+  for (var k = 0; k < keys.length; k += 40) { var part = {}; keys.slice(k, k + 40).forEach(function (x) { part[x] = put[x]; }); try { C.putAll(part, STOCK_CACHE_TTL); } catch (e) { errLog_(e, 'stockIdxWarm_'); } }
+  _sidxMem = { hash: hash, B: {} }; B.forEach(function (rows, i) { _sidxMem.B[i] = rows; });
+}
+// want = { CODE: 1 } → the packed Item stock rows of those CODEs (every location)
+function stockRowsFor_(want) {
+  var hash = schedProp_('STOCK_HASH') || '', ks = Object.keys(want || {}).map(ordCodeKey_).filter(Boolean);
+  if (!ks.length) return [];
+  if (!hash) { var w0 = {}; ks.forEach(function (k) { w0[k] = 1; }); return stockData_().filter(function (p) { var t = p.indexOf('\t'); return t >= 0 && w0[ordCodeKey_(p.substring(0, t))]; }); }   // no sync yet: plain scan
+  if (!_sidxMem || _sidxMem.hash !== hash) _sidxMem = { hash: hash, B: {} };
+  var need = {}; ks.forEach(function (k) { var b = sidxOf_(k); if (!_sidxMem.B[b]) need[b] = 1; });
+  var nb = Object.keys(need);
+  if (nb.length) {
+    var pre = 'sidx_' + hash.substring(0, 10) + '_', got = {};
+    try { got = CacheService.getScriptCache().getAll(nb.map(function (b) { return pre + b; })); } catch (e) { errLog_(e, 'stockRowsFor_ cache'); }
+    if (nb.some(function (b) { return got[pre + b] == null; })) { stockIdxWarm_(stockData_(), hash); }   // evicted → rebuild once
+    else nb.forEach(function (b) { var v = got[pre + b]; _sidxMem.B[b] = v === '-' ? [] : Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(v), 'application/x-gzip')).getDataAsString().split('\n'); });
+  }
+  var w = {}; ks.forEach(function (k) { w[k] = 1; });
+  var out = [], seen = {};
+  ks.forEach(function (k) { var b = sidxOf_(k); if (seen[b]) return; seen[b] = 1; (_sidxMem.B[b] || []).forEach(function (p) { var t = p.indexOf('\t'); if (t >= 0 && w[ordCodeKey_(p.substring(0, t))]) out.push(p); }); });
+  return out;
+}
 // time trigger every ~5 h keeps the cache warm so nobody hits the slow path (installed by setStockSource)
-function stockKeepWarm() { trustEntry_(); try { stockData_(); stockBundle_(); } catch (e) {} }
+function stockKeepWarm() { trustEntry_(); try { stockData_(); stockBundle_(); } catch (e) { errLog_(e, 'Code:1999'); } }
 
 // ── Browser-side search bundle ───────────────────────────────────────
 // Public columns only (0–7: CODE…LastOfRequest_By). LASTCOST / Requisition No never leave the server.
@@ -1965,7 +2020,7 @@ function stockBundle_() {
     var ks = Object.keys(put);
     for (var x = 0; x < ks.length; x += 30) { var part = {}; ks.slice(x, x + 30).forEach(function (y) { part[y] = put[y]; }); cache.putAll(part, STOCK_CACHE_TTL); }
     cache.put(pre + 'n', String(m), STOCK_CACHE_TTL);
-  } catch (e) {}
+  } catch (e) { errLog_(e, 'Code:2022'); }
   return { hash: hash, b64: b64, v: STOCK_FMT };
 }
 // public: gzip+base64 of public columns; the page stores it in IndexedDB keyed by hash
@@ -1977,7 +2032,7 @@ function getStockCosts(token, costCode, keys) { apiOnly_();
   if (!cost && !admin) return { cost: false, admin: false, map: {} };
   var want = {}, codes = {};
   (keys || []).slice(0, 200).forEach(function (k) { k = String(k); want[k] = 1; codes[k.split('|')[0]] = 1; });
-  var map = {}, rows = stockData_();
+  var map = {}, rows = stockRowsFor_(codes);                       // CODE index: only these CODEs' buckets
   for (var i = 0; i < rows.length; i++) {
     var p = rows[i];
     if (!codes[p.substring(0, p.indexOf('\t'))]) continue;   // cheap code check before splitting
@@ -2000,7 +2055,8 @@ function stockPostQueue_(why) { return postQueue_('stock', why); }
 //   stock → stockAfterSync (Stock ช่วยใช้ history, Booking BOM, order tracking, page caches)
 //   po    → pendingAfterSync (Booking BOM, order tracking + notifications, page caches)
 var POST_KIND = { stock: ['STOCK_POST', 'stockAfterSync', function (w) { return stockPost_(w); }],
-  po: ['PO_POST', 'pendingAfterSync', function (w) { return pendingPost_(w); }] };
+  po: ['PO_POST', 'pendingAfterSync', function (w) { return pendingPost_(w); }],
+  ship: ['SHIP_POST', 'shipAfterSync', function (w) { return shipPost_(w); }] };
 var PO_POST_WAIT = 'กำลังคำนวณ Booking BOM / ติดตามใบสั่ง ต่อเบื้องหลัง (1–2 นาที)';
 function postQueue_(kind, why) {
   var K = POST_KIND[kind];
@@ -2035,7 +2091,7 @@ function pendingPost_(why) {
       last.msg = String(last.msg || '').replace(' · ' + PO_POST_WAIT, '') + ' · คำนวณต่อ' + (fail.length ? 'ไม่ครบ (' + fail.join(', ') + ')' : 'เสร็จ') + ' ' + info.time.substring(11, 16) + ' (' + secs + ' วินาที)';
       last.post = fail.length ? 'fail' : 'done'; schedProp_('PO_SYNC_LAST', JSON.stringify(last));
     }
-  } catch (e) {}
+  } catch (e) { errLog_(e, 'Code:2092'); }
   perf_('pendingPost_ ' + done.join(', '), t0);
   return info;
 }
@@ -2064,7 +2120,7 @@ function stockPost_(why) {
       last.msg = String(last.msg || '').replace(' · ' + STOCK_POST_WAIT, '') + ' · คำนวณต่อ' + (fail.length ? 'ไม่ครบ (' + fail.join(', ') + ')' : 'เสร็จ') + ' ' + info.time.substring(11, 16) + ' (' + secs + ' วินาที)';
       last.post = fail.length ? 'fail' : 'done'; schedProp_('STOCK_SYNC_LAST', JSON.stringify(last));
     }
-  } catch (e) {}
+  } catch (e) { errLog_(e, 'Code:2121'); }
   perf_('stockPost_ ' + done.join(', '), t0);
   return info;
 }
@@ -2269,7 +2325,7 @@ function syncPendingInner_(why, force) {
     var extra = sh.getMaxRows() - all.length; if (extra > 200) sh.deleteRows(all.length + 101, extra - 100);
 
     schedProp_('PO_HASH', hash);
-    try { pendingBundle_(true); } catch (e) {}                       // Pending Order page / search usable now
+    try { pendingBundle_(true); } catch (e) { errLog_(e, 'Code:2326'); }                       // Pending Order page / search usable now
     // Booking BOM, order tracking + notifications and the shared page caches: second execution (pendingAfterSync)
     var post = postQueue_('po', why);
     var prs = {}, pos = {};
@@ -2309,7 +2365,7 @@ function pendingBundle_(rebuild) {
     var ks = Object.keys(put);
     for (var x = 0; x < ks.length; x += 30) { var part = {}; ks.slice(x, x + 30).forEach(function (y) { part[y] = put[y]; }); cache.putAll(part, STOCK_CACHE_TTL); }
     cache.put(pre + 'n', String(m), STOCK_CACHE_TTL);
-  } catch (e) {}
+  } catch (e) { errLog_(e, 'Code:2366'); }
   return { hash: hash.substring(0, 10), b64: b64 };
 }
 // public: summary + data hash (the page keeps the data in IndexedDB keyed by hash)

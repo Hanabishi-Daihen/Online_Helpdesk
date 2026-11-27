@@ -73,7 +73,7 @@ function getForecast(token) { apiOnly_();
 }
 function fcCached_() { return wsCached_('fc', ['bom', 'ord', 'oa', 'sa'], schedProp_('FC_CFG') || '', fcList_); }
 function fcList_() {
-  var snap = null; try { snap = bomSnapGet_(); } catch (e) {}
+  var snap = null; try { snap = bomSnapGet_(); } catch (e) { errLog_(e, 'Tracking:76'); }
   var cfg = bomCfg_(), ob = String(cfg.orderBy || 'DS13').toUpperCase(), list = [], want = {};
   var need = {};                                                      // project → need date
   (snap && snap.projects || []).forEach(function (p) { need[p.project] = p.needDate; });
@@ -88,7 +88,7 @@ function fcList_() {
       var st = wsOrderState_(o); if (st.key === 'rejected' || ordAgeDays_(o.issueDate) > 120) return;
       (o.items || []).forEach(function (it) { var i = want[ordCodeKey_(it.code)]; if (i != null && list[i].orders.length < 3) list[i].orders.push({ id: o.id, stateTh: st.label, state: st.key, qty: it.qty }); });
     });
-  } catch (e) {}
+  } catch (e) { errLog_(e, 'Tracking:91'); }
   return { items: list, built: snap && snap.built || '', cfg: fcCfg_(), orderBy: cfg.orderBy || 'DS13', time: nowStr_() };
 }
 
@@ -296,7 +296,7 @@ function getOrderTrack(token) { apiOnly_();
 function trkStateGet_() {
   var b64 = '';
   try { var c = CacheService.getScriptCache(), n = Number(c.get('trk_n') || 0); if (n) { var ks = []; for (var i = 0; i < n; i++) ks.push('trk_' + i); var g = c.getAll(ks); if (ks.every(function (k) { return g[k] != null; })) b64 = ks.map(function (k) { return g[k]; }).join(''); } } catch (e) {}
-  if (!b64) try { var sh = stockSS_().getSheetByName(TRK_STATE_SHEET); if (sh && sh.getLastRow()) b64 = sh.getRange(1, 1, sh.getLastRow(), 1).getValues().map(function (r) { return r[0]; }).join(''); } catch (e) {}
+  if (!b64) try { var sh = stockSS_().getSheetByName(TRK_STATE_SHEET); if (sh && sh.getLastRow()) b64 = sh.getRange(1, 1, sh.getLastRow(), 1).getValues().map(function (r) { return r[0]; }).join(''); } catch (e) { errLog_(e, 'Tracking:299'); }
   if (!b64) return null;
   try { return JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(b64), 'application/x-gzip')).getDataAsString()); } catch (e) { return null; }
 }
@@ -340,10 +340,10 @@ function trkScan_(why) {
     // Stock went up (this run's Item stock sync) for a CODE someone is waiting for
     var inc = __wsInc || {}, ks = Object.keys(inc); __wsInc = null;          // consumed once per run
     if (ks.length && prev) {
-      var bk = {}; try { bk = bomBooked_(); } catch (e) {}
-      var snap = null; try { snap = bomSnapGet_(); } catch (e) {}
+      var bk = {}; try { bk = bomBooked_(); } catch (e) { errLog_(e, 'Tracking:343'); }
+      var snap = null; try { snap = bomSnapGet_(); } catch (e) { errLog_(e, 'Tracking:344'); }
       var shortBy = {}; (snap && snap.codes || []).forEach(function (c) { shortBy[c.code] = c; });
-      var sa = {}; try { saData_(false).items.forEach(function (x) { if (/^(high|mid|low|wait)$/.test(x.level)) sa[ordCodeKey_(x.code)] = x; }); } catch (e) {}
+      var sa = {}; try { saData_(false).items.forEach(function (x) { if (/^(high|mid|low|wait)$/.test(x.level)) sa[ordCodeKey_(x.code)] = x; }); } catch (e) { errLog_(e, 'Tracking:346'); }
       var waitBy = {};                                                   // CODE → open orders not received yet
       list.forEach(function (x) { if (/^(rejected|done|cancel)$/.test(x.stage)) return; x.items.forEach(function (i) { var k = ordCodeKey_(i.code); if (/^(none|pr|po|part)$/.test(i.st)) (waitBy[k] = waitBy[k] || []).push(x); }); });
       var done = {}; ev.forEach(function (e) { if (e[1]) done[ordCodeKey_(e[1])] = 1; });

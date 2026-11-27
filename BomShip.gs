@@ -13,7 +13,7 @@
  * open BOM); other lines are shared, CODE by CODE, in need-date order — each unit takes what it still needs.
  * Returns (positive COST) are taken back from the unit that received the CODE last.
  */
-var BOM_SHIP_PCT = 0.8, BOM_SHIP_DAYS = 14, BOM_SHIP_DEPT = /CONTROL\s*WIRING/i;
+var BOM_SHIP_PCT = 0.8, BOM_SHIP_DAYS = 14, BOM_SHIP_DEPT = { test: function (s) { return unitDeptOk_(s); } };   // หน่วยงาน: the department MF issues to (UnitCfg.gs)
 
 // imported "dd/MM/yyyy HH:mm:ss" → yyyymmdd
 function bomShipD8_(s) { var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String(s || '')); return m ? m[3] + ('0' + m[2]).slice(-2) + ('0' + m[1]).slice(-2) : ''; }

@@ -103,7 +103,7 @@ function ordFolder_() {
 // ── DatabaseItemOrder ───────────────────────────────────────────────
 // Finds the tab in the main spreadsheet (or Helpdesk_ItemStock); creates it with a default header if missing.
 function ordDbSheet_() {
-  var books = [ss_()]; try { if (schedProp_('STOCK_SS_ID')) books.push(stockSS_()); } catch (e) {}
+  var books = [ss_()]; try { if (schedProp_('STOCK_SS_ID')) books.push(stockSS_()); } catch (e) { errLog_(e, 'OrderService:106'); }
   for (var b = 0; b < books.length; b++) {
     var sh = books[b].getSheetByName(ORD_DB_SHEET);
     if (!sh) sh = books[b].getSheets().filter(function (s) { return ordNorm_(s.getName()) === ordNorm_(ORD_DB_SHEET); })[0];
@@ -156,7 +156,7 @@ function ordCachePut_(key, obj, ttl) {
     for (var i = 0; i < n; i++) put[key + '_' + i] = b64.substring(i * 90000, (i + 1) * 90000);
     put[key + '_n'] = String(n);
     CacheService.getScriptCache().putAll(put, ttl || 21600);
-  } catch (e) {}
+  } catch (e) { errLog_(e, 'OrderService:159'); }
 }
 function ordCacheGet_(key) {
   try {
@@ -255,7 +255,7 @@ function orderItemInfo(codes) { apiOnly_();
   (codes || []).slice(0, 20).forEach(function (c) { var k = ordCodeKey_(c); if (k) { want[k] = 1; out[k] = { stock: [], total: null, unit: '', pending: [], pendQty: 0 }; } });
   if (!Object.keys(want).length) return out;
   try {                                                     // Item stock (cached packed rows)
-    var rows = stockData_();
+    var rows = stockRowsFor_(want);                     // only the buckets of these CODEs (CODE index)
     for (var i = 0; i < rows.length; i++) {
       var p = rows[i], t = p.indexOf('\t'); if (t < 0) continue;
       var k = ordCodeKey_(p.substring(0, t)); if (!want[k]) continue;
@@ -266,7 +266,7 @@ function orderItemInfo(codes) { apiOnly_();
       if (q != null && !isNaN(q)) out[k].total = (out[k].total || 0) + q;
       if (!out[k].unit && f[4]) out[k].unit = f[4];
     }
-  } catch (e) {}
+  } catch (e) { errLog_(e, 'OrderService:269'); }
   try {                                                     // Pending Order (PR / PO not yet received) — cached bundle
     var b = pendingBundle_(false), txt = b && b.b64 ? Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(b.b64), 'application/x-gzip')).getDataAsString() : '';
     var now = new Date(), t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime(), YEAR = 365 * 864e5;
@@ -281,7 +281,7 @@ function orderItemInfo(codes) { apiOnly_();
       out[k2].pendQty += Number(f[13]) || 0;
     });
     Object.keys(out).forEach(function (k3) { out[k3].pending.sort(function (x, y) { return x.dist - y.dist; }); });
-  } catch (e) {}
+  } catch (e) { errLog_(e, 'OrderService:284'); }
   Object.keys(out).forEach(function (k) { var o = out[k]; o.lastUsed = stockLuDmy_(o.lu || ''); o.inactive = !!(o.off && !o.on); delete o.lu; delete o.on; delete o.off; });
   return out;
 }
@@ -318,7 +318,7 @@ function ordPoRefs_() {                                   // every RQN / Spec al
   try {
     var b = pendingBundle_(false), txt = b && b.b64 ? Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(b.b64), 'application/x-gzip')).getDataAsString() : '';
     txt.split('\n').forEach(function (l) { var f = l.split('\t'); if (f[1]) refs[ordRefKey_(f[1])] = 1; if (f[3]) refs[ordRefKey_(f[3])] = 1; });
-  } catch (e) {}
+  } catch (e) { errLog_(e, 'OrderService:321'); }
   return refs;
 }
 function ordAgeDays_(dmy) {
@@ -444,7 +444,7 @@ function ordNext_(yy) {
   try {
     var sh = stockSS_().getSheetByName(PO_SHEET);
     if (sh && sh.getLastRow() > 1) sh.getRange(2, 2, sh.getLastRow() - 1, 3).getDisplayValues().forEach(function (r) { take(rq, RQ, r[0]); take(sp, SP, r[2]); });
-  } catch (e) {}
+  } catch (e) { errLog_(e, 'OrderService:447'); }
   var pad = function (n, w) { n = String(n); while (n.length < w) n = '0' + n; return n; };
   return { yy: yy, rqn: pad(rq.max + 1, rq.w), spec: pad(sp.max + 1, 3).slice(-3) };
 }
@@ -705,7 +705,7 @@ function ordFill_(sh, o, pg) {
   try {                                                     // keep the frames closed whatever the merges did
     sh.getRange('B20:X' + (ORD_IMG_ROW1 + 1)).setBorder(null, true, true, true, null, null);
     sh.getRange('A1:Y' + ORD_PRINT_ROWS).setBorder(true, true, true, true, null, null);
-  } catch (e) {}
+  } catch (e) { errLog_(e, 'OrderService:708'); }
 }
 // place pictures in a grid inside B41:X65, keeping aspect ratio
 function ordImages_(sh, imgs) {

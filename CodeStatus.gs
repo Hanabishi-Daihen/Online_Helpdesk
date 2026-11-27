@@ -34,11 +34,11 @@ function csAll_(withStock, only) {
   try {
     var set = saSettings_();
     Object.keys(set).forEach(function (k) { if (set[k].notUse && !out[k] && (!only || only[k])) out[k] = { code: k, level: 'off', reason: 'sa', detail: String(set[k].note || ''), auto: 'sa' }; });
-  } catch (e) {}
+  } catch (e) { errLog_(e, 'CodeStatus:37'); }
   if (withStock) {
     try {
       var on = {}, off = {};
-      stockData_().forEach(function (p) {
+      (only ? stockRowsFor_(only) : stockData_()).forEach(function (p) {   // a few CODEs: CODE index buckets only
         var t = p.indexOf('\t'); if (t < 0) return;
         var k = ordCodeKey_(p.substring(0, t)); if (only && !only[k]) return;
         var f = p.split('\t'); if (f[STOCK_ACT_COL] === '0') off[k] = 1; else if (f[STOCK_ACT_COL] === '1') on[k] = 1;

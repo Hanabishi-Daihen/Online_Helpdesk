@@ -12,6 +12,7 @@
  * A project is read with one range per stored row (a few), never the whole sheet.
  * Line = CODE \t DESCRIPTION \t yyyymmdd \t DOCNUM \t CUSTNAME \t LOCATION \t QTY \t UNIT \t UNITCOST \t COST \t AUDTUSER
  */
+var SHIP_POST_WAIT = 'กำลังคำนวณ Booking BOM / สถิติ ต่อเบื้องหลัง (1–2 นาที)';
 var SHIP_SHEET = 'Ship', SHIP_META = 'ShipMeta', SHIP_CHUNK = 20 * 1024 * 1024, SHIP_CELL = 45000, SHIP_MAX_MS = 320000;
 
 function shipInfo_() { try { return JSON.parse(schedProp_('SHIP_SYNC_LAST') || 'null'); } catch (e) { return null; } }
@@ -220,8 +221,8 @@ function syncShipInner_(why, force) {
     audit_([['System', 'ซิงค์ข้อมูล Shipment จาก OneDrive', '', info.why + ' · ' + info.msg]]);
     try { statAggSave_(SA); } catch (e) { console.warn('statAggSave_', e); }
     SA = null;
-    if (Date.now() - t0 < 240000) { try { bomRefresh_(); info.msg += ' · คำนวณ Booking BOM ใหม่แล้ว'; } catch (e) { console.warn('ship → bomRefresh_', e); } }   // Booking BOM: what MF has issued
-    if (Date.now() - t0 < 280000) { if (statRebuild_('Shipment')) info.msg += ' · สรุปสถิติใหม่แล้ว'; }   // สถิติและต้นทุน
+    // Booking BOM (what MF has issued) and สถิติและต้นทุน run in a second execution: a 50 MB file leaves no time for them here
+    var q = postQueue_('ship', why); info.msg += q === 'queued' ? ' · ' + SHIP_POST_WAIT : q === 'done' ? ' · คำนวณ Booking BOM / สถิติแล้ว' : ' · คำนวณต่อไม่สำเร็จ: ' + q;
   } catch (e) {
     info.ok = false; info.msg = e.message || String(e);
     try { if (tmp && ss) ss.deleteSheet(tmp); } catch (x) {}
@@ -239,7 +240,7 @@ function shipMeta_() {
   if (!ver) return null;
   if (shipMemo_ && shipMemo_.ver === ver) return shipMemo_;
   var C = CacheService.getScriptCache(), key = 'shipM_' + ver, b = null;
-  try { var n = Number(C.get(key + '_n') || 0); if (n) { var o = C.getAll(Array.from({ length: n }, function (x, i) { return key + '_' + i; })), ps = []; for (var i = 0; i < n; i++) ps.push(o[key + '_' + i]); if (ps.every(Boolean)) b = ps.join(''); } } catch (e) {}
+  try { var n = Number(C.get(key + '_n') || 0); if (n) { var o = C.getAll(Array.from({ length: n }, function (x, i) { return key + '_' + i; })), ps = []; for (var i = 0; i < n; i++) ps.push(o[key + '_' + i]); if (ps.every(Boolean)) b = ps.join(''); } } catch (e) { errLog_(e, 'EstimateCost:242'); }
   if (!b) {
     var ss = shipSS_(false), ms = ss && ss.getSheetByName(SHIP_META);
     if (!ms || ms.getLastRow() < 1) return null;
@@ -356,4 +357,29 @@ function testShipSync() { trustEntry_();
   if (!schedProp_('SHIP_SRC_URL')) { Logger.log('✗ ยังไม่ได้บันทึกลิงก์ใน ตั้งค่าระบบ → ☁ ซิงค์ข้อมูล Shipment'); return; }
   var r = syncShipRun_('ทดสอบจาก Editor', true);
   Logger.log((r.ok ? '✓ ' : '✗ ') + r.msg);
+}
+
+// ── after a Shipment sync (second execution, queued by postQueue_('ship')) ─────────────────────────
+function shipAfterSync() { trustEntry_();                          // trigger handler (one-off)
+  try { ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'shipAfterSync') ScriptApp.deleteTrigger(t); }); } catch (e) { errLog_(e, 'shipAfterSync trigger'); }
+  var job = null; try { job = JSON.parse(schedProp_('SHIP_POST') || 'null'); } catch (e) { job = null; }
+  if (!job) return;
+  syncMutex_('SHIP_POST_LAST', job.why, function () { schedProp_('SHIP_POST', null); return shipPost_(job.why); });
+}
+function shipPost_(why) {
+  var t0 = Date.now(), done = [], fail = [], step = function (nm, fn) {
+    var t = Date.now(); try { fn(); done.push(nm + ' ' + Math.round((Date.now() - t) / 1000) + 's'); } catch (e) { fail.push(nm); errLog_(e, 'shipPost_ ' + nm); }
+  };
+  step('Booking BOM', function () { bomRefresh_(); });
+  step('สถิติ', function () { if (typeof statBuild_ === 'function') statBuild_(); });
+  var info = { time: nowStr_(), why: why, ok: !fail.length, secs: Math.round((Date.now() - t0) / 1000), steps: done, fail: fail };
+  schedProp_('SHIP_POST_LAST', JSON.stringify(info));
+  try {
+    var last = shipInfo_();
+    if (last && last.ok) {
+      last.msg = String(last.msg || '').replace(' · ' + SHIP_POST_WAIT, '') + ' · คำนวณต่อ' + (fail.length ? 'ไม่ครบ (' + fail.join(', ') + ')' : 'เสร็จ') + ' ' + info.time.substring(11, 16);
+      schedProp_('SHIP_SYNC_LAST', JSON.stringify(last));
+    }
+  } catch (e) { errLog_(e, 'shipPost_ info'); }
+  return info;
 }

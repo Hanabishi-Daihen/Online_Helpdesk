@@ -76,7 +76,7 @@ function bomPreview(token, codes) { apiOnly_();
   requireAdmin_(token);
   var want = {}, out = {};
   (codes || []).slice(0, 3000).forEach(function (c) { var k = ordCodeKey_(c); if (k) want[k] = 1; });
-  var rows = []; try { rows = stockData_(); } catch (e) {}
+  var rows = []; try { rows = stockRowsFor_(want); } catch (e) { errLog_(e, 'bomPreview'); }
   for (var i = 0; i < rows.length; i++) {
     var p = rows[i], t = p.indexOf('\t'); if (t < 0) continue;
     var k = ordCodeKey_(p.substring(0, t)); if (!want[k]) continue;
@@ -178,7 +178,8 @@ function bomClean_(items) {
   var blank = order.filter(function (k) { return !by[k].material; });
   if (blank.length) {
     try {
-      stock = {}; stockData_().forEach(function (row) { var t = row.indexOf('\t'); if (t < 0) return; var k = ordCodeKey_(row.substring(0, t)); if (stock[k]) return; var f = row.split('\t'); stock[k] = f; });
+      var bw = {}; blank.forEach(function (k) { bw[k] = 1; });
+      stock = {}; stockRowsFor_(bw).forEach(function (row) { var t = row.indexOf('\t'); if (t < 0) return; var k = ordCodeKey_(row.substring(0, t)); if (stock[k]) return; var f = row.split('\t'); stock[k] = f; });
       blank.forEach(function (k) { var f = stock[k]; if (f) { by[k].material = ordStr_(f[1], 120); if (!by[k].rated) by[k].rated = ordStr_(f[2], 80); } });
     } catch (e) { console.warn('bomClean_ stock', e); }
   }
@@ -285,7 +286,7 @@ function bomNeed_(p, sched, cfg) {
 // ── compute ─────────────────────────────────────────────────────────
 function bomCompute_() {
   var cfg = bomCfg_(), projs = bomProjects_(), itemsBy = bomItems_(), sched = [];
-  try { sched = getSchedules(); } catch (e) {}
+  try { sched = getSchedules(); } catch (e) { errLog_(e, 'BomBooking:289'); }
   var today = new Date(); today = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
   // auto-close
   if (cfg.autoClose > 0) {
@@ -329,9 +330,9 @@ function bomCompute_() {
       var qty = Number(g[13]) || 0; if (!(qty > 0)) return;
       (inc[k2] = inc[k2] || []).push({ qty: qty, due: due, pr: g[1], po: g[2], status: g[4] });
     });
-  } catch (e) {}
-  var sa = {}; try { sa = saSettings_(); } catch (e) {}
-  var rt = {}; try { rt = rtMap_(want); } catch (e) {}
+  } catch (e) { errLog_(e, 'BomBooking:333'); }
+  var sa = {}; try { sa = saSettings_(); } catch (e) { errLog_(e, 'BomBooking:334'); }
+  var rt = {}; try { rt = rtMap_(want); } catch (e) { errLog_(e, 'BomBooking:335'); }
   var fcc = fcCfg_();
   // allocate per code by need date
   var demand = {};
@@ -403,7 +404,7 @@ var __bomBooked = null;
 function bomBooked_() {
   if (__bomBooked) return __bomBooked;
   var m = {}, s = null;
-  try { s = bomSnapGet_(); } catch (e) {}
+  try { s = bomSnapGet_(); } catch (e) { errLog_(e, 'BomBooking:407'); }
   (s && s.codes || []).forEach(function (c) { if (c.booked > 0) m[c.code] = { qty: c.booked, balance: c.balance, onhand: c.onhand, incoming: c.incoming, projects: c.projects }; });
   return (__bomBooked = m);
 }
@@ -413,7 +414,7 @@ function bomSnapGet_() {
     var c = CacheService.getScriptCache(), n = Number(c.get('bom_n') || 0);
     if (n) { var keys = []; for (var i = 0; i < n; i++) keys.push('bom_' + i); var got = c.getAll(keys);
       if (keys.every(function (k) { return got[k] != null; })) b64 = keys.map(function (k) { return got[k]; }).join(''); }
-  } catch (e) {}
+  } catch (e) { errLog_(e, 'BomBooking:417'); }
   if (!b64) {
     try {
       var sh = stockSS_().getSheetByName(BOM_SNAP_SHEET);
@@ -422,7 +423,7 @@ function bomSnapGet_() {
         var parts = {}, k = 0; for (var j = 0; j < b64.length; j += BOM_SNAP_CHUNK) parts['bom_' + (k++)] = b64.substring(j, j + BOM_SNAP_CHUNK);
         parts.bom_n = String(k); try { CacheService.getScriptCache().putAll(parts, 21600); } catch (e) {}
       }
-    } catch (e) {}
+    } catch (e) { errLog_(e, 'BomBooking:426'); }
   }
   if (!b64) return null;
   try { return JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(b64), 'application/x-gzip')).getDataAsString()); } catch (e) { return null; }
@@ -439,7 +440,7 @@ function getBomSummary() { apiOnly_();
 // Item stock rows for the calculation. Item stock has data (STOCK_META.rows > 0) but the read failed or came back
 // empty → retry straight from the sheet once, then throw instead of booking against an empty stock.
 function bomStockRows_() {
-  var meta = null; try { meta = stockMeta_(); } catch (e) {}
+  var meta = null; try { meta = stockMeta_(); } catch (e) { errLog_(e, 'BomBooking:443'); }
   var expect = meta && meta.rows > 0, rows = null, err = '';
   for (var n = 0; n < 2; n++) {
     try { rows = stockData_(); } catch (e) { rows = null; err = e && e.message || String(e); }
@@ -475,7 +476,7 @@ function bomView_(snap) {
 function getBom(token) { apiOnly_();
   var t0 = Date.now(), snap = bomSnapGet_();
   if (snap && snap.v !== BOM_SNAP_VER) snap = null;
-  if (snap && snap.err && Date.now() - (snap.errT || 0) > 3e5) { try { snap = bomSnapBuild_(); } catch (e) {} }   // last build failed → retry on open (≤ every 5 min)
+  if (snap && snap.err && Date.now() - (snap.errT || 0) > 3e5) { try { snap = bomSnapBuild_(); } catch (e) { errLog_(e, 'BomBooking:479'); } }   // last build failed → retry on open (≤ every 5 min)
   if (!snap) snap = ss_().getSheetByName(BOM_PROJ_SHEET) ? bomSnapBuild_() : { projects: [], codes: [], cfg: bomCfg_() };
   var out = bomView_(snap); out.admin = isAdmin_(token); out.cfg = bomCfg_();
   try { out.exports = bomExpLast_(); } catch (e) { out.exports = {}; }

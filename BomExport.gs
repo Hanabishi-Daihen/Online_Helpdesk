@@ -38,7 +38,7 @@ function bomProjPrefix_(project) {
 // stock rows → { KEY: { code, desc, unit, cost, onhand, locs: [{ loc, pk, qty }] } } (locations sorted by qty desc)
 function bomStockIdx_(keep) {
   var out = {}, rows = [];
-  try { rows = stockData_(); } catch (e) {}
+  try { rows = stockData_(); } catch (e) { errLog_(e, 'BomExport:41'); }
   for (var i = 0; i < rows.length; i++) {
     var p = rows[i], t = p.indexOf('\t'); if (t < 0) continue;
     var k = ordCodeKey_(p.substring(0, t)); if (!k || !keep(k)) continue;
@@ -95,7 +95,7 @@ function bomExportPrep(token, project, kind, prefix) { apiOnly_();
   var rows = [], excluded = [], pre = '';
   if (kind === 'stock') {
     var items = bomItems_()[key] || [], snapIt = {};
-    try { ((bomSnapGet_() || {}).projects || []).forEach(function (x) { if (x.project === key) x.items.forEach(function (i) { snapIt[ordCodeKey_(i.code)] = i; }); }); } catch (e) {}
+    try { ((bomSnapGet_() || {}).projects || []).forEach(function (x) { if (x.project === key) x.items.forEach(function (i) { snapIt[ordCodeKey_(i.code)] = i; }); }); } catch (e) { errLog_(e, 'BomExport:98'); }
     var want = {}; items.forEach(function (it) { want[ordCodeKey_(it.code)] = 1; });
     var st = bomStockIdx_(function (k) { return want[k]; });
     items.forEach(function (it) {

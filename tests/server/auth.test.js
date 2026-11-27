@@ -93,6 +93,14 @@ T('authMe gives the role back after reload',(()=>{const m=mk().authMe(tA);return
 const tU=c.api('', 'authLogin',['somchai@example.co.th','NewPass2026',true]).token;
 T('normal user is refused Admin functions',/Admin only/.test(E(()=>mk().api(tU,'authUsers',['']))));
 c.authUserAction('ADM','malee@example.co.th','user');T('back to user: old Admin session signed out',mk().authMe(tA).none===true);
+// ── role: ผู้ดู (viewer) ──
+r=c.authUserAction('ADM','somchai@example.co.th','viewer');
+T('role set to viewer, shown in the list, sessions signed out',r.users.find(u=>u.email==='somchai@example.co.th').role==='viewer'&&mk().authMe(tU).none===true);
+const tV=c.api('', 'authLogin',['somchai@example.co.th','NewPass2026',true]).token;
+T('viewer: order writing / Export / booking refused with a clear message',['saveOrder','exportOrder','claimRemain','submitOrderApproval','exportBomForm'].every(f=>/ผู้ดู/.test(E(()=>mk().api(tV,f,[{}])))));
+T('viewer: reading still works (not refused for the role)',!/ผู้ดู/.test(E(()=>mk().api(tV,'getIssues',[]))));
+T('viewer: role comes back to the page',mk().authMe(tV).user.role==='viewer');
+c.authUserAction('ADM','somchai@example.co.th','user');
 // ── sign-in off ──
 c.authSaveCfg('ADM',{on:false});c=mk();c.getPulse=()=>({ok:2});T('sign-in off: pages work without a session',c.api('', 'getPulse',[]).ok===2);
 T('sign-in off: console call still refused',/AUTH_REQUIRED/.test(E(()=>mk().getSchedules())));

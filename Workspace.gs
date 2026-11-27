@@ -83,7 +83,7 @@ function wsHistory_(k) {
 // result cache keyed by the data versions it depends on (shared by every viewer). The key changes whenever
 // one of those versions (or the day) changes, so a long lifetime is safe: 6 h, pre-built after each sync (wsWarm_)
 function wsCached_(name, keys, extra, fn) {
-  var P = {}; try { P = getPulse(); } catch (e) {}
+  var P = {}; try { P = getPulse(); } catch (e) { errLog_(e, 'Workspace:86'); }
   var raw = [name, ordToday_(), extra].concat(keys.map(function (k) { return P[k] || ''; })).join('|');
   var key = 'ws_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, raw)).replace(/=+$/, '');
   var hit = ordCacheGet_(key); if (hit) { hit.cached = true; return hit; }
@@ -141,7 +141,7 @@ function wsPendingRows_(match) {
       var t = l.indexOf('\t'); if (t < 0) return;
       var f = l.split('\t'); if (match(ordCodeKey_(l.substring(0, t)), f)) out.push(f);
     });
-  } catch (e) {}
+  } catch (e) { errLog_(e, 'Workspace:144'); }
   return out;
 }
 function wsOrderState_(o) {
@@ -155,7 +155,7 @@ function getItem360(token, code) { apiOnly_();
   if (!k) throw new Error('CODE ไม่ถูกต้อง');
   var out = { code: String(code).trim(), key: k, found: false, desc: '', comment: '', unit: '', by: '', rqn: '', onhand: 0, locs: [], admin: admin };
   try {
-    var rows = stockData_();
+    var rows = stockRowsFor_((function () { var w = {}; w[k] = 1; return w; })());   // CODE index
     for (var i = 0; i < rows.length; i++) {
       var p = rows[i], t = p.indexOf('\t'); if (t < 0 || ordCodeKey_(p.substring(0, t)) !== k) continue;
       var f = p.split('\t'), q = saNum_(f[3]) || 0;
@@ -170,7 +170,7 @@ function getItem360(token, code) { apiOnly_();
     }
     out.locs.sort(function (a, b) { return b.qty - a.qty; });
     out.lastUsed = stockLuDmy_(out._lu || ''); out.inactive = !!(out._off && !out._on); delete out._lu; delete out._on; delete out._off;
-  } catch (e) {}
+  } catch (e) { errLog_(e, 'Workspace:173'); }
   // Pending Order: open (≤ 1 year) and recent closed, plus the planned lead time of closed POs
   var today = wsToday_(), YEAR = 365 * 864e5, open = [], done = [], lts = [];
   wsPendingRows_(function (kk) { return kk === k; }).forEach(function (g) {
@@ -219,7 +219,7 @@ function getItem360(token, code) { apiOnly_();
   try { out.remain = rsForOrder_([k])[k] || []; } catch (e) { out.remain = []; }
   // history + forecast
   var hist = wsHistory_(k), since = '';
-  try { since = rsHist_((function () { var w = {}; w[k] = 1; return w; })())[k] || ''; } catch (e) {}
+  try { since = rsHist_((function () { var w = {}; w[k] = 1; return w; })())[k] || ''; } catch (e) { errLog_(e, 'Workspace:222'); }
   out.since = since; out.histStart = schedProp_('RS_HIST_START') || '';
   var cut = today - 90 * 864e5, pts = hist.filter(function (x) { return x[0] >= cut; }), before = hist.filter(function (x) { return x[0] < cut; }).pop();
   if (before) pts.unshift([cut, before[1]]);
@@ -269,14 +269,14 @@ function wsMyDay_(admin) {
       .map(function (x) { return { code: x.code, desc: x.desc, qty: x.qty, unit: x.unit, min: x.min, lt: x.lt, level: x.level, suggest: x.suggest, pend: x.pend }; }) };
   } catch (e) { out.sa = null; }
   // Booking BOM
-  var snap = null; try { snap = bomSnapGet_(); } catch (e) {}
+  var snap = null; try { snap = bomSnapGet_(); } catch (e) { errLog_(e, 'Workspace:272'); }
   var projs = (snap && snap.projects || []).filter(function (p) { return p.status === 'active'; });
   out.bomShort = [];
   projs.forEach(function (p) { p.items.forEach(function (x) {
     if (x.st === 'short') out.bomShort.push({ project: p.project, needDate: p.needDate, daysLeft: p.daysLeft, code: x.code, material: x.material, short: x.short, unit: x.unit, by: x.by || '', mine: String(x.by || '').toUpperCase() === ob });
   }); });
   out.bomShort.sort(function (a, b) { return (a.daysLeft == null ? 9e9 : a.daysLeft) - (b.daysLeft == null ? 9e9 : b.daysLeft); });
-  var exp = {}; try { exp = bomExpLast_(); } catch (e) {}
+  var exp = {}; try { exp = bomExpLast_(); } catch (e) { errLog_(e, 'Workspace:279'); }
   out.projects = projs.map(function (p) { return { project: p.project, title: p.title, needDate: p.needDate, daysLeft: p.daysLeft, count: p.count, total: p.total, last: (exp[p.project] || [])[0] || null, ship: p.ship && p.ship.alert ? { pct: p.ship.pct, full: p.ship.full, n: p.ship.n, last: p.ship.last, closeOn: p.ship.closeOn } : null }; })
     .sort(function (a, b) { return (a.daysLeft == null ? 9e9 : a.daysLeft) - (b.daysLeft == null ? 9e9 : b.daysLeft); });
   // orders (last 120 days) — the browser picks "mine" by the DES'D name it remembers
@@ -290,7 +290,7 @@ function wsMyDay_(admin) {
         sent: a.sent || '', since: since, waitDays: st.key === 'chk' || st.key === 'app' ? oaWorkDays_(since) : null, remark: o.remark || '' });
     });
     out.orders.reverse();
-  } catch (e) {}
+  } catch (e) { errLog_(e, 'Workspace:293'); }
   // incoming this week (Pending Order due in the next 7 days, not closed)
   var wk = [];
   wsPendingRows_(function (k, f) { return !ORD_PO_DONE.test(f[4] || ''); }).forEach(function (f) {
@@ -308,7 +308,7 @@ function wsMyDay_(admin) {
       var open = 0, old = 0;
       wsIssues_().forEach(function (x) { if (/^(Resolved|Closed)$/.test(x.status)) return; open++; var d = dateOf_(x.date); if (d && (today - d.getTime()) / 864e5 > 7) old++; });
       out.cases = { open: open, old: old };
-    } catch (e) {}
+    } catch (e) { errLog_(e, 'Workspace:311'); }
     out.sync = { stock: stockInfo_(), po: poInfo_(), sched: schedSyncInfo_(), rt: rtInfo_() };
     try { out.backup = JSON.parse(schedProp_('LAST_BACKUP') || 'null'); } catch (e) {}
     try { out.mailQuota = MailApp.getRemainingDailyQuota(); } catch (e) {}
@@ -335,7 +335,7 @@ function wsProjects_() {
     var d = bomDate_(r[9]);
     if (d != null && d >= today && (P.next == null || d < P.next)) { P.next = d; P.nextLabel = String(r[8]).trim() + ' Start'; }
   });
-  var snap = null; try { snap = bomSnapGet_(); } catch (e) {}
+  var snap = null; try { snap = bomSnapGet_(); } catch (e) { errLog_(e, 'Workspace:338'); }
   (snap && snap.projects || []).forEach(function (p) {
     var b = wsBase_(p.project), hit = null;
     Object.keys(by).forEach(function (x) { if (bomKey_(p.project).indexOf(x) === 0 && (!hit || x.length > hit.length)) hit = x; });
@@ -398,8 +398,8 @@ function wsProject360_(B) {
     var d = bomDate_(s.start); if (d != null) out.events.push({ t: d, label: s.process + ' Start', kind: 'sched' });
   });
   if (bomDate_(out.delivery) != null) out.events.push({ t: bomDate_(out.delivery), label: 'Delivery', kind: 'delivery' });
-  var snap = null; try { snap = bomSnapGet_(); } catch (e) {}
-  var exp = {}; try { exp = bomExpLast_(); } catch (e) {}
+  var snap = null; try { snap = bomSnapGet_(); } catch (e) { errLog_(e, 'Workspace:401'); }
+  var exp = {}; try { exp = bomExpLast_(); } catch (e) { errLog_(e, 'Workspace:402'); }
   var cfg = bomCfg_(), ob = String(cfg.orderBy || 'DS13').toUpperCase(), codes = {};
   (snap && snap.projects || []).forEach(function (p) {
     if (bomKey_(p.project).indexOf(B) !== 0) return;
@@ -431,14 +431,14 @@ function wsProject360_(B) {
       var d = bomDate_(o.issueDate); if (d != null) out.events.push({ t: d, label: 'ใบสั่ง ' + o.id, kind: 'order' });
     });
     out.orders.reverse();
-  } catch (e) {}
+  } catch (e) { errLog_(e, 'Workspace:434'); }
   // Order Project = Pending Order lines whose CODE carries the project number: XXXX + PP1043 + unit letter (position 11) + XXXXX
   try { out.projOrd = wsProjOrders_(B); } catch (e) { console.warn('wsProjOrders_', e); out.projOrd = null; }
   // cases that mention the project
   try {
     wsIssues_().forEach(function (x) { if (bomKey_(x.project + ' ' + x.desc).indexOf(B) >= 0) out.issues.push({ id: x.id, project: x.project, desc: String(x.desc).substring(0, 120), status: x.status, date: x.date }); });
     out.issues = out.issues.reverse().slice(0, 8);
-  } catch (e) {}
+  } catch (e) { errLog_(e, 'Workspace:441'); }
   out.events.push({ t: today, label: 'วันนี้', kind: 'today' });
   // one marker per day: "LCC Start · RCC Start"
   var rank = { today: 0, delivery: 1, sched: 2, export: 3, order: 4, bom: 5 }, day = {};

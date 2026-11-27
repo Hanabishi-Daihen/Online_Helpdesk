@@ -229,7 +229,7 @@ function docLookup(q) { apiOnly_();
       var hr = addR(o.rqn), hd = addD(o.spec);
       if (hr || hd) out.hits.push({ via: 'ORDER', order: o.id, pr: o.rqn, spec: o.spec, code: (o.items || []).map(function (it) { return it.code; }).filter(function (c) { return tk.indexOf(key(c)) >= 0; }).join(', ') });
     });
-  } catch (e) {}
+  } catch (e) { errLog_(e, 'DocSearch:232'); }
   out.hits = out.hits.slice(0, 40);
   return out;
 }

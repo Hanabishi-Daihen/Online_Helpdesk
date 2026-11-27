@@ -53,8 +53,8 @@ function statMonths_(n, now) { var out = [], d = new Date(now); d.setDate(1); fo
 function statR_(v, n) { var p = Math.pow(10, n == null ? 2 : n); return Math.round((Number(v) || 0) * p) / p; }
 function statMedian_(a) { if (!a.length) return null; a = a.slice().sort(function (x, y) { return x - y; }); var m = Math.floor(a.length / 2); return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; }
 function statD8t_(d8) { return d8 && d8.length === 8 ? new Date(+d8.substring(0, 4), +d8.substring(4, 6) - 1, +d8.substring(6, 8)).getTime() : null; }
-function statSkip_(code) { return /^SV/i.test(String(code || '').trim()); }   // SV… = service jobs: never counted in any statistic
-function statProjC_(code) { return /^\d{4}PP\d{4}C\d{3,}$/i.test(String(code || '')); }   // By Project CODE: 4556PP1030C00201
+function statSkip_(code) { return unitSvSkip_(code); }   // SV… = service jobs: never counted in any statistic
+function statProjC_(code) { return unitProjC_(code); }   // By Project CODE: 4556PP1030C00201
 function statGroupOf_(code) { return String(code).substring(0, 4); }
 
 // ── build ─────────────────────────────────────────────────────────────
@@ -62,8 +62,8 @@ function statBuild_() {
   var t0 = Date.now(), now = t0, today = new Date(); today = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
   // our unit only: Item stock / Pending Order lines ordered by the unit (DS13), MF issues to CONTROL WIRING,
   // and By Project CODEs (16 digits with the project number + C: 4556PP1030C00201)
-  var by = String((bomCfg_() || {}).orderBy || 'DS13').trim().toUpperCase();
-  var S = { v: 4, built: nowStr_(), notes: [], scope: { by: by, dept: 'CONTROL WIRING' } }, M24 = statMonths_(24, now), M12 = {}; statMonths_(12, now).forEach(function (m) { M12[m] = 1; });
+  var U = unitCfg_(), by = U.by;
+  var S = { v: 4, built: nowStr_(), notes: [], scope: { by: by, dept: U.mfDept, sv: U.svPrefix, pc: U.projLetter } }, M24 = statMonths_(24, now), M12 = {}; statMonths_(12, now).forEach(function (m) { M12[m] = 1; });
   // Item stock: onhand / LASTCOST / LASTSHIPDT per CODE (all locations)
   var stock = {};
   var hasStock = !!schedProp_('STOCK_SS_ID');                         // never create the Item stock workbook from here
@@ -124,7 +124,7 @@ function statBuild_() {
   // 2 · BOM against what was issued (open + closed in the last 18 months, newest 40)
   try { S.bom = statBom_(now); } catch (e) { S.notes.push('เทียบ BOM ไม่สำเร็จ: ' + (e.message || e)); }
   // 3 · stock health
-  var sa = {}; try { sa = saSettings_(); } catch (e) {}
+  var sa = {}; try { sa = saSettings_(); } catch (e) { errLog_(e, 'StatSummary:127'); }
   var y = function (n) { return statYm_(now - n * 365 * 864e5) + '01'; };
   // never issued but a PR / PO in the last 5 years = still planned for use (not idle stock)
   var pend = []; try { pend = statPend_(); } catch (e) { S.notes.push('อ่าน Pending Order ไม่สำเร็จ: ' + (e.message || e)); }
@@ -132,8 +132,8 @@ function statBuild_() {
   var B = [['ไม่เกิน 1 ปี', y(1)], ['1–2 ปี', y(2)], ['2–3 ปี', y(3)], ['เกิน 3 ปี', '0'], ['ไม่เคยเบิก', null], ['ไม่เคยเบิก · มี PR/PO ใน 5 ปี (รอใช้งาน)', null]].map(function (b, i) { return { name: b[0], from: b[1], n: 0, $v: 0, wait: i === 5 }; });
   var waitL = [];
   var V = 0, grp = {}, dead = [], low = [], over = [], lt0 = 30;
-  try { lt0 = fcCfg_().lt; } catch (e) {}
-  var rt = {}; if (hasStock) try { rt = rtMap_(stock); } catch (e) {}
+  try { lt0 = fcCfg_().lt; } catch (e) { errLog_(e, 'StatSummary:135'); }
+  var rt = {}; if (hasStock) try { rt = rtMap_(stock); } catch (e) { errLog_(e, 'StatSummary:136'); }
   var pcN = 0, pcV = 0;
   Object.keys(stock).forEach(function (k) {
     if (!ours(k)) return;
@@ -212,7 +212,7 @@ function statBom_(now) {
     out.push({ project: p.project, title: p.title, status: p.status, imported: String(p.imported || '').substring(0, 10), n: nc.length, issued: issued, notIssued: nc.length - issued, under: under, extra: extra.length,
       extraCodes: extra.slice(0, 12), acc: statR_(issued / (nc.length + extra.length) * 100, 1) });
   });
-  var desc = {}; try { var A = statAgg_(); desc = A ? A.desc : {}; } catch (e) {}
+  var desc = {}; try { var A = statAgg_(); desc = A ? A.desc : {}; } catch (e) { errLog_(e, 'StatSummary:215'); }
   return { projects: out, avg: out.length ? statR_(out.reduce(function (s, p) { return s + p.acc; }, 0) / out.length, 1) : null,
     over: Object.keys(over).map(function (c) { var o = over[c]; return { code: c, desc: (desc[c] || [''])[0], n: o.n, pct: statR_(statMedian_(o.pct), 0) }; })
       .filter(function (o) { return o.n >= 2; }).sort(function (a, b) { return b.n - a.n || b.pct - a.pct; }).slice(0, 40) };
@@ -262,7 +262,7 @@ function statPo_(today, stock, rt, lt0, by, rows) {
 // ── read ──────────────────────────────────────────────────────────────
 function statGet_() {
   var C = CacheService.getScriptCache(), b = null;
-  try { var n = Number(C.get('stat_n') || 0); if (n) { var keys = []; for (var i = 0; i < n; i++) keys.push('stat_' + i); var o = C.getAll(keys); if (keys.every(function (k) { return o[k]; })) b = keys.map(function (k) { return o[k]; }).join(''); } } catch (e) {}
+  try { var n = Number(C.get('stat_n') || 0); if (n) { var keys = []; for (var i = 0; i < n; i++) keys.push('stat_' + i); var o = C.getAll(keys); if (keys.every(function (k) { return o[k]; })) b = keys.map(function (k) { return o[k]; }).join(''); } } catch (e) { errLog_(e, 'StatSummary:265'); }
   if (!b) b = statBlobGet_(shipSS_(false), STAT_SHEET);
   return b ? JSON.parse(shipUnB64_(b)) : null;
 }

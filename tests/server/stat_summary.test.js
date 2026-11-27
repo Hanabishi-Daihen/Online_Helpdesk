@@ -18,7 +18,7 @@ const mk=()=>{const ctx={console:{log(){},warn(){}},JSON,Math,Date,String,Number
   if(!ranged||!m){return{getResponseCode:()=>200,getAllHeaders:()=>({ETag:ETAG}),getBlob:()=>blob(FILE)}}
   const a=+m[1],z=Math.min(+m[2],FILE.length-1);return{getResponseCode:()=>206,getAllHeaders:()=>({'Content-Range':'bytes '+a+'-'+z+'/'+FILE.length,ETag:ETAG}),getBlob:()=>blob(FILE.subarray(a,z+1))}}},
  SpreadsheetApp:{openById:()=>SS,create:()=>{book.sheets['Sheet1']=mkSheet('Sheet1');return SS},flush(){}},DriveApp:{getFileById:()=>({moveTo(){}}),getFolderById:()=>({})},
- ScriptApp:{getProjectTriggers:()=>trig.slice(),deleteTrigger:t=>trig.splice(trig.indexOf(t),1),newTrigger:h=>{const b={timeBased:()=>b,everyDays:()=>b,everyHours:()=>b,atHour:()=>b,nearMinute:()=>b,create:()=>{const t={getHandlerFunction:()=>h};trig.push(t);return t}};return b}},
+ ScriptApp:{getProjectTriggers:()=>trig.slice(),deleteTrigger:t=>trig.splice(trig.indexOf(t),1),newTrigger:h=>{const b={timeBased:()=>b,after:()=>b,everyDays:()=>b,everyHours:()=>b,atHour:()=>b,nearMinute:()=>b,create:()=>{const t={getHandlerFunction:()=>h};trig.push(t);return t}};return b}},
  LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){},tryLock:()=>true})},
  CacheService:{getScriptCache:()=>({get:k=>k in cache?cache[k]:null,put:(k,v)=>{cache[k]=String(v)},putAll:o=>Object.assign(cache,o),getAll:ks=>{const o={};ks.forEach(k=>{if(k in cache)o[k]=cache[k]});return o},remove:k=>{delete cache[k]}})}};
  ctx.globalThis=ctx;vm.createContext(ctx);vm.runInContext(src,ctx);ctx.audit_=()=>{};ctx.__trusted=true;ctx.__user={e:'admin:a',n:'A.Admin',a:1};return ctx};
@@ -51,7 +51,9 @@ const pend=[['42046001','PR1','PO1','','Open','MCB',dmy(ago(3)),'',dmy(ago(3,10)
   ['46700402','PR3','','','Open','TB',dmy(ago(5)),'','','','','','DS13','10','PC'],['88880001','PR9','PO9','','Open','X',dmy(ago(8)),'',dmy(ago(8,9)),dmy(ago(6)),'','','STORE/PL','1','PC'],['42046001','PR7','PO7','','On P/O','MCB OLD',dmy(ago(48)),'',dmy(ago(48,9)),dmy(ago(46)),'','','DS13','2','PC'],['77770001','PR6','PO6','','Received','SPARE',dmy(ago(20)),'',dmy(ago(20,9)),dmy(ago(18)),'','','DS13','5','PC'],['SV024154','PR5','PO5','','Open','SERVICE',dmy(ago(30)),'',dmy(ago(30,9)),dmy(ago(29)),'','','DS13','1','Job']].map(r=>r.join('\t')).join('\n');
 c.pendingBundle_=()=>({hash:'p',b64:zlib2.gzipSync(Buffer.from(pend)).toString('base64')});
 let r=c.syncShipNow('');
-T('Shipment sync ok and the summary is built with it',r.ok&&/สรุปสถิติใหม่แล้ว/.test(r.msg),r.msg);
+T('Shipment sync ok; Booking BOM / สถิติ queued for a second execution (one-off trigger)',r.ok&&/ต่อเบื้องหลัง/.test(r.msg)&&trig.some(t=>t.getHandlerFunction()==='shipAfterSync')&&!c.getStatSummary('').months,r.msg);
+c.shipAfterSync();
+T('the queued run builds the summary and notes it on the sync card',!!c.getStatSummary('').months&&/คำนวณต่อเสร็จ/.test(JSON.parse(c.schedProp_('SHIP_SYNC_LAST')).msg)&&!c.schedProp_('SHIP_POST'),JSON.parse(c.schedProp_('SHIP_SYNC_LAST')).msg);
 const S=c.getStatSummary('');
 T('usage: 12-month net use per CODE, the return kept apart (issued 100, returned 2)',S.topQty.find(x=>x.code==='42046001').q===100&&S.topQty.find(x=>x.code==='42046001').r===2&&S.$topCost[0].code==='42046001'&&!S.topQty.some(x=>x.code==='10190005'),S.topQty);
 T('usage: cost per CODE is issued − returned (10000 − 200), the share of the top 20',S.$topCost.find(x=>x.code==='42046001').$c===9800&&S.$share20===100,S.$topCost);

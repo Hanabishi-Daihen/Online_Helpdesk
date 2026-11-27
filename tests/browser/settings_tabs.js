@@ -8,16 +8,36 @@ const { chromium } = require('playwright');
   const check = (n, c, x) => { console.log((c ? 'PASS ' : 'FAIL ') + n + (c ? '' : ' → ' + JSON.stringify(x))); c || fails.push(n); };
   const srv = require('http').createServer((q, r) => { r.setHeader('content-type', 'text/html; charset=utf-8'); r.end(fs.readFileSync(OUT + 'doc.html')); }).listen(8853);
   await p.goto('http://localhost:8853/'); await p.waitForTimeout(1500);
+  await p.evaluate(() => {
+    const G = window.google.script, d = Object.getOwnPropertyDescriptor(G, 'run'); window.__unit = [];
+    let cfg = { by: 'DS13', mfDept: 'CONTROL WIRING', svPrefix: 'SV', projLetter: 'C', codeLen: 8 };
+    Object.defineProperty(G, 'run', { configurable: true, get() {
+      const inner = d.get.call(G); let ok = () => {};
+      const w = { withSuccessHandler(f) { ok = f; inner.withSuccessHandler(f); return w; }, withFailureHandler(f) { inner.withFailureHandler(f); return w; },
+        api(t, fn, a) {
+          if (fn === 'getUnitCfg') { setTimeout(() => ok({ cfg, def: cfg, admin: true }), 20); return; }
+          if (fn === 'saveUnitCfg') { window.__unit.push(a[1]); cfg = { ...a[1], codeLen: Number(a[1].codeLen) }; setTimeout(() => ok({ cfg, def: cfg, admin: true }), 20); return; }
+          return inner.api(t, fn, a);
+        } };
+      return new Proxy(w, { get: (o, k) => k in o ? o[k] : inner[k] });
+    } });
+  });
   await p.locator('button', { hasText: /Admin|ปลดล็อค/ }).first().click(); await p.waitForTimeout(400);
   const u = p.locator('input[autocomplete=username]'); if (await u.count()) await u.fill('a.admin');
   const pw = p.locator('input[type=password]'); await pw.first().fill('control'); await pw.first().press('Enter'); await p.waitForTimeout(1500);
   await p.locator('aside nav button:has-text("ตั้งค่าระบบ")').first().click(); await p.waitForTimeout(1800);
   const vis = () => p.evaluate(() => Array.from(document.querySelectorAll('.zq-sett section')).filter(s => !s.parentElement.closest('section') && s.offsetParent).map(s => { const h = s.querySelector('h2,h3,h4'); return (h ? h.textContent : Array.from(s.childNodes).filter(x => x.nodeName !== 'STYLE').map(x => x.textContent).join(' ')).trim().slice(0, 40); }));
   const tabs = await p.locator('.zq-sett-tabs button').allInnerTexts();
-  check('six topics as tabs, each with its card count', tabs.length === 6 && /ข้อมูลและการซิงค์/.test(tabs[0]) && /บัญชีและสิทธิ์/.test(tabs.join()) && /การแจ้งเตือน/.test(tabs.join()), tabs);
+  check('seven topics as tabs (หน่วยงาน first), each with its card count', tabs.length === 7 && /หน่วยงาน/.test(tabs[0]) && /ข้อมูลและการซิงค์/.test(tabs[1]) && /บัญชีและสิทธิ์/.test(tabs.join()) && /การแจ้งเตือน/.test(tabs.join()), tabs);
   let v = await vis();
   check('ข้อมูลและการซิงค์: Google Sheets + every OneDrive sync card, nothing else', v.length >= 7 && v.every(x => /Google Sheets|ซิงค์/.test(x)), v);
   const tab = async t => { await p.locator('.zq-sett-tabs button', { hasText: t }).click(); await p.waitForTimeout(300); return vis(); };
+  v = await tab('หน่วยงาน');
+  const un = p.locator('section[aria-label="หน่วยงาน"]');
+  check('หน่วยงาน: one card with the orderer, MF department, skipped prefixes, By Project letter, CODE length', v.length === 1 && /หน่วยงาน/.test(v[0]) && (await un.locator('input').count()) === 5 && await un.locator('input').first().inputValue() === 'DS13', v);
+  await un.locator('input').nth(2).fill('SV, SR'); await un.locator('button:has-text("บันทึก")').click(); await p.waitForTimeout(500);
+  const su = await p.evaluate(() => window.__unit[0]);
+  check('หน่วยงาน: saves all five values', su && su.by === 'DS13' && su.mfDept === 'CONTROL WIRING' && su.svPrefix === 'SV, SR' && su.projLetter === 'C' && Number(su.codeLen) === 8 && /บันทึกแล้ว/.test(await un.innerText()), su);
   v = await tab('บัญชีและสิทธิ์');
   check('บัญชีและสิทธิ์: Admin access, Admin accounts, user accounts, price code', v.length === 4 && v.some(x => /Admin Access/.test(x)) && v.some(x => /บัญชีผู้ใช้งาน/.test(x)) && v.some(x => /รหัสดูราคา/.test(x)), v);
   v = await tab('เมนู');

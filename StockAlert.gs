@@ -16,7 +16,7 @@ var SA_SET_HEADER = ['CODE', 'MIN', 'MAX', 'NOT_USE', 'LT_DAYS', 'NOTE', 'UPDATE
 var RT_SHEET = 'StockRT';
 var SA_DEF = { by: 'DS13', ltLow: 7, ltHigh: 30 };
 var SA_CODE_LEN = 8;                                 // ใช้เฉพาะ CODE 8 หลัก (Stock) — ไม่เอา 16 หลัก (ของเฉพาะงาน)
-function saCodeOk_(k) { k = String(k || ''); return k.length === SA_CODE_LEN && !/^SV/i.test(k); }   // SV… = service / non-stock codes → never alerted
+function saCodeOk_(k) { k = String(k || ''); return k.length === unitCfg_().codeLen && !unitSvSkip_(k); }   // SV… = service / non-stock codes → never alerted
 
 function saCfg_() {
   var c = {}; try { c = JSON.parse(schedProp_('SA_CFG') || '{}') || {}; } catch (e) {}
@@ -124,7 +124,7 @@ function rtMap_(want) {
       var k = ordCodeKey_(r[0]); if (!want[k]) return;
       var d = Number(r[1]); if (d > 0) out[k] = d;
     });
-  } catch (e) {}
+  } catch (e) { errLog_(e, 'StockAlert:127'); }
   return out;
 }
 
@@ -150,7 +150,7 @@ function saOrders_() {
 }
 function saCompute_() {
   var cfg = saCfg_(), isBy = saByMatch_(cfg.by), set = saSettings_(), items = {}, want = {};
-  var rows = []; try { rows = stockData_(); } catch (e) {}
+  var rows = []; try { rows = stockData_(); } catch (e) { errLog_(e, 'StockAlert:153'); }
   var codes = {};                                          // codes ordered by DS13 (any location)
   for (var i = 0; i < rows.length; i++) {
     var p = rows[i]; if (!p) continue;
@@ -187,10 +187,10 @@ function saCompute_() {
       P.list.push({ pr: f2[1], po: f2[2], due: f2[9] || f2[7], qty: f2[13], unit: f2[14], dist: d == null ? 9e15 : Math.abs(d - t0) });
     });
     Object.keys(pend).forEach(function (k3) { pend[k3].list.sort(function (x, y) { return x.dist - y.dist; }); pend[k3].list = pend[k3].list.slice(0, 5); });
-  } catch (e) {}
-  var bk = {}; try { bk = bomBooked_(); } catch (e) {}              // Booking BOM: stock already reserved for projects
+  } catch (e) { errLog_(e, 'StockAlert:190'); }
+  var bk = {}; try { bk = bomBooked_(); } catch (e) { errLog_(e, 'StockAlert:191'); }              // Booking BOM: stock already reserved for projects
   var od = saOrders_();                                               // orders written in Order Item, not yet in Pending Order
-  var cs = {}; try { if (typeof csAll_ === 'function') cs = csAll_(false); } catch (e) {}   // ทะเบียน CODE เลิกใช้ (CodeStatus.gs)
+  var cs = {}; try { if (typeof csAll_ === 'function') cs = csAll_(false); } catch (e) { errLog_(e, 'StockAlert:193'); }   // ทะเบียน CODE เลิกใช้ (CodeStatus.gs)
   var out = [], cnt = { high: 0, mid: 0, low: 0, part: 0, ord: 0, wait: 0, nomin: 0, over: 0, ok: 0, off: 0, out: 0 };
   Object.keys(items).forEach(function (k) {
     var it = items[k], s = set[k] || {}, P = pend[k] || { qty: 0, list: [], stale: 0 };
@@ -302,7 +302,7 @@ function saveStockAlertBulk(token, list) { apiOnly_();
     list.forEach(function (it) {
       var code = ordStr_(it && it.code, 40), k = ordCodeKey_(code);
       if (!k) { errs.push('มีแถวที่ไม่มี CODE'); return; }
-      if (!saCodeOk_(k)) { errs.push(code + ': CODE ต้องยาว ' + SA_CODE_LEN + ' หลัก และไม่ขึ้นต้นด้วย SV'); return; }
+      if (!saCodeOk_(k)) { errs.push(code + ': CODE ต้องยาว ' + unitCfg_().codeLen + ' หลัก และไม่ขึ้นต้นด้วย SV'); return; }
       var i = idx[k], cur = i != null ? tbl[i] : [code, '', '', '', '', '', '', ''];
       var mn = num(it.min, 'Min', code), mx = num(it.max, 'Max', code), lt = num(it.lt, 'LT', code);
       var row = cur.slice();
